@@ -1,8 +1,8 @@
 {
   "files": {
-    "main.js": "/tenminutesfromhell/static/js/main.b75cae4a.js",
-    "index.html": "/tenminutesfromhell/index.html",
-    "main.b75cae4a.js.map": "/tenminutesfromhell/static/js/main.b75cae4a.js.map"
+    "main.js": "/TENMINUTESFROMHELL/static/js/main.b75cae4a.js",
+    "index.html": "/TENMINUTESFROMHELL/index.html",
+    "main.b75cae4a.js.map": "/TENMINUTESFROMHELL/static/js/main.b75cae4a.js.map"
   },
   "entrypoints": [
     "static/js/main.b75cae4a.js"
