@@ -1,10 +1,13 @@
 {
   "files": {
-    "main.js": "/TENMINUTESFROMHELL/static/js/main.b75cae4a.js",
+    "main.css": "/TENMINUTESFROMHELL/static/css/main.a2669e49.css",
+    "main.js": "/TENMINUTESFROMHELL/static/js/main.5b08a89b.js",
     "index.html": "/TENMINUTESFROMHELL/index.html",
-    "main.b75cae4a.js.map": "/TENMINUTESFROMHELL/static/js/main.b75cae4a.js.map"
+    "main.a2669e49.css.map": "/TENMINUTESFROMHELL/static/css/main.a2669e49.css.map",
+    "main.5b08a89b.js.map": "/TENMINUTESFROMHELL/static/js/main.5b08a89b.js.map"
   },
   "entrypoints": [
-    "static/js/main.b75cae4a.js"
+    "static/css/main.a2669e49.css",
+    "static/js/main.5b08a89b.js"
   ]
 }
