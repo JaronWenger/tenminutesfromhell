@@ -1,13 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './Timer.css';
 
-const Timer = () => {
-  const [timeLeft, setTimeLeft] = useState(675); // 11:15 in seconds (11*60 + 15)
-  const [isRunning, setIsRunning] = useState(false);
-  const [targetTime, setTargetTime] = useState(675); // 11:15 default
-  const intervalRef = useRef(null);
-
-  const workouts = [
+const Timer = ({ workouts = [], prepTime = 15 }) => {
+  // Default workouts if none provided
+  const defaultWorkouts = [
     "Russian Twist",
     "Boat hold or seated in and outs",
     "Glut boat hold",
@@ -21,12 +17,30 @@ const Timer = () => {
     "Boat hold leg flutters"
   ];
 
+  const workoutList = workouts.length > 0 ? workouts : defaultWorkouts;
+  
+  // Calculate total time dynamically: (workoutList.length * 60) + prepTime
+  const calculateTotalTime = () => (workoutList.length * 60) + prepTime;
+  
+  const [timeLeft, setTimeLeft] = useState(calculateTotalTime());
+  const [isRunning, setIsRunning] = useState(false);
+  const [targetTime, setTargetTime] = useState(calculateTotalTime());
+  const intervalRef = useRef(null);
+
   useEffect(() => {
     if (isRunning) {
       intervalRef.current = setInterval(() => {
         setTimeLeft(prevTime => {
           if (prevTime <= 0) {
             setIsRunning(false);
+            // Fire GTM event for workout completion
+            if (window.dataLayer) {
+              window.dataLayer.push({
+                event: 'workout_complete',
+                workout_duration: targetTime,
+                workout_type: 'ten_minutes_from_hell'
+              });
+            }
             return 0;
           }
           return prevTime - 1;
@@ -37,7 +51,7 @@ const Timer = () => {
     }
 
     return () => clearInterval(intervalRef.current);
-  }, [isRunning]);
+  }, [isRunning, targetTime]);
 
   const startTimer = () => {
     if (timeLeft > 0) {
@@ -69,15 +83,16 @@ const Timer = () => {
   const getProgressColor = () => {
     const currentSeconds = timeLeft % 60;
     
-    if (currentSeconds >= 1 && currentSeconds <= 15) {
+    // Red for seconds 1-15 of each minute (except the last minute)
+    if (currentSeconds >= 1 && currentSeconds <= 15 && timeLeft > 60) {
       return '#ff3b30'; // Red for seconds 1-15 of each minute
     } else {
-      return '#007aff'; // Blue for the rest (including 11:00 which is second 0)
+      return '#007aff'; // Blue for the rest (including the entire last minute)
     }
   };
 
   const setPresetTime = (minutes) => {
-    const newTime = minutes * 60;
+    const newTime = (minutes * 60) + prepTime;
     setTargetTime(newTime);
     setTimeLeft(newTime);
     setIsRunning(false);
@@ -86,7 +101,7 @@ const Timer = () => {
   // Calculate which workout should be active
   const currentMinute = Math.floor(timeLeft / 60);
   const currentSecond = timeLeft % 60;
-  const workoutIndex = Math.floor((targetTime - timeLeft) / 60);
+  const workoutIndex = Math.min(Math.floor((targetTime - timeLeft) / 60), workoutList.length - 1);
 
   return (
     <div className="timer-container">
@@ -115,12 +130,24 @@ const Timer = () => {
             transform="rotate(-90 150 150)"
           />
         </svg>
-        <div className="time-text">
+
+        <div
+          className="time-text"
+          onClick={() => {
+            setTimeLeft(prevTime => Math.max(0, prevTime - 5));
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           {formatTime(timeLeft)}
         </div>
         
+
+
         {!isRunning && (
-          <button className="play-btn" onClick={startTimer}>
+          <button 
+            className="play-btn" 
+            onClick={startTimer}
+          >
             ▶
           </button>
         )}
@@ -136,7 +163,10 @@ const Timer = () => {
         
         {isRunning && (
           <button className="pause-btn" onClick={stopTimer}>
-            ⏸
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
+              <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
+            </svg>
           </button>
         )}
       </div>
@@ -144,12 +174,12 @@ const Timer = () => {
 
 
       <div className="workout-list">
-        {workouts.map((workout, index) => {
-          const isActive = index === workoutIndex && isRunning;
-          const isCompleted = index < workoutIndex;
-          const isUpcoming = index > workoutIndex || (index === workoutIndex && !isRunning);
+        {workoutList.map((workout, index) => {
+          const isActive = index === workoutIndex && isRunning && timeLeft > 0;
+          const isCompleted = index < workoutIndex || (timeLeft === 0 && index < workoutList.length);
+          const isUpcoming = index > workoutIndex || (index === workoutIndex && !isRunning && timeLeft > 0);
           const currentSeconds = timeLeft % 60;
-          const isWarning = isActive && currentSeconds >= 1 && currentSeconds <= 15;
+          const isWarning = isActive && currentSeconds >= 1 && currentSeconds <= 15 && timeLeft > 60;
           
           return (
             <div 
