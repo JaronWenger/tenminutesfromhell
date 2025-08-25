@@ -237,6 +237,9 @@
   transform: translateY(0);
   max-height: 100px;
   overflow: hidden;
+  width: 100%;
+  min-width: 300px;
+  box-sizing: border-box;
 }
 
 .workout-item.active {
