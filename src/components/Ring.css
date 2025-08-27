@@ -1,0 +1,152 @@
+.timer-display {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 300px !important;
+  height: 300px !important;
+  flex-shrink: 0 !important;
+  min-width: 300px !important;
+  min-height: 300px !important;
+}
+
+.progress-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.progress-ring-bg {
+  transition: stroke 0.3s ease;
+}
+
+.progress-ring-fill {
+  transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+  filter: drop-shadow(0 0 12px rgba(0, 122, 255, 0.4));
+}
+
+.progress-ring-fill[stroke="#ff3b30"] {
+  filter: drop-shadow(0 0 12px rgba(255, 59, 48, 0.4));
+}
+
+.time-text {
+  font-size: 3.5rem;
+  font-weight: 300;
+  letter-spacing: 4px;
+  color: #ffffff;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+  z-index: 1;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+  position: relative;
+  top: -10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.play-btn {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font-size: 1.5rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #007aff 0%, #0056cc 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+  bottom: 50px;
+  left: calc(50% - 30px);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.play-btn:hover {
+  background: linear-gradient(135deg, #007aff 0%, #0056cc 100%);
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+}
+
+.play-btn:active {
+  background: linear-gradient(135deg, #007aff 0%, #0056cc 100%);
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+}
+
+.pause-btn {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border: none;
+  cursor: pointer;
+  font-size: 2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #ffffff;
+  backdrop-filter: none;
+  bottom: 60px;
+  left: calc(50% - 20px);
+  padding: 0;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.pause-btn:hover {
+  background: transparent;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.pause-btn:active {
+  background: transparent;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.reset-btn {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  top: 60px;
+  left: calc(50% - 20px);
+}
+
+/* Smooth transitions for all interactive elements */
+button:active {
+  transform: scale(0.98);
+}
+
+button:focus {
+  outline: none;
+}
+
+/* Animation for timer completion */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.timer-display.completed {
+  animation: pulse 1s ease-in-out;
+}
