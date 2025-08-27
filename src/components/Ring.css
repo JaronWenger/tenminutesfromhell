@@ -40,7 +40,15 @@
   position: relative;
   top: -10px;
   font-variant-numeric: tabular-nums;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
+
+
 
 .play-btn {
   position: absolute;
