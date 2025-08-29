@@ -27,6 +27,7 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
   const [timeLeft, setTimeLeft] = useState(calculateTotalTime());
   const [isRunning, setIsRunning] = useState(false);
   const [targetTime, setTargetTime] = useState(calculateTotalTime());
+  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
   const intervalRef = useRef(null);
   const wakeLockRef = useRef(null);
 
@@ -90,6 +91,15 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
     releaseWakeLock();
   };
 
+  const selectWorkout = (index) => {
+    if (!isRunning) {
+      setSelectedWorkoutIndex(index);
+      // Calculate new time based on selected workout
+      const newTimeLeft = targetTime - (index * 60);
+      setTimeLeft(Math.max(0, newTimeLeft));
+    }
+  };
+
   const resetTimer = () => {
     setIsRunning(false);
     setTimeLeft(targetTime);
@@ -103,7 +113,9 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
   };
 
   // Calculate which workout should be active
-  const workoutIndex = Math.min(Math.floor((targetTime - timeLeft) / 60), workoutList.length - 1);
+  const workoutIndex = isRunning 
+    ? Math.min(Math.floor((targetTime - timeLeft) / 60), workoutList.length - 1)
+    : selectedWorkoutIndex;
 
   return (
     <div className="timer-container">
@@ -126,6 +138,8 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
         workoutIndex={workoutIndex}
         isRunning={isRunning}
         timeLeft={timeLeft}
+        onWorkoutSelect={selectWorkout}
+        showAllWhenPaused={!isRunning}
       />
     </div>
   );

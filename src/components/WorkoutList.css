@@ -74,6 +74,22 @@
   transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Show completed workouts when paused */
+.workout-item.completed.selectable {
+  opacity: 0.6;
+  transform: translateY(0) scale(1);
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  padding: 22px 20px !important;
+  margin: 0 0 8px 0 !important;
+  line-height: normal !important;
+  font-size: 1.1rem !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  overflow: visible;
+  pointer-events: auto;
+}
+
 .workout-item.removing {
   display: none !important;
   height: 0 !important;
@@ -136,4 +152,32 @@
 
 .workout-item.upcoming .workout-text {
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* Selectable workout items when paused */
+.workout-item.selectable {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.workout-item.selectable:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.1);
+}
+
+.workout-item.selectable:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+}
+
+.workout-item.selectable:focus {
+  outline: none;
 }
