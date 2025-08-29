@@ -3,7 +3,15 @@ import './Timer.css';
 import Ring from './Ring';
 import WorkoutList from './WorkoutList';
 
-const Timer = ({ workouts = [], prepTime = 15 }) => {
+const Timer = ({ 
+  workouts = [], 
+  prepTime = 15,
+  timeLeft: propTimeLeft,
+  isRunning: propIsRunning,
+  targetTime: propTargetTime,
+  selectedWorkoutIndex: propSelectedWorkoutIndex,
+  onTimerStateChange
+}) => {
   // Default workouts if none provided
   const defaultWorkouts = [
     "Russian Twist",
@@ -24,19 +32,48 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
   // Calculate total time dynamically: (workoutList.length * 60) + prepTime
   const calculateTotalTime = () => (workoutList.length * 60) + prepTime;
   
-  const [timeLeft, setTimeLeft] = useState(calculateTotalTime());
-  const [isRunning, setIsRunning] = useState(false);
-  const [targetTime, setTargetTime] = useState(calculateTotalTime());
-  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
+  // Use props if provided, otherwise use local state
+  const [timeLeft, setTimeLeft] = useState(propTimeLeft !== undefined ? propTimeLeft : calculateTotalTime());
+  const [isRunning, setIsRunning] = useState(propIsRunning !== undefined ? propIsRunning : false);
+  const [targetTime, setTargetTime] = useState(propTargetTime !== undefined ? propTargetTime : calculateTotalTime());
+  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(propSelectedWorkoutIndex !== undefined ? propSelectedWorkoutIndex : 0);
+  
   const intervalRef = useRef(null);
   const wakeLockRef = useRef(null);
+
+  // Update local state when props change
+  useEffect(() => {
+    if (propTimeLeft !== undefined) setTimeLeft(propTimeLeft);
+    if (propIsRunning !== undefined) setIsRunning(propIsRunning);
+    if (propTargetTime !== undefined) setTargetTime(propTargetTime);
+    if (propSelectedWorkoutIndex !== undefined) setSelectedWorkoutIndex(propSelectedWorkoutIndex);
+  }, [propTimeLeft, propIsRunning, propTargetTime, propSelectedWorkoutIndex]);
+
+  // Callback to update parent state
+  const updateParentState = (newState) => {
+    if (onTimerStateChange) {
+      onTimerStateChange({
+        timeLeft,
+        isRunning,
+        targetTime,
+        selectedWorkoutIndex,
+        ...newState
+      });
+    }
+  };
 
   useEffect(() => {
     if (isRunning) {
       intervalRef.current = setInterval(() => {
         setTimeLeft(prevTime => {
-          if (prevTime <= 0) {
+          const newTime = prevTime <= 0 ? 0 : prevTime - 1;
+          
+          // Update parent state
+          updateParentState({ timeLeft: newTime });
+          
+          if (newTime <= 0) {
             setIsRunning(false);
+            updateParentState({ isRunning: false });
             releaseWakeLock();
             // Fire GTM event for workout completion
             if (window.dataLayer) {
@@ -46,9 +83,8 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
                 workout_type: 'ten_minutes_from_hell'
               });
             }
-            return 0;
           }
-          return prevTime - 1;
+          return newTime;
         });
       }, 1000);
     } else {
@@ -82,27 +118,33 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
   const startTimer = () => {
     if (timeLeft > 0) {
       setIsRunning(true);
+      updateParentState({ isRunning: true });
       requestWakeLock();
     }
   };
 
   const stopTimer = () => {
     setIsRunning(false);
+    updateParentState({ isRunning: false });
     releaseWakeLock();
   };
 
   const selectWorkout = (index) => {
     if (!isRunning) {
       setSelectedWorkoutIndex(index);
+      updateParentState({ selectedWorkoutIndex: index });
       // Calculate new time based on selected workout
       const newTimeLeft = targetTime - (index * 60);
-      setTimeLeft(Math.max(0, newTimeLeft));
+      const finalTimeLeft = Math.max(0, newTimeLeft);
+      setTimeLeft(finalTimeLeft);
+      updateParentState({ timeLeft: finalTimeLeft });
     }
   };
 
   const resetTimer = () => {
     setIsRunning(false);
     setTimeLeft(targetTime);
+    updateParentState({ isRunning: false, timeLeft: targetTime });
   };
 
   const setPresetTime = (minutes) => {
@@ -110,6 +152,7 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
     setTargetTime(newTime);
     setTimeLeft(newTime);
     setIsRunning(false);
+    updateParentState({ targetTime: newTime, timeLeft: newTime, isRunning: false });
   };
 
   // Calculate which workout should be active
@@ -125,11 +168,11 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
         onStop={stopTimer}
         onReset={resetTimer}
         onTimeClick={() => {
-          setTimeLeft(prevTime => Math.max(0, prevTime - 5));
+          const newTimeLeft = Math.max(0, timeLeft - 5);
+          setTimeLeft(newTimeLeft);
+          updateParentState({ timeLeft: newTimeLeft });
         }}
       />
-
-
 
       <WorkoutList
         workoutList={workoutList}
