@@ -1,5 +1,7 @@
 import React from 'react';
 import './Home.css';
+import Tab2 from '../assets/Tab2.jpg';
+import Tab3 from '../assets/Tab3.jpg';
 
 const Home = () => {
   return (
@@ -12,13 +14,17 @@ const Home = () => {
         
         <div className="home-cards">
           <div className="home-card">
-            <div className="card-icon">⏱️</div>
+            <div className="card-icon">
+              <img src={Tab2} alt="Timer" />
+            </div>
             <h3>Timer</h3>
             <p>Set up custom workout intervals</p>
           </div>
           
           <div className="home-card">
-            <div className="card-icon">⏲️</div>
+            <div className="card-icon">
+              <img src={Tab3} alt="Stopwatch" />
+            </div>
             <h3>Stopwatch</h3>
             <p>Track your workout duration</p>
           </div>

@@ -11,7 +11,19 @@ const Stopwatch = ({
   const [time, setTime] = useState(propTime !== undefined ? propTime : 0);
   const [isRunning, setIsRunning] = useState(propIsRunning !== undefined ? propIsRunning : false);
   const [laps, setLaps] = useState(propLaps !== undefined ? propLaps : []);
-  const intervalRef = useRef(null);
+
+  // Stationary workout list
+  const workoutList = [
+    "10 Pull Ups",
+    "Bent over one arm row",
+    "Dead lift",
+    "10 pull ups",
+    "Bent over rows",
+    "Shrugs",
+    "Bicep curls",
+    "Aidan Curls",
+    "10 Pull Ups"
+  ];
 
   // Update local state when props change
   useEffect(() => {
@@ -32,22 +44,6 @@ const Stopwatch = ({
     }
   };
 
-  useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = setInterval(() => {
-        setTime(prevTime => {
-          const newTime = prevTime + 10;
-          updateParentState({ time: newTime });
-          return newTime;
-        });
-      }, 10);
-    } else {
-      clearInterval(intervalRef.current);
-    }
-
-    return () => clearInterval(intervalRef.current);
-  }, [isRunning]);
-
   const startStopwatch = () => {
     setIsRunning(true);
     updateParentState({ isRunning: true });
@@ -65,14 +61,6 @@ const Stopwatch = ({
     updateParentState({ isRunning: false, time: 0, laps: [] });
   };
 
-  const addLap = () => {
-    if (isRunning) {
-      const newLaps = [...laps, time];
-      setLaps(newLaps);
-      updateParentState({ laps: newLaps });
-    }
-  };
-
   const formatTime = (timeInMs) => {
     const minutes = Math.floor(timeInMs / 60000);
     const seconds = Math.floor((timeInMs % 60000) / 1000);
@@ -83,12 +71,25 @@ const Stopwatch = ({
 
   return (
     <div className="stopwatch-container">
+      {/* Timer Display at Top */}
       <div className="stopwatch-display">
         <div className="time-display">
           {formatTime(time)}
         </div>
       </div>
 
+      {/* New Workout List Section */}
+      <div className="stopwatch-workout-section">
+        <h3 className="workout-section-title">Back & Bis</h3>
+        {workoutList.map((workout, index) => (
+          <div key={index} className="workout-grid-item">
+            <span className="workout-grid-number">{index + 1}</span>
+            <span className="workout-grid-name">{workout}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Controls at Bottom */}
       <div className="stopwatch-controls">
         <button 
           className={`control-btn ${isRunning ? 'stop' : 'start'}`}
@@ -104,16 +105,9 @@ const Stopwatch = ({
         >
           Reset
         </button>
-        
-        <button 
-          className="control-btn lap"
-          onClick={addLap}
-          disabled={!isRunning}
-        >
-          Lap
-        </button>
       </div>
 
+      {/* Laps Display */}
       {laps.length > 0 && (
         <div className="laps-container">
           <h3>Laps</h3>

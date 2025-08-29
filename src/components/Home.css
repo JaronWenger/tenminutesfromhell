@@ -62,8 +62,23 @@
 }
 
 .card-icon {
-  font-size: 2.5rem;
   margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card-icon img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: brightness(0.8);
+  transition: all 0.3s ease;
+}
+
+.home-card:hover .card-icon img {
+  filter: brightness(1);
+  transform: scale(1.1);
 }
 
 .home-card h3 {
