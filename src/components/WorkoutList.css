@@ -2,9 +2,10 @@
 .workout-list {
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
+  max-height: calc(100vh);
   overflow-y: auto;
   padding: 10px;
+  padding-bottom: 45px;
   margin-top: 10px;
   background: transparent;
   border-radius: 16px;
@@ -21,15 +22,15 @@
   align-items: center;
   gap: 12px;
   padding: 22px 20px;
-  background: rgba(255, 255, 255, 0.08);
+  background: #000000;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0.6;
+  opacity: 0.85;
   transform: translateY(0);
   height: 30px !important;
-  min-height: 30px !important;
-  max-height: 30px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
   overflow: hidden;
   width: 100%;
   min-width: auto;
@@ -57,7 +58,7 @@
 .workout-item.completed {
   opacity: 0;
   transform: translateY(-20px) scale(0.8);
-  background: rgba(255, 255, 255, 0.03);
+  background: #000000;
   border-color: rgba(255, 255, 255, 0.05);
   pointer-events: none;
   height: 0 !important;
@@ -82,7 +83,7 @@
 }
 
 .workout-item.upcoming {
-  opacity: 0.4;
+  opacity: 0.6;
   transform: translateY(0);
 }
 
@@ -118,7 +119,7 @@
 }
 
 .workout-text {
-  font-size: 0.9rem;
+  font-size: 1.1rem;
   font-weight: 500;
   color: #fff;
   line-height: 1.4;
@@ -134,5 +135,5 @@
 }
 
 .workout-item.upcoming .workout-text {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.8);
 }

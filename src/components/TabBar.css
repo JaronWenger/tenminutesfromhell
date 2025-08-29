@@ -1,0 +1,173 @@
+/* Tab Bar Styles */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: #000000;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 0 20px 0;
+  z-index: 1000;
+  box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Desktop vertical tab bar */
+@media (min-width: 1024px) {
+  .tab-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 80px;
+    flex-direction: column;
+    border-top: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px 8px;
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: rgba(255, 255, 255, 0.6);
+  min-height: 60px;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.tab-item:hover {
+  color: rgba(255, 255, 255, 0.8);
+  transform: translateY(-2px);
+}
+
+.tab-item.active {
+  color: #ff3b30;
+  transform: translateY(-2px);
+}
+
+.tab-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  filter: brightness(0.6);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-item.active .tab-icon {
+  transform: scale(1.1);
+}
+
+.tab-item.active .tab-icon img {
+  filter: brightness(1);
+}
+
+.tab-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  transition: text-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-shadow: 0 0 8px rgba(255, 59, 48, 0.3);
+}
+
+.tab-item.active .tab-label {
+  font-weight: 500;
+  text-shadow: 0 0 12px rgba(255, 59, 48, 0.6);
+}
+
+/* Add bottom padding to main content to account for tab bar */
+.tab-content {
+  padding-bottom: 100px;
+  min-height: 100vh;
+}
+
+/* Desktop content layout - centered despite sidebar */
+@media (min-width: 1024px) {
+  .tab-content {
+    padding-bottom: 0;
+    padding-left: 0;
+    margin-left: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: calc(100vw - 80px);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .tab-bar {
+    padding: 6px 0 16px 0;
+  }
+  
+  .tab-item {
+    min-height: 50px;
+    padding: 6px 2px;
+  }
+  
+  .tab-icon {
+    font-size: 20px;
+  }
+  
+  .tab-label {
+    font-size: 11px;
+  }
+}
+
+/* Desktop tab item adjustments */
+@media (min-width: 1024px) {
+  .tab-item {
+    min-height: 80px;
+    padding: 12px 4px;
+    margin-bottom: 10px;
+  }
+  
+  .tab-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+  
+  .tab-icon img {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .tab-label {
+    font-size: 10px;
+    text-align: center;
+  }
+}
+
+/* Hide tab bar in landscape mode - only on phones */
+@media (orientation: landscape) and (max-height: 500px) {
+  .tab-bar {
+    display: none !important;
+  }
+  
+  .tab-content {
+    padding-bottom: 0 !important;
+  }
+}
