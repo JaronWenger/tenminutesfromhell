@@ -5,7 +5,9 @@ const WorkoutList = ({
   workoutList, 
   workoutIndex, 
   isRunning, 
-  timeLeft 
+  timeLeft,
+  onWorkoutSelect,
+  showAllWhenPaused
 }) => {
   return (
     <div className="workout-list">
@@ -16,10 +18,33 @@ const WorkoutList = ({
         const currentSeconds = timeLeft % 60;
         const isWarning = isActive && currentSeconds >= 1 && currentSeconds <= 15 && timeLeft > 60;
         
+        // Show all workouts when paused, or normal behavior when running
+        const shouldShow = showAllWhenPaused || !isCompleted;
+        
+        // When paused, show all workouts regardless of completion status
+        if (showAllWhenPaused) {
+          return (
+            <div 
+              key={index}
+              className={`workout-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isUpcoming ? 'upcoming' : ''} ${isWarning ? 'warning' : ''} ${!isRunning ? 'selectable' : ''}`}
+              onClick={() => onWorkoutSelect && onWorkoutSelect(index)}
+              style={{ cursor: !isRunning ? 'pointer' : 'default' }}
+            >
+              <span className="workout-number">{index + 1}</span>
+              <span className="workout-text">{workout}</span>
+            </div>
+          );
+        }
+        
+        // Normal behavior when running
+        if (!shouldShow) return null;
+        
         return (
           <div 
             key={index}
-            className={`workout-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isUpcoming ? 'upcoming' : ''} ${isWarning ? 'warning' : ''}`}
+            className={`workout-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isUpcoming ? 'upcoming' : ''} ${isWarning ? 'warning' : ''} ${!isRunning ? 'selectable' : ''}`}
+            onClick={() => onWorkoutSelect && onWorkoutSelect(index)}
+            style={{ cursor: !isRunning ? 'pointer' : 'default' }}
           >
             <span className="workout-number">{index + 1}</span>
             <span className="workout-text">{workout}</span>
