@@ -113,9 +113,7 @@ const Timer = ({ workouts = [], prepTime = 15 }) => {
   };
 
   // Calculate which workout should be active
-  const workoutIndex = isRunning 
-    ? Math.min(Math.floor((targetTime - timeLeft) / 60), workoutList.length - 1)
-    : selectedWorkoutIndex;
+  const workoutIndex = Math.min(Math.floor((targetTime - timeLeft) / 60), workoutList.length - 1);
 
   return (
     <div className="timer-container">

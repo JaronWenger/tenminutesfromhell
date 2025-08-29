@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import './WorkoutList.css';
 
 const WorkoutList = ({ 
@@ -9,8 +9,19 @@ const WorkoutList = ({
   onWorkoutSelect,
   showAllWhenPaused
 }) => {
+  const workoutListRef = useRef(null);
+
+  // Scroll to top when timer starts
+  useEffect(() => {
+    if (isRunning && workoutListRef.current) {
+      workoutListRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  }, [isRunning]);
   return (
-    <div className="workout-list">
+    <div className="workout-list" ref={workoutListRef}>
       {workoutList.map((workout, index) => {
         const isActive = index === workoutIndex && isRunning && timeLeft > 0;
         const isCompleted = index < workoutIndex || (timeLeft === 0 && index < workoutList.length);
