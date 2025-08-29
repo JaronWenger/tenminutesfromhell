@@ -1,16 +1,45 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './Stopwatch.css';
 
-const Stopwatch = () => {
-  const [time, setTime] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
-  const [laps, setLaps] = useState([]);
+const Stopwatch = ({ 
+  time: propTime,
+  isRunning: propIsRunning,
+  laps: propLaps,
+  onStopwatchStateChange
+}) => {
+  // Use props if provided, otherwise use local state
+  const [time, setTime] = useState(propTime !== undefined ? propTime : 0);
+  const [isRunning, setIsRunning] = useState(propIsRunning !== undefined ? propIsRunning : false);
+  const [laps, setLaps] = useState(propLaps !== undefined ? propLaps : []);
   const intervalRef = useRef(null);
+
+  // Update local state when props change
+  useEffect(() => {
+    if (propTime !== undefined) setTime(propTime);
+    if (propIsRunning !== undefined) setIsRunning(propIsRunning);
+    if (propLaps !== undefined) setLaps(propLaps);
+  }, [propTime, propIsRunning, propLaps]);
+
+  // Callback to update parent state
+  const updateParentState = (newState) => {
+    if (onStopwatchStateChange) {
+      onStopwatchStateChange({
+        time,
+        isRunning,
+        laps,
+        ...newState
+      });
+    }
+  };
 
   useEffect(() => {
     if (isRunning) {
       intervalRef.current = setInterval(() => {
-        setTime(prevTime => prevTime + 10);
+        setTime(prevTime => {
+          const newTime = prevTime + 10;
+          updateParentState({ time: newTime });
+          return newTime;
+        });
       }, 10);
     } else {
       clearInterval(intervalRef.current);
@@ -21,21 +50,26 @@ const Stopwatch = () => {
 
   const startStopwatch = () => {
     setIsRunning(true);
+    updateParentState({ isRunning: true });
   };
 
   const stopStopwatch = () => {
     setIsRunning(false);
+    updateParentState({ isRunning: false });
   };
 
   const resetStopwatch = () => {
     setIsRunning(false);
     setTime(0);
     setLaps([]);
+    updateParentState({ isRunning: false, time: 0, laps: [] });
   };
 
   const addLap = () => {
     if (isRunning) {
-      setLaps(prevLaps => [...prevLaps, time]);
+      const newLaps = [...laps, time];
+      setLaps(newLaps);
+      updateParentState({ laps: newLaps });
     }
   };
 
