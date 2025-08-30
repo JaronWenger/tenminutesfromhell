@@ -90,8 +90,11 @@ const TabBar = ({ activeTab, onTabChange, stopwatchControls }) => {
             >
               {stopwatchControls.isRunning ? 'Stop' : 'Start'}
             </button>
-            <button className="control-btn lap" onClick={stopwatchControls.onLap}>
-              Set
+            <button 
+              className="control-btn lap" 
+              onClick={stopwatchControls.isRunning ? stopwatchControls.onLap : stopwatchControls.onWorkoutViewToggle}
+            >
+              {stopwatchControls.isRunning ? 'Set' : 'View'}
             </button>
           </div>
           {stopwatchControls.lapCount > 0 && (
@@ -152,6 +155,14 @@ const TabBar = ({ activeTab, onTabChange, stopwatchControls }) => {
                     <span className="lap-time">{lapTime}</span>
                   </div>
                 ))}
+                {stopwatchControls.showWorkoutView && (
+                  <button 
+                    className="lap-times-reset-btn"
+                    onClick={stopwatchControls.onClearSets}
+                  >
+                    ↻
+                  </button>
+                )}
               </div>
             </div>
           )}
