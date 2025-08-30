@@ -213,6 +213,8 @@ const Main = () => {
       setShowWorkoutView(!showWorkoutView);
       if (!showWorkoutView) {
         setCurrentWorkoutIndex(selectedWorkoutIndex >= 0 ? selectedWorkoutIndex : 0);
+      } else {
+        setSelectedWorkoutIndex(currentWorkoutIndex);
       }
     }
   };
