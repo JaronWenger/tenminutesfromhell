@@ -45,6 +45,7 @@
   max-width: 600px;
   display: flex;
   flex-direction: column;
+  padding-top: 1rem;
 }
 
 .workout-section-title {
@@ -74,11 +75,38 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
   transition: all 0.3s ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .workout-grid-item:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.workout-grid-item.selected {
+  background: rgba(255, 59, 48, 0.2);
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
+.workout-grid-item.selected .workout-grid-number {
+  background: #ff3b30;
+  color: white;
+}
+
+.workout-grid-item:not(.selected) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.workout-grid-item:not(.selected) .workout-grid-number {
+  background: #ff3b30;
+  color: white;
 }
 
 .workout-grid-number {
@@ -149,4 +177,53 @@
     margin-left: 0;
     margin-right: 0;
   }
+}
+
+/* Workout single view styles */
+.workout-single-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px;
+  margin-top: -20vh;
+}
+
+.workout-single-view .workout-grid-item {
+  padding: 30px 40px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  margin-bottom: 20px;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.workout-single-view .workout-grid-number {
+  width: 40px;
+  height: 40px;
+  font-size: 1.2rem;
+  margin-right: 20px;
+}
+
+.workout-single-view .workout-grid-name {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.workout-navigation {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.workout-counter {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 500;
 }

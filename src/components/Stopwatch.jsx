@@ -5,7 +5,12 @@ const Stopwatch = ({
   time: propTime,
   isRunning: propIsRunning,
   laps: propLaps,
-  onStopwatchStateChange
+  onStopwatchStateChange,
+  showWorkoutView = false,
+  currentWorkoutIndex = 0,
+  onWorkoutSwipe,
+  selectedWorkoutIndex = -1,
+  onWorkoutSelect
 }) => {
   // Use props if provided, otherwise use local state
   const [time, setTime] = useState(propTime !== undefined ? propTime : 0);
@@ -77,6 +82,28 @@ const Stopwatch = ({
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
   };
 
+  const [touchStartX, setTouchStartX] = useState(0);
+
+  const handleTouchStart = (e) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!showWorkoutView) return;
+    
+    const touchX = e.touches[0].clientX;
+    const deltaX = touchStartX - touchX;
+    
+    if (Math.abs(deltaX) > 50) {
+      if (deltaX > 0) {
+        onWorkoutSwipe('left');
+      } else {
+        onWorkoutSwipe('right');
+      }
+      setTouchStartX(touchX);
+    }
+  };
+
   return (
     <div className="stopwatch-container">
       {/* Timer Display at Top */}
@@ -87,14 +114,42 @@ const Stopwatch = ({
       </div>
 
       {/* New Workout List Section */}
-      <div className="stopwatch-workout-section">
-        <h3 className="workout-section-title">Back & Bis</h3>
-        {workoutList.map((workout, index) => (
-          <div key={index} className="workout-grid-item">
-            <span className="workout-grid-number">{index + 1}</span>
-            <span className="workout-grid-name">{workout}</span>
+      <div 
+        className="stopwatch-workout-section"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+      >
+
+        {showWorkoutView ? (
+          <div className="workout-single-view">
+            <div 
+              className="workout-grid-item"
+              onClick={() => {
+                if (onWorkoutSwipe && currentWorkoutIndex < workoutList.length - 1) {
+                  onWorkoutSwipe('left');
+                }
+              }}
+              style={{ cursor: currentWorkoutIndex < workoutList.length - 1 ? 'pointer' : 'default' }}
+            >
+              <span className="workout-grid-number">{currentWorkoutIndex + 1}</span>
+              <span className="workout-grid-name">{workoutList[currentWorkoutIndex]}</span>
+            </div>
+                      <div className="workout-navigation">
+            <span className="workout-counter">{currentWorkoutIndex + 1} of {workoutList.length}</span>
           </div>
-        ))}
+          </div>
+        ) : (
+          workoutList.map((workout, index) => (
+            <div 
+              key={index} 
+              className={`workout-grid-item ${selectedWorkoutIndex === index ? 'selected' : ''}`}
+              onClick={() => onWorkoutSelect && onWorkoutSelect(selectedWorkoutIndex === index ? -1 : index)}
+            >
+              <span className="workout-grid-number">{index + 1}</span>
+              <span className="workout-grid-name">{workout}</span>
+            </div>
+          ))
+        )}
       </div>
 
 

@@ -44,6 +44,11 @@ const Main = () => {
   const [showLapTimes, setShowLapTimes] = useState(false);
   const [isClosingLapTimes, setIsClosingLapTimes] = useState(false);
   const [touchStartY, setTouchStartY] = useState(0);
+  
+  // Workout view state (phone only)
+  const [showWorkoutView, setShowWorkoutView] = useState(false);
+  const [currentWorkoutIndex, setCurrentWorkoutIndex] = useState(0);
+  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(-1);
 
   // Timer interval ref
   const timerIntervalRef = useRef(null);
@@ -189,6 +194,11 @@ const Main = () => {
     }
   };
 
+  const handleClearSets = () => {
+    setStopwatchState(prev => ({ ...prev, laps: [] }));
+    setShowLapTimes(false);
+  };
+
   const handleStopwatchLap = () => {
     if (stopwatchState.isRunning) {
       setStopwatchState(prev => ({
@@ -196,6 +206,29 @@ const Main = () => {
         laps: [...prev.laps, prev.time]
       }));
     }
+  };
+
+  const handleWorkoutViewToggle = () => {
+    if (!stopwatchState.isRunning) {
+      setShowWorkoutView(!showWorkoutView);
+      if (!showWorkoutView) {
+        setCurrentWorkoutIndex(selectedWorkoutIndex >= 0 ? selectedWorkoutIndex : 0);
+      }
+    }
+  };
+
+  const handleWorkoutSwipe = (direction) => {
+    if (showWorkoutView) {
+      if (direction === 'left' && currentWorkoutIndex < 8) {
+        setCurrentWorkoutIndex(prev => prev + 1);
+      } else if (direction === 'right' && currentWorkoutIndex > 0) {
+        setCurrentWorkoutIndex(prev => prev - 1);
+      }
+    }
+  };
+
+  const handleWorkoutSelect = (index) => {
+    setSelectedWorkoutIndex(index);
   };
 
   const handleLapBarTap = () => {
@@ -262,6 +295,11 @@ const Main = () => {
             isRunning={stopwatchState.isRunning}
             laps={stopwatchState.laps}
             onStopwatchStateChange={handleStopwatchStateChange}
+            showWorkoutView={showWorkoutView}
+            currentWorkoutIndex={currentWorkoutIndex}
+            onWorkoutSwipe={handleWorkoutSwipe}
+            selectedWorkoutIndex={selectedWorkoutIndex}
+            onWorkoutSelect={handleWorkoutSelect}
           />
         );
       default:
@@ -289,7 +327,12 @@ const Main = () => {
           onLapBarTouchMove: handleLapBarTouchMove,
           onLapBarTouchEnd: handleLapBarTouchEnd,
           onCloseLapTimes: handleCloseLapTimes,
-          lapTimes: stopwatchState.laps.map(lap => formatLapTime(lap))
+          lapTimes: stopwatchState.laps.map(lap => formatLapTime(lap)),
+          showWorkoutView: showWorkoutView,
+          currentWorkoutIndex: currentWorkoutIndex,
+          onWorkoutViewToggle: handleWorkoutViewToggle,
+          onWorkoutSwipe: handleWorkoutSwipe,
+          onClearSets: handleClearSets
         } : null}
       />
     </main>
