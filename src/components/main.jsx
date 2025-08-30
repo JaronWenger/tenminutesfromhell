@@ -40,6 +40,11 @@ const Main = () => {
     laps: []
   });
 
+  // Lap times panel state
+  const [showLapTimes, setShowLapTimes] = useState(false);
+  const [isClosingLapTimes, setIsClosingLapTimes] = useState(false);
+  const [touchStartY, setTouchStartY] = useState(0);
+
   // Timer interval ref
   const timerIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
@@ -151,6 +156,72 @@ const Main = () => {
     setStopwatchState(prev => ({ ...prev, ...newState }));
   };
 
+  // Stopwatch control handlers
+  const handleStopwatchStart = () => {
+    setStopwatchState(prev => ({ ...prev, isRunning: true }));
+  };
+
+  const handleStopwatchStop = () => {
+    setStopwatchState(prev => ({ ...prev, isRunning: false }));
+  };
+
+  const handleStopwatchReset = () => {
+    setStopwatchState(prev => ({ ...prev, time: 0, isRunning: false, laps: [] }));
+    setShowLapTimes(false);
+  };
+
+  const handleStopwatchLap = () => {
+    if (stopwatchState.isRunning) {
+      setStopwatchState(prev => ({
+        ...prev,
+        laps: [...prev.laps, prev.time]
+      }));
+    }
+  };
+
+  const handleLapBarTap = () => {
+    if (stopwatchState.laps.length > 0) {
+      setShowLapTimes(true);
+    }
+  };
+
+  const handleLapBarTouchStart = (e) => {
+    setTouchStartY(e.touches[0].clientY);
+  };
+
+  const handleLapBarTouchMove = (e) => {
+    const touchY = e.touches[0].clientY;
+    const deltaY = touchStartY - touchY;
+    
+    if (deltaY > 50 && stopwatchState.laps.length > 0 && !showLapTimes) {
+      setShowLapTimes(true);
+    } else if (deltaY < -50 && showLapTimes && !isClosingLapTimes) {
+      handleCloseLapTimes();
+    }
+  };
+
+  const handleLapBarTouchEnd = () => {
+    setTouchStartY(0);
+  };
+
+  const handleCloseLapTimes = () => {
+    if (!isClosingLapTimes) {
+      setIsClosingLapTimes(true);
+      setTimeout(() => {
+        setShowLapTimes(false);
+        setIsClosingLapTimes(false);
+      }, 300);
+    }
+  };
+
+  const formatLapTime = (timeInMs) => {
+    const minutes = Math.floor(timeInMs / 60000);
+    const seconds = Math.floor((timeInMs % 60000) / 1000);
+    const centiseconds = Math.floor((timeInMs % 1000) / 10);
+    
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
@@ -182,7 +253,26 @@ const Main = () => {
   return (
     <main className="tab-content">
       {renderContent()}
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabBar 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab}
+        stopwatchControls={activeTab === 'stopwatch' ? {
+          isRunning: stopwatchState.isRunning,
+          onStart: handleStopwatchStart,
+          onStop: handleStopwatchStop,
+          onReset: handleStopwatchReset,
+          onLap: handleStopwatchLap,
+          lapCount: stopwatchState.laps.length,
+          showLapTimes: showLapTimes,
+          isClosingLapTimes: isClosingLapTimes,
+          onLapBarTap: handleLapBarTap,
+          onLapBarTouchStart: handleLapBarTouchStart,
+          onLapBarTouchMove: handleLapBarTouchMove,
+          onLapBarTouchEnd: handleLapBarTouchEnd,
+          onCloseLapTimes: handleCloseLapTimes,
+          lapTimes: stopwatchState.laps.map(lap => formatLapTime(lap))
+        } : null}
+      />
     </main>
   );
 };
