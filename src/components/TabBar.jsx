@@ -98,9 +98,6 @@ const TabBar = ({ activeTab, onTabChange, stopwatchControls }) => {
             <div 
               className="lap-progress-bar"
               onClick={stopwatchControls.showLapTimes ? stopwatchControls.onCloseLapTimes : stopwatchControls.onLapBarTap}
-              onTouchStart={stopwatchControls.onLapBarTouchStart}
-              onTouchMove={stopwatchControls.onLapBarTouchMove}
-              onTouchEnd={stopwatchControls.onLapBarTouchEnd}
             >
               {Array.from({ length: stopwatchControls.lapCount }, (_, index) => (
                 <div 
@@ -135,9 +132,6 @@ const TabBar = ({ activeTab, onTabChange, stopwatchControls }) => {
             <div 
               className={`lap-times-panel ${stopwatchControls.isClosingLapTimes ? 'fade-out' : ''}`}
               onClick={stopwatchControls.onCloseLapTimes}
-              onTouchStart={stopwatchControls.onLapBarTouchStart}
-              onTouchMove={stopwatchControls.onLapBarTouchMove}
-              onTouchEnd={stopwatchControls.onLapBarTouchEnd}
             >
               <div className="lap-progress-bar-popup">
                 {Array.from({ length: stopwatchControls.lapCount }, (_, index) => (

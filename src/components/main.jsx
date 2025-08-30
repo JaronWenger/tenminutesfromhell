@@ -93,6 +93,15 @@ const Main = () => {
   // Stopwatch interval management
   useEffect(() => {
     if (stopwatchState.isRunning) {
+      // Request wake lock when stopwatch starts
+      if ('wakeLock' in navigator) {
+        navigator.wakeLock.request('screen').then(lock => {
+          wakeLockRef.current = lock;
+        }).catch(err => {
+          console.log('Wake lock request failed:', err);
+        });
+      }
+      
       stopwatchIntervalRef.current = setInterval(() => {
         setStopwatchState(prev => ({
           ...prev,
@@ -163,11 +172,21 @@ const Main = () => {
 
   const handleStopwatchStop = () => {
     setStopwatchState(prev => ({ ...prev, isRunning: false }));
+    // Release wake lock when stopwatch stops
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
   };
 
   const handleStopwatchReset = () => {
     setStopwatchState(prev => ({ ...prev, time: 0, isRunning: false, laps: [] }));
     setShowLapTimes(false);
+    // Release wake lock when stopwatch resets
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
   };
 
   const handleStopwatchLap = () => {
