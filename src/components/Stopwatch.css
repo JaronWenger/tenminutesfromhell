@@ -15,15 +15,28 @@
   margin-bottom: 20px;
   text-align: center;
   margin-top: 10px;
+  width: 100vw;
+  margin-left: -20px;
+  margin-right: -20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .time-display {
-  font-size: 4rem;
+  font-size: 20vw;
   font-weight: 300;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-  color: #007aff;
-  text-shadow: 0 0 20px rgba(0, 122, 255, 0.3);
-  letter-spacing: 2px;
+  color: white;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+  letter-spacing: 0;
+  width: 100vw;
+  text-align: center;
+  line-height: 0.9;
+  margin: 0;
+  padding: 0;
+  max-width: 800px;
+  display: block;
 }
 
 /* New Workout Section Styles */
@@ -89,125 +102,9 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
-.stopwatch-controls {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  justify-content: center;
-  position: fixed;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-}
 
-.control-btn {
-  padding: 16px 32px;
-  border: none;
-  border-radius: 12px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  min-width: 100px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-  outline: none;
-}
 
-.control-btn.start {
-  background: rgba(0, 122, 255, 0.2);
-  border: 1px solid rgba(0, 122, 255, 0.3);
-  color: #007aff;
-}
 
-.control-btn.start:hover {
-  background: rgba(0, 122, 255, 0.3);
-  border-color: rgba(0, 122, 255, 0.5);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.2);
-}
-
-.control-btn.stop {
-  background: rgba(255, 59, 48, 0.2);
-  border: 1px solid rgba(255, 59, 48, 0.3);
-  color: #ff3b30;
-}
-
-.control-btn.stop:hover {
-  background: rgba(255, 59, 48, 0.3);
-  border-color: rgba(255, 59, 48, 0.5);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(255, 59, 48, 0.2);
-}
-
-.control-btn.reset {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.control-btn.reset:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-}
-
-.control-btn.reset:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.laps-container {
-  width: 100%;
-  max-width: 400px;
-  background: #000000;
-  border-radius: 16px;
-  padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.laps-container h3 {
-  text-align: center;
-  margin: 0 0 20px 0;
-  font-size: 1.2rem;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.laps-list {
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.lap-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-}
-
-.lap-item:last-child {
-  border-bottom: none;
-}
-
-.lap-number {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.9rem;
-}
-
-.lap-time {
-  color: #007aff;
-  font-size: 1rem;
-  font-weight: 500;
-}
 
 /* Responsive adjustments */
 @media (max-width: 480px) {
@@ -216,7 +113,7 @@
   }
   
   .time-display {
-    font-size: 3rem;
+    font-size: 18vw;
   }
   
   .workout-grid-container {
@@ -232,17 +129,24 @@
     font-size: 0.8rem;
   }
   
-  .stopwatch-controls {
-    gap: 12px;
-  }
-  
-  .control-btn {
-    padding: 14px 24px;
-    font-size: 1rem;
-    min-width: 80px;
-  }
+
   
   .laps-container {
     max-width: 100%;
+  }
+}
+
+/* Desktop cap for large screens */
+@media (min-width: 1024px) {
+  .time-display {
+    font-size: 100px;
+    width: auto;
+    max-width: none;
+  }
+  
+  .stopwatch-display {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
   }
 }

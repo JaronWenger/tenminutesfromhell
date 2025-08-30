@@ -61,6 +61,14 @@ const Stopwatch = ({
     updateParentState({ isRunning: false, time: 0, laps: [] });
   };
 
+  const addLap = () => {
+    if (isRunning) {
+      const newLaps = [...laps, time];
+      setLaps(newLaps);
+      updateParentState({ laps: newLaps });
+    }
+  };
+
   const formatTime = (timeInMs) => {
     const minutes = Math.floor(timeInMs / 60000);
     const seconds = Math.floor((timeInMs % 60000) / 1000);
@@ -89,38 +97,9 @@ const Stopwatch = ({
         ))}
       </div>
 
-      {/* Controls at Bottom */}
-      <div className="stopwatch-controls">
-        <button 
-          className={`control-btn ${isRunning ? 'stop' : 'start'}`}
-          onClick={isRunning ? stopStopwatch : startStopwatch}
-        >
-          {isRunning ? 'Stop' : 'Start'}
-        </button>
-        
-        <button 
-          className="control-btn reset"
-          onClick={resetStopwatch}
-          disabled={time === 0}
-        >
-          Reset
-        </button>
-      </div>
 
-      {/* Laps Display */}
-      {laps.length > 0 && (
-        <div className="laps-container">
-          <h3>Laps</h3>
-          <div className="laps-list">
-            {laps.map((lapTime, index) => (
-              <div key={index} className="lap-item">
-                <span className="lap-number">#{laps.length - index}</span>
-                <span className="lap-time">{formatTime(lapTime)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
+
     </div>
   );
 };
