@@ -196,8 +196,8 @@
   outline: none;
 }
 
-/* Disable all interactions when timer is running */
-.workout-item:not(.selectable) {
+/* Disable all interactions when timer is running - ONLY for WorkoutList */
+.workout-list .workout-item:not(.selectable) {
   pointer-events: none !important;
   user-select: none !important;
   -webkit-user-select: none !important;
@@ -207,14 +207,14 @@
   -webkit-touch-callout: none !important;
 }
 
-.workout-item:not(.selectable):hover {
+.workout-list .workout-item:not(.selectable):hover {
   background: inherit !important;
   border-color: inherit !important;
   transform: none !important;
   box-shadow: inherit !important;
 }
 
-.workout-item:not(.selectable):active {
+.workout-list .workout-item:not(.selectable):active {
   transform: none !important;
   box-shadow: inherit !important;
 }
