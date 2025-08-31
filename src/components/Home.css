@@ -3,17 +3,33 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 100vh;
-  padding: 40px 20px;
   background: #000000;
   color: white;
+}
+
+.home-banner {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.banner-image {
+  width: 100%;
+  max-width: 800px;
+  height: auto;
+  object-fit: cover;
+  border-radius: 0;
 }
 
 .home-content {
   max-width: 500px;
   width: 100%;
   text-align: center;
+  padding: 0 20px 40px 20px;
 }
 
 .home-header {
@@ -47,18 +63,24 @@
 
 .home-card {
   background: #000000;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 59, 48, 0.3);
   border-radius: 16px;
   padding: 30px 20px;
   min-width: 140px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.home-card:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+.home-card.clickable {
+  cursor: pointer;
+}
+
+.home-card.clickable:hover {
+  /* Removed hover effects */
+}
+
+.home-card.clickable:active {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .card-icon {
@@ -77,8 +99,7 @@
 }
 
 .home-card:hover .card-icon img {
-  filter: brightness(1);
-  transform: scale(1.1);
+  /* Removed hover effects */
 }
 
 .home-card h3 {
@@ -95,6 +116,13 @@
   line-height: 1.4;
 }
 
+.selected-workout {
+  color: #007aff !important;
+  font-weight: 500;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
 .home-footer {
   color: rgba(255, 255, 255, 0.5);
   font-size: 0.9rem;
@@ -102,8 +130,16 @@
 
 /* Responsive adjustments */
 @media (max-width: 480px) {
-  .home-container {
-    padding: 20px 16px;
+  .home-banner {
+    margin-bottom: 30px;
+  }
+  
+  .banner-image {
+    max-width: 100%;
+  }
+  
+  .home-content {
+    padding: 0 16px 30px 16px;
   }
   
   .home-title {
@@ -122,5 +158,23 @@
   .home-card {
     width: 100%;
     max-width: 280px;
+  }
+}
+
+/* Show only banner in horizontal mode on phones */
+@media (orientation: landscape) and (hover: none) {
+  .home-content {
+    display: none !important;
+  }
+  
+  .home-banner {
+    margin-bottom: 0 !important;
+  }
+  
+  .banner-image {
+    width: 100vw !important;
+    height: 80vh !important;
+    object-fit: cover !important;
+    max-width: none !important;
   }
 }

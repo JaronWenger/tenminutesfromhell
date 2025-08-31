@@ -10,15 +10,16 @@ const Stopwatch = ({
   currentWorkoutIndex = 0,
   onWorkoutSwipe,
   selectedWorkoutIndex = -1,
-  onWorkoutSelect
+  onWorkoutSelect,
+  workoutList = []
 }) => {
   // Use props if provided, otherwise use local state
   const [time, setTime] = useState(propTime !== undefined ? propTime : 0);
   const [isRunning, setIsRunning] = useState(propIsRunning !== undefined ? propIsRunning : false);
   const [laps, setLaps] = useState(propLaps !== undefined ? propLaps : []);
 
-  // Stationary workout list
-  const workoutList = [
+  // Use provided workout list or fallback to default
+  const exercises = workoutList.length > 0 ? workoutList : [
     "10 Pull Ups",
     "Bent over one arm row",
     "Dead lift",
@@ -125,21 +126,21 @@ const Stopwatch = ({
             <div 
               className="workout-grid-item"
               onClick={() => {
-                if (onWorkoutSwipe && currentWorkoutIndex < workoutList.length - 1) {
+                if (onWorkoutSwipe) {
                   onWorkoutSwipe('left');
                 }
               }}
-              style={{ cursor: currentWorkoutIndex < workoutList.length - 1 ? 'pointer' : 'default' }}
+              style={{ cursor: 'pointer' }}
             >
               <span className="workout-grid-number">{currentWorkoutIndex + 1}</span>
-              <span className="workout-grid-name">{workoutList[currentWorkoutIndex]}</span>
+              <span className="workout-grid-name">{exercises[currentWorkoutIndex]}</span>
             </div>
                       <div className="workout-navigation">
-            <span className="workout-counter">{currentWorkoutIndex + 1} of {workoutList.length}</span>
+            <span className="workout-counter">{currentWorkoutIndex + 1} of {exercises.length}</span>
           </div>
           </div>
         ) : (
-          workoutList.map((workout, index) => (
+          exercises.map((workout, index) => (
             <div 
               key={index} 
               className={`workout-grid-item ${selectedWorkoutIndex === index ? 'selected' : ''}`}
