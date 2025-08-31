@@ -46,6 +46,11 @@ const Timer = ({
     if (propSelectedWorkoutIndex !== undefined) setSelectedWorkoutIndex(propSelectedWorkoutIndex);
   }, [propTimeLeft, propIsRunning, propTargetTime, propSelectedWorkoutIndex]);
 
+
+
+
+
+  
   // Callback to update parent state
   const updateParentState = (newState) => {
     if (onTimerStateChange) {

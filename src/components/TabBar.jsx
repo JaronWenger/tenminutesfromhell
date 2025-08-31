@@ -94,7 +94,7 @@ const TabBar = ({ activeTab, onTabChange, stopwatchControls }) => {
               className="control-btn lap" 
               onClick={stopwatchControls.isRunning ? stopwatchControls.onLap : stopwatchControls.onWorkoutViewToggle}
             >
-              {stopwatchControls.isRunning ? 'Set' : 'View'}
+              {stopwatchControls.isRunning ? 'Lap' : 'View'}
             </button>
           </div>
           {stopwatchControls.lapCount > 0 && (

@@ -3,12 +3,26 @@ import Timer from './Timer';
 import Home from './Home';
 import Stopwatch from './Stopwatch';
 import TabBar from './TabBar';
+import EditPage from './EditPage';
+import ExerciseEditPage from './ExerciseEditPage';
 
 const Main = () => {
   const [activeTab, setActiveTab] = useState('home');
   
-  // Default workouts for calculation
-  const defaultWorkouts = [
+  // Workout categories for each section
+  const timerWorkouts = [
+    "The Devils 10",
+    "Abs 2"
+  ];
+
+  const stopwatchWorkouts = [
+    "Back & Bis",
+    "Shoulders",
+    "Chest & Tris"
+  ];
+
+  // Exercise lists for each workout
+  const devils10Exercises = [
     "Russian Twist",
     "Boat hold or seated in and outs",
     "Glut boat hold",
@@ -21,9 +35,56 @@ const Main = () => {
     "Bicycle",
     "Boat hold leg flutters"
   ];
+
+  const abs2Exercises = [
+    "Leg raises",
+    "Single leg raises",
+    "Chair crunches",
+    "In and outs",
+    "Sit ups",
+    "Planks",
+    "Bicycles",
+    "Russian twists"
+  ];
+
+  const backAndBisExercises = [
+    "10 pull ups (or muscle ups)",
+    "Bent over one arm curls",
+    "Dead lift",
+    "10 pull ups",
+    "Bent over curls",
+    "Shrugs",
+    "Bicep curls",
+    "Concentrated curls",
+    "10 pull ups"
+  ];
+
+  const shouldersExercises = [
+    "Normal handstand hold",
+    "Handstand pushups (Max against wall)",
+    "Pike pushups",
+    "Shoulder flies outwards",
+    "Shoulder flies front",
+    "Bent over shoulder flies outwards",
+    "Parallets handstand hold",
+    "Parallets ground to handstand wall cheat",
+    "Handstand against wall 1 minute"
+  ];
+
+  const chestAndTrisExercises = [
+    "Inclined press",
+    "Jumping pushups",
+    "Curl press",
+    "Close pushups",
+    "Flies",
+    "Dips",
+    "Close inclined press",
+    "Archer pushups",
+    "Bench dips"
+  ];
   
   // Calculate total time: (workoutList.length * 60) + prepTime
-  const calculateTotalTime = () => (defaultWorkouts.length * 60) + 15; // 15 seconds prep
+  const calculateTotalTime = () => (devils10Exercises.length * 60) + 15; // 15 seconds prep
   
   // Timer state
   const [timerState, setTimerState] = useState({
@@ -49,6 +110,42 @@ const Main = () => {
   const [showWorkoutView, setShowWorkoutView] = useState(false);
   const [currentWorkoutIndex, setCurrentWorkoutIndex] = useState(0);
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(-1);
+
+  // Edit page state
+  const [currentEditPage, setCurrentEditPage] = useState(null);
+  const [currentEditLevel, setCurrentEditLevel] = useState('categories'); // 'categories', 'exercises', or 'exercise-edit'
+  const [currentEditingWorkout, setCurrentEditingWorkout] = useState(null);
+  const [timerSelectedWorkout, setTimerSelectedWorkout] = useState('The Devils 10');
+  const [stopwatchSelectedWorkout, setStopwatchSelectedWorkout] = useState('Back & Bis');
+
+  // Function to get the appropriate exercise list based on selected workout
+  const getExerciseList = (workoutName) => {
+    switch (workoutName) {
+      case 'The Devils 10':
+        return devils10Exercises;
+      case 'Abs 2':
+        return abs2Exercises;
+      case 'Back & Bis':
+        return backAndBisExercises;
+      case 'Shoulders':
+        return shouldersExercises;
+      case 'Chest & Tris':
+        return chestAndTrisExercises;
+      default:
+        return devils10Exercises; // fallback to timer workout
+    }
+  };
+
+  // Recalculate timer when workout selection changes
+  useEffect(() => {
+    const currentExercises = getExerciseList(timerSelectedWorkout);
+    const newTotalTime = (currentExercises.length * 60) + 15;
+    setTimerState(prev => ({
+      ...prev,
+      timeLeft: newTotalTime,
+      targetTime: newTotalTime
+    }));
+  }, [timerSelectedWorkout]);
 
   // Timer interval ref
   const timerIntervalRef = useRef(null);
@@ -199,6 +296,73 @@ const Main = () => {
     setShowLapTimes(false);
   };
 
+  // Edit page handlers
+  const handleNavigateToEdit = (type) => {
+    setCurrentEditPage(type);
+    setCurrentEditLevel('categories');
+  };
+
+  const handleEditPageBack = () => {
+    if (currentEditLevel === 'exercise-edit') {
+      setCurrentEditLevel('categories');
+      setCurrentEditingWorkout(null);
+    } else {
+      setCurrentEditPage(null);
+    }
+  };
+
+  const handleEditWorkoutSelect = (type, workout) => {
+    if (currentEditLevel === 'categories') {
+      // Select the workout category and go directly to exercise editing
+      if (type === 'timer') {
+        setTimerSelectedWorkout(workout);
+      } else if (type === 'stopwatch') {
+        setStopwatchSelectedWorkout(workout);
+      }
+      setCurrentEditLevel('exercise-edit');
+      setCurrentEditingWorkout(workout);
+    } else {
+      // This is the exercise edit level - save and go back to categories
+      setCurrentEditLevel('categories');
+      setCurrentEditingWorkout(null);
+    }
+  };
+
+  const handleWorkoutSelection = (type, workout) => {
+    // Just select the workout without navigating to exercise edit
+    if (type === 'timer') {
+      setTimerSelectedWorkout(workout);
+    } else if (type === 'stopwatch') {
+      setStopwatchSelectedWorkout(workout);
+    }
+  };
+
+  const handleExerciseSave = (updatedExercises) => {
+    // Here you would save the updated exercises to your workout data
+    console.log('Saving exercises for', currentEditingWorkout, ':', updatedExercises);
+    
+    // Update the exercise lists based on which workout is being edited
+    if (currentEditingWorkout === 'The Devils 10') {
+      // Update the devils10Exercises array (you might want to store this in state)
+      console.log('Updated The Devils 10 exercises:', updatedExercises);
+    } else if (currentEditingWorkout === 'Abs 2') {
+      // Update the abs2Exercises array (you might want to store this in state)
+      console.log('Updated Abs 2 exercises:', updatedExercises);
+    } else if (currentEditingWorkout === 'Back & Bis') {
+      // Update the backAndBisExercises array (you might want to store this in state)
+      console.log('Updated Back & Bis exercises:', updatedExercises);
+    } else if (currentEditingWorkout === 'Shoulders') {
+      // Update the shouldersExercises array (you might want to store this in state)
+      console.log('Updated Shoulders exercises:', updatedExercises);
+    } else if (currentEditingWorkout === 'Chest & Tris') {
+      // Update the chestAndTrisExercises array (you might want to store this in state)
+      console.log('Updated Chest & Tris exercises:', updatedExercises);
+    }
+    
+    // Stay on the same page - don't navigate away
+    // The changes are saved but user remains on the edit page
+  };
+
   const handleStopwatchLap = () => {
     if (stopwatchState.isRunning) {
       setStopwatchState(prev => ({
@@ -221,10 +385,12 @@ const Main = () => {
 
   const handleWorkoutSwipe = (direction) => {
     if (showWorkoutView) {
-      if (direction === 'left' && currentWorkoutIndex < 8) {
-        setCurrentWorkoutIndex(prev => prev + 1);
-      } else if (direction === 'right' && currentWorkoutIndex > 0) {
-        setCurrentWorkoutIndex(prev => prev - 1);
+      const currentExercises = getExerciseList(stopwatchSelectedWorkout);
+      const maxIndex = currentExercises.length - 1;
+      if (direction === 'left') {
+        setCurrentWorkoutIndex(prev => prev === maxIndex ? 0 : prev + 1);
+      } else if (direction === 'right') {
+        setCurrentWorkoutIndex(prev => prev === 0 ? maxIndex : prev - 1);
       }
     }
   };
@@ -277,9 +443,46 @@ const Main = () => {
   };
 
   const renderContent = () => {
+    // Show exercise edit page if active
+    if (currentEditLevel === 'exercise-edit' && currentEditingWorkout) {
+      const exercises = getExerciseList(currentEditingWorkout);
+      return (
+        <ExerciseEditPage 
+          workoutName={currentEditingWorkout}
+          exercises={exercises}
+          onSave={handleExerciseSave}
+          onBack={handleEditPageBack}
+        />
+      );
+    }
+
+    // Show edit page if active
+    if (currentEditPage) {
+      const workouts = currentEditPage === 'timer' ? timerWorkouts : stopwatchWorkouts;
+      const selectedWorkout = currentEditPage === 'timer' ? timerSelectedWorkout : stopwatchSelectedWorkout;
+      
+      return (
+        <EditPage 
+          type={currentEditPage}
+          level={currentEditLevel}
+          workouts={workouts}
+          selectedWorkout={selectedWorkout}
+          onWorkoutSelect={(workout) => handleWorkoutSelection(currentEditPage, workout)}
+          onArrowClick={(workout) => handleEditWorkoutSelect(currentEditPage, workout)}
+          onBack={handleEditPageBack}
+        />
+      );
+    }
+
     switch (activeTab) {
       case 'home':
-        return <Home />;
+        return (
+          <Home 
+            onNavigateToEdit={handleNavigateToEdit}
+            timerSelectedWorkout={timerSelectedWorkout}
+            stopwatchSelectedWorkout={stopwatchSelectedWorkout}
+          />
+        );
       case 'timer':
         return (
           <Timer 
@@ -288,6 +491,7 @@ const Main = () => {
             targetTime={timerState.targetTime}
             selectedWorkoutIndex={timerState.selectedWorkoutIndex}
             onTimerStateChange={handleTimerStateChange}
+            workouts={getExerciseList(timerSelectedWorkout)}
           />
         );
       case 'stopwatch':
@@ -302,6 +506,7 @@ const Main = () => {
             onWorkoutSwipe={handleWorkoutSwipe}
             selectedWorkoutIndex={selectedWorkoutIndex}
             onWorkoutSelect={handleWorkoutSelect}
+            workoutList={getExerciseList(stopwatchSelectedWorkout)}
           />
         );
       default:
@@ -312,31 +517,33 @@ const Main = () => {
   return (
     <main className="tab-content">
       {renderContent()}
-      <TabBar 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab}
-        stopwatchControls={activeTab === 'stopwatch' ? {
-          isRunning: stopwatchState.isRunning,
-          onStart: handleStopwatchStart,
-          onStop: handleStopwatchStop,
-          onReset: handleStopwatchReset,
-          onLap: handleStopwatchLap,
-          lapCount: stopwatchState.laps.length,
-          showLapTimes: showLapTimes,
-          isClosingLapTimes: isClosingLapTimes,
-          onLapBarTap: handleLapBarTap,
-          onLapBarTouchStart: handleLapBarTouchStart,
-          onLapBarTouchMove: handleLapBarTouchMove,
-          onLapBarTouchEnd: handleLapBarTouchEnd,
-          onCloseLapTimes: handleCloseLapTimes,
-          lapTimes: stopwatchState.laps.map(lap => formatLapTime(lap)),
-          showWorkoutView: showWorkoutView,
-          currentWorkoutIndex: currentWorkoutIndex,
-          onWorkoutViewToggle: handleWorkoutViewToggle,
-          onWorkoutSwipe: handleWorkoutSwipe,
-          onClearSets: handleClearSets
-        } : null}
-      />
+      {!currentEditPage && (
+        <TabBar 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab}
+          stopwatchControls={activeTab === 'stopwatch' ? {
+            isRunning: stopwatchState.isRunning,
+            onStart: handleStopwatchStart,
+            onStop: handleStopwatchStop,
+            onReset: handleStopwatchReset,
+            onLap: handleStopwatchLap,
+            lapCount: stopwatchState.laps.length,
+            showLapTimes: showLapTimes,
+            isClosingLapTimes: isClosingLapTimes,
+            onLapBarTap: handleLapBarTap,
+            onLapBarTouchStart: handleLapBarTouchStart,
+            onLapBarTouchMove: handleLapBarTouchMove,
+            onLapBarTouchEnd: handleLapBarTouchEnd,
+            onCloseLapTimes: handleCloseLapTimes,
+            lapTimes: stopwatchState.laps.map(lap => formatLapTime(lap)),
+            showWorkoutView: showWorkoutView,
+            currentWorkoutIndex: currentWorkoutIndex,
+            onWorkoutViewToggle: handleWorkoutViewToggle,
+            onWorkoutSwipe: handleWorkoutSwipe,
+            onClearSets: handleClearSets
+          } : null}
+        />
+      )}
     </main>
   );
 };
