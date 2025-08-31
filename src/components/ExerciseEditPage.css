@@ -64,7 +64,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-bottom: 30px;
+  margin-bottom: 140px; /* Add space for fixed buttons */
   position: relative;
   min-height: 200px;
   width: 100%;
@@ -152,10 +152,18 @@
 }
 
 .exercise-edit-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 0;
+  padding: 20px;
+  background: #000000;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 1000;
+  box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.3);
 }
 
 .add-exercise-btn {
@@ -340,5 +348,13 @@
   .popup-content {
     padding: 20px;
     margin: 20px;
+  }
+  
+  .exercise-edit-actions {
+    padding: 16px;
+  }
+  
+  .exercises-list {
+    margin-bottom: 120px; /* Slightly less space on mobile */
   }
 }
