@@ -24,12 +24,12 @@ const Main = () => {
   // Exercise lists for each workout
   const devils10Exercises = [
     "Russian Twist",
-    "Boat hold or seated in and outs",
-    "Glut boat hold",
+    "Seated in and outs",
+    "Boat hold",
     "Jack knifes",
-    "Sit up twist (weight over head)",
-    "Leg raises (weight in feet)",
-    "Chair sit ups (weight in one arm)",
+    "Sit up twist",
+    "Leg raises",
+    "Chair sit ups",
     "Plank knees to elbows",
     "Side planks dips",
     "Bicycle",
@@ -195,15 +195,6 @@ const Main = () => {
   // Stopwatch interval management
   useEffect(() => {
     if (stopwatchState.isRunning) {
-      // Request wake lock when stopwatch starts
-      if ('wakeLock' in navigator) {
-        navigator.wakeLock.request('screen').then(lock => {
-          wakeLockRef.current = lock;
-        }).catch(err => {
-          console.log('Wake lock request failed:', err);
-        });
-      }
-      
       stopwatchIntervalRef.current = setInterval(() => {
         setStopwatchState(prev => ({
           ...prev,
@@ -264,31 +255,32 @@ const Main = () => {
 
   // Stopwatch state change handler
   const handleStopwatchStateChange = (newState) => {
-    setStopwatchState(prev => ({ ...prev, ...newState }));
+    setStopwatchState(prev => {
+      const updated = { ...prev, ...newState };
+      
+      // Handle wake lock
+      if (newState.isRunning && !prev.isRunning) {
+        requestWakeLock();
+      } else if (!newState.isRunning && prev.isRunning) {
+        releaseWakeLock();
+      }
+      
+      return updated;
+    });
   };
 
   // Stopwatch control handlers
   const handleStopwatchStart = () => {
-    setStopwatchState(prev => ({ ...prev, isRunning: true }));
+    handleStopwatchStateChange({ isRunning: true });
   };
 
   const handleStopwatchStop = () => {
-    setStopwatchState(prev => ({ ...prev, isRunning: false }));
-    // Release wake lock when stopwatch stops
-    if (wakeLockRef.current) {
-      wakeLockRef.current.release();
-      wakeLockRef.current = null;
-    }
+    handleStopwatchStateChange({ isRunning: false });
   };
 
   const handleStopwatchReset = () => {
-    setStopwatchState(prev => ({ ...prev, time: 0, isRunning: false, laps: [] }));
+    handleStopwatchStateChange({ time: 0, isRunning: false, laps: [] });
     setShowLapTimes(false);
-    // Release wake lock when stopwatch resets
-    if (wakeLockRef.current) {
-      wakeLockRef.current.release();
-      wakeLockRef.current = null;
-    }
   };
 
   const handleClearSets = () => {
@@ -309,6 +301,11 @@ const Main = () => {
     } else {
       setCurrentEditPage(null);
     }
+  };
+
+  const handleNavigateToTab = (type) => {
+    setCurrentEditPage(null);
+    setActiveTab(type);
   };
 
   const handleEditWorkoutSelect = (type, workout) => {
@@ -470,6 +467,7 @@ const Main = () => {
           onWorkoutSelect={(workout) => handleWorkoutSelection(currentEditPage, workout)}
           onArrowClick={(workout) => handleEditWorkoutSelect(currentEditPage, workout)}
           onBack={handleEditPageBack}
+          onNavigateToTab={handleNavigateToTab}
         />
       );
     }
@@ -481,6 +479,10 @@ const Main = () => {
             onNavigateToEdit={handleNavigateToEdit}
             timerSelectedWorkout={timerSelectedWorkout}
             stopwatchSelectedWorkout={stopwatchSelectedWorkout}
+            timerWorkouts={timerWorkouts}
+            stopwatchWorkouts={stopwatchWorkouts}
+            onWorkoutSelect={handleWorkoutSelection}
+            onArrowClick={handleEditWorkoutSelect}
           />
         );
       case 'timer':

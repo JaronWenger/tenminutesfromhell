@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import './ExerciseEditPage.css';
-import BackIcon from '../assets/back.webp';
 
 const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack }) => {
   const [localExercises, setLocalExercises] = useState([...exercises]);
@@ -64,8 +63,8 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack }) => {
   return (
     <div className="exercise-edit-container">
       <div className="exercise-edit-header">
-        <button className="back-button" onClick={onBack}>
-          <img src={BackIcon} alt="Back" className="back-icon" />
+        <button className="close-button" onClick={onBack}>
+          <span className="close-icon">×</span>
         </button>
         <h1 className="exercise-edit-title">{workoutName}</h1>
       </div>

@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import './EditPage.css';
-import BackIcon from '../assets/back.webp';
 import Tab2 from '../assets/Tab2.jpg';
 import Tab3 from '../assets/Tab3.jpg';
 
-const EditPage = ({ type, level, workouts, selectedWorkout, onWorkoutSelect, onArrowClick, onBack }) => {
+const EditPage = ({ type, level, workouts, selectedWorkout, onWorkoutSelect, onArrowClick, onBack, onNavigateToTab }) => {
   const [localSelectedWorkout, setLocalSelectedWorkout] = useState(selectedWorkout);
 
   // Update local state when prop changes
@@ -28,6 +27,12 @@ const EditPage = ({ type, level, workouts, selectedWorkout, onWorkoutSelect, onA
     onBack();
   };
 
+  const handleHeaderImageClick = () => {
+    if (onNavigateToTab) {
+      onNavigateToTab(type);
+    }
+  };
+
            const getPageTitle = () => {
            if (level === 'categories') {
              return type === 'timer' ? 'Timer' : 'Stopwatch';
@@ -39,13 +44,18 @@ const EditPage = ({ type, level, workouts, selectedWorkout, onWorkoutSelect, onA
   return (
     <div className="edit-page-container">
                <div className="edit-page-header">
-           <button className="back-button" onClick={handleBack}>
-             <img src={BackIcon} alt="Back" className="back-icon" />
+           <button className="close-button" onClick={handleBack}>
+             <span className="close-icon">×</span>
            </button>
            <h1 className="edit-page-title">
              {getPageTitle()}
            </h1>
-           <img src={type === 'timer' ? Tab2 : Tab3} alt={type === 'timer' ? 'Timer' : 'Stopwatch'} className="header-image" />
+           <img 
+             src={type === 'timer' ? Tab2 : Tab3} 
+             alt={type === 'timer' ? 'Timer' : 'Stopwatch'} 
+             className="header-image" 
+             onClick={handleHeaderImageClick}
+           />
          </div>
       
       <div className="workouts-list">
