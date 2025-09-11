@@ -12,13 +12,20 @@ const Main = () => {
   // Workout categories for each section
   const timerWorkouts = [
     "The Devils 10",
-    "Abs 2"
+    "Abs 2",
+    "Core Blaster",
+    "Leg Day Hell",
+    "Full Body Burn",
+    "Cardio Inferno"
   ];
 
   const stopwatchWorkouts = [
     "Back & Bis",
     "Shoulders",
-    "Chest & Tris"
+    "Chest & Tris",
+    "Legs & Glutes",
+    "Upper Body Power",
+    "Strength & Endurance"
   ];
 
   // Exercise lists for each workout
@@ -82,6 +89,96 @@ const Main = () => {
     "Archer pushups",
     "Bench dips"
   ];
+
+  // New Timer Workout Exercises
+  const coreBlasterExercises = [
+    "Mountain climbers",
+    "Plank to pushup",
+    "Dead bug",
+    "Hollow body hold",
+    "Side plank dips",
+    "Bicycle crunches",
+    "Leg raises",
+    "Russian twists",
+    "Plank jacks",
+    "Sit-up to stand"
+  ];
+
+  const legDayHellExercises = [
+    "Squats",
+    "Jump squats",
+    "Lunges",
+    "Single leg deadlifts",
+    "Wall sits",
+    "Calf raises",
+    "Glute bridges",
+    "Side lunges",
+    "Pistol squats",
+    "Bulgarian split squats"
+  ];
+
+  const fullBodyBurnExercises = [
+    "Burpees",
+    "Jumping jacks",
+    "High knees",
+    "Mountain climbers",
+    "Push-ups",
+    "Squats",
+    "Plank",
+    "Jump squats",
+    "Tricep dips",
+    "Lunges"
+  ];
+
+  const cardioInfernoExercises = [
+    "Jumping jacks",
+    "High knees",
+    "Butt kicks",
+    "Mountain climbers",
+    "Burpees",
+    "Jump squats",
+    "Plank jacks",
+    "Star jumps",
+    "Skaters",
+    "Sprint in place"
+  ];
+
+  // New Stopwatch Workout Exercises
+  const legsAndGlutesExercises = [
+    "Squats",
+    "Deadlifts",
+    "Lunges",
+    "Glute bridges",
+    "Calf raises",
+    "Wall sits",
+    "Single leg deadlifts",
+    "Bulgarian split squats",
+    "Hip thrusts"
+  ];
+
+  const upperBodyPowerExercises = [
+    "Pull-ups",
+    "Push-ups",
+    "Dips",
+    "Pike push-ups",
+    "Inverted rows",
+    "Diamond push-ups",
+    "Archer push-ups",
+    "Handstand push-ups",
+    "Muscle-ups"
+  ];
+
+  const strengthAndEnduranceExercises = [
+    "Deadlifts",
+    "Squats",
+    "Pull-ups",
+    "Push-ups",
+    "Plank holds",
+    "Burpees",
+    "Mountain climbers",
+    "Jump squats",
+    "Dips"
+  ];
   
   // Calculate total time: (workoutList.length * 60) + prepTime
   const calculateTotalTime = () => (devils10Exercises.length * 60) + 15; // 15 seconds prep
@@ -121,16 +218,35 @@ const Main = () => {
   // Function to get the appropriate exercise list based on selected workout
   const getExerciseList = (workoutName) => {
     switch (workoutName) {
+      // Timer workouts
       case 'The Devils 10':
         return devils10Exercises;
       case 'Abs 2':
         return abs2Exercises;
+      case 'Core Blaster':
+        return coreBlasterExercises;
+      case 'Leg Day Hell':
+        return legDayHellExercises;
+      case 'Full Body Burn':
+        return fullBodyBurnExercises;
+      case 'Cardio Inferno':
+        return cardioInfernoExercises;
+      // Stopwatch workouts
       case 'Back & Bis':
         return backAndBisExercises;
       case 'Shoulders':
         return shouldersExercises;
       case 'Chest & Tris':
         return chestAndTrisExercises;
+      case 'Legs & Glutes':
+        return legsAndGlutesExercises;
+      case 'Upper Body Power':
+        return upperBodyPowerExercises;
+      case 'Strength & Endurance':
+        return strengthAndEnduranceExercises;
+      // New workout case
+      case 'New Workout':
+        return []; // Empty array for new workout
       default:
         return devils10Exercises; // fallback to timer workout
     }
@@ -310,6 +426,13 @@ const Main = () => {
 
   const handleEditWorkoutSelect = (type, workout) => {
     if (currentEditLevel === 'categories') {
+      // Handle "New Workout" case
+      if (workout === 'New Workout') {
+        setCurrentEditLevel('exercise-edit');
+        setCurrentEditingWorkout('New Workout');
+        return;
+      }
+      
       // Select the workout category and go directly to exercise editing
       if (type === 'timer') {
         setTimerSelectedWorkout(workout);
@@ -334,9 +457,12 @@ const Main = () => {
     }
   };
 
-  const handleExerciseSave = (updatedExercises) => {
+  const handleExerciseSave = (updatedExercises, newTitle = null) => {
     // Here you would save the updated exercises to your workout data
     console.log('Saving exercises for', currentEditingWorkout, ':', updatedExercises);
+    if (newTitle) {
+      console.log('New title:', newTitle);
+    }
     
     // Update the exercise lists based on which workout is being edited
     if (currentEditingWorkout === 'The Devils 10') {
@@ -519,7 +645,7 @@ const Main = () => {
   return (
     <main className="tab-content">
       {renderContent()}
-      {!currentEditPage && (
+      {!currentEditPage && currentEditLevel !== 'exercise-edit' && (
         <TabBar 
           activeTab={activeTab} 
           onTabChange={setActiveTab}

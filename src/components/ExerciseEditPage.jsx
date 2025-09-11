@@ -7,12 +7,14 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack }) => {
   const [showAddPopup, setShowAddPopup] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(workoutName);
 
-  // Check if there are changes compared to original exercises
+  // Check if there are changes compared to original exercises or title
   useEffect(() => {
-    const hasChangesMade = JSON.stringify(localExercises) !== JSON.stringify(exercises);
+    const hasChangesMade = JSON.stringify(localExercises) !== JSON.stringify(exercises) || editedTitle !== workoutName;
     setHasChanges(hasChangesMade);
-  }, [localExercises, exercises]);
+  }, [localExercises, exercises, editedTitle, workoutName]);
 
   const handleAddExercise = () => {
     setShowAddPopup(true);
@@ -45,10 +47,31 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack }) => {
   };
 
   const handleSave = () => {
-    if (hasChanges) {
-      onSave(localExercises);
+    if (hasChanges || editedTitle !== workoutName) {
+      onSave(localExercises, editedTitle);
       setHasChanges(false);
     }
+  };
+
+  const handleTitleDoubleClick = () => {
+    setIsEditingTitle(true);
+  };
+
+  const handleTitleChange = (e) => {
+    setEditedTitle(e.target.value);
+  };
+
+  const handleTitleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      setIsEditingTitle(false);
+    } else if (e.key === 'Escape') {
+      setEditedTitle(workoutName);
+      setIsEditingTitle(false);
+    }
+  };
+
+  const handleTitleBlur = () => {
+    setIsEditingTitle(false);
   };
 
   const onDragEnd = (result) => {
@@ -66,7 +89,21 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack }) => {
         <button className="close-button" onClick={onBack}>
           <span className="close-icon">×</span>
         </button>
-        <h1 className="exercise-edit-title">{workoutName}</h1>
+        {isEditingTitle ? (
+          <input
+            type="text"
+            value={editedTitle}
+            onChange={handleTitleChange}
+            onKeyDown={handleTitleKeyDown}
+            onBlur={handleTitleBlur}
+            className="exercise-edit-title-input"
+            autoFocus
+          />
+        ) : (
+          <h1 className="exercise-edit-title" onDoubleClick={handleTitleDoubleClick}>
+            {editedTitle}
+          </h1>
+        )}
       </div>
       
       <DragDropContext onDragEnd={onDragEnd}>

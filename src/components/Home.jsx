@@ -74,7 +74,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                   {timerWorkouts.map((workout, index) => (
                     <div 
                       key={index}
-                      className={`workout-item ${timerSelectedWorkout === workout ? 'selected' : ''}`}
+                      className={`home-workout-item ${timerSelectedWorkout === workout ? 'selected' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleWorkoutSelect('timer', workout);
@@ -84,7 +84,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                         handleWorkoutDoubleClick('timer', workout, e);
                       }}
                     >
-                      <div className="workout-number">{index + 1}</div>
+                      <div className="home-workout-number">{index + 1}</div>
                       <span className="workout-name">{workout}</span>
                       <div 
                         className="workout-arrow"
@@ -92,6 +92,15 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                       >→</div>
                     </div>
                   ))}
+                  <div 
+                    className="add-workout-plus"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleArrowClick('timer', 'New Workout', e);
+                    }}
+                  >
+                    +
+                  </div>
                 </div>
               </>
             ) : (
@@ -126,7 +135,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                   {stopwatchWorkouts.map((workout, index) => (
                     <div 
                       key={index}
-                      className={`workout-item ${stopwatchSelectedWorkout === workout ? 'selected' : ''}`}
+                      className={`home-workout-item ${stopwatchSelectedWorkout === workout ? 'selected' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleWorkoutSelect('stopwatch', workout);
@@ -136,7 +145,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                         handleWorkoutDoubleClick('stopwatch', workout, e);
                       }}
                     >
-                      <div className="workout-number">{index + 1}</div>
+                      <div className="home-workout-number">{index + 1}</div>
                       <span className="workout-name">{workout}</span>
                       <div 
                         className="workout-arrow"
@@ -144,6 +153,15 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                       >→</div>
                     </div>
                   ))}
+                  <div 
+                    className="add-workout-plus"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleArrowClick('stopwatch', 'New Workout', e);
+                    }}
+                  >
+                    +
+                  </div>
                 </div>
               </>
             ) : (

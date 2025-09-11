@@ -104,15 +104,21 @@
   border-radius: 16px;
   padding: 30px 20px;
   min-width: 140px;
+  height: auto;
+  min-height: 140px;
+  max-height: 320px;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
 
 .home-card.expanded {
   padding: 30px 20px;
-  min-height: 300px;
-  max-height: 500px;
+  min-height: 270px;
+  max-height: 320px;
   border: 2px solid rgba(255, 59, 48, 0.3);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .home-card.condensed {
@@ -174,8 +180,26 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  opacity: 0;
-  animation: fadeIn 0.3s ease-in-out 0.2s both;
+  opacity: 1;
+  overflow: visible;
+  position: relative;
+}
+
+.workouts-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.workouts-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workouts-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 59, 48, 0.3);
+  border-radius: 3px;
+}
+
+.workouts-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 59, 48, 0.5);
 }
 
 @keyframes fadeIn {
@@ -189,6 +213,72 @@
   }
 }
 
+/* Home page specific workout items - minimal text style */
+.home-workout-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 16px;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 59, 48, 0.2) !important;
+  border-radius: 0 !important;
+  cursor: pointer;
+  transition: none !important;
+  box-shadow: none !important;
+  text-align: left;
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+
+
+@keyframes fadeInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+.home-workout-item:last-child {
+  border-bottom: none !important;
+}
+
+.home-workout-item:hover {
+  background: transparent !important;
+  transform: none !important;
+}
+
+.home-workout-item.selected {
+  background: rgba(255, 59, 48, 0.1) !important;
+  border-left: 3px solid #ff3b30 !important;
+}
+
+.home-workout-number {
+  display: none !important;
+}
+
+.add-workout-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  color: #ff3b30;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-20px);
+  animation: fadeInFromTop 0.4s ease-out forwards;
+  animation-delay: 0.7s;
+  width: auto;
+  margin: 0 auto;
+}
+
+/* Keep original workout-item styles for timer page */
 .workout-item {
   display: flex;
   align-items: center;
@@ -379,3 +469,4 @@
     line-height: 1.2;
   }
 }
+
