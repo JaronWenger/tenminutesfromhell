@@ -11,7 +11,8 @@ const Stopwatch = ({
   onWorkoutSwipe,
   selectedWorkoutIndex = -1,
   onWorkoutSelect,
-  workoutList = []
+  workoutList = [],
+  selectedWorkoutName = ''
 }) => {
   // Use props if provided, otherwise use local state
   const [time, setTime] = useState(propTime !== undefined ? propTime : 0);
@@ -120,6 +121,10 @@ const Stopwatch = ({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
       >
+        {/* Selected Workout Title */}
+        <div className="stopwatch-workout-title">
+          {selectedWorkoutName || 'Back & Bis'}
+        </div>
 
         {showWorkoutView ? (
           <div className="workout-single-view">

@@ -634,6 +634,7 @@ const Main = () => {
               selectedWorkoutIndex={timerState.selectedWorkoutIndex}
               onTimerStateChange={handleTimerStateChange}
               workouts={getExerciseList(timerSelectedWorkout)}
+              selectedWorkoutName={timerSelectedWorkout}
             />
           );
         case 'stopwatch':
@@ -649,6 +650,7 @@ const Main = () => {
               selectedWorkoutIndex={selectedWorkoutIndex}
               onWorkoutSelect={handleWorkoutSelect}
               workoutList={getExerciseList(stopwatchSelectedWorkout)}
+              selectedWorkoutName={stopwatchSelectedWorkout}
             />
           );
         default:
@@ -713,6 +715,7 @@ const Main = () => {
             selectedWorkoutIndex={timerState.selectedWorkoutIndex}
             onTimerStateChange={handleTimerStateChange}
             workouts={getExerciseList(timerSelectedWorkout)}
+            selectedWorkoutName={timerSelectedWorkout}
           />
         );
       case 'stopwatch':
@@ -728,6 +731,7 @@ const Main = () => {
             selectedWorkoutIndex={selectedWorkoutIndex}
             onWorkoutSelect={handleWorkoutSelect}
             workoutList={getExerciseList(stopwatchSelectedWorkout)}
+            selectedWorkoutName={stopwatchSelectedWorkout}
           />
         );
       default:

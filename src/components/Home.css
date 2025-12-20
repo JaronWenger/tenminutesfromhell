@@ -128,30 +128,52 @@
   background: #000000;
   border: 2px solid rgba(255, 59, 48, 0.3);
   border-radius: 16px;
-  padding: 20px 20px;
-  min-width: 140px;
-  height: auto;
-  min-height: 120px;
-  max-height: 280px;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 24px 24px;
+  min-width: 180px;
+  min-height: 180px;
+  max-height: 180px;
+  transition: 
+    min-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    padding 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s;
   overflow: hidden;
+  will-change: min-height, max-height;
+  /* Use contain to prevent layout shifts from children */
+  contain: layout style;
+  box-sizing: border-box;
 }
 
 .home-card.expanded {
-  padding: 20px 20px;
-  min-height: 240px;
-  max-height: 280px;
+  padding: 24px 24px;
+  min-height: 300px;
+  max-height: 350px;
   border: 2px solid rgba(255, 59, 48, 0.3);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  will-change: min-height, max-height;
+  /* Ensure transition timing matches condensed */
+  transition: 
+    min-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    padding 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s;
+  box-sizing: border-box;
 }
 
 .home-card.condensed {
-  padding: 10px 20px;
-  height: 60px;
-  min-height: 60px;
-  max-height: 60px;
+  padding: 12px 24px;
+  min-height: 75px;
+  max-height: 75px;
+  will-change: min-height, max-height;
+  /* Match the same transition timing as base card for simultaneous animation */
+  transition: 
+    min-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    padding 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
+    border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s;
+  box-sizing: border-box;
 }
 
 .home-card.clickable {
@@ -159,11 +181,7 @@
 }
 
 /* Hover effects removed for cleaner look */
-
-.home-card.clickable:active {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
+/* Active state removed to prevent upward movement on click */
 
 /* Expanded state styles */
 .expanded-header {
@@ -172,9 +190,13 @@
   justify-content: center;
   padding: 0 0 15px 0;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: 
+    background-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   margin-bottom: 15px;
   position: relative;
+  will-change: opacity, transform;
 }
 
 .expanded-header::after {
@@ -198,7 +220,12 @@
   height: 48px;
   border-radius: 8px;
   object-fit: contain;
-  transition: all 0.3s ease;
+  transition: 
+    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, height, opacity, transform;
 }
 
 .workouts-list {
@@ -209,6 +236,11 @@
   opacity: 1;
   overflow: visible;
   position: relative;
+  transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: opacity;
+  /* Reserve space immediately to prevent height jumps */
+  min-height: 0;
+  height: auto;
 }
 
 .workouts-list::-webkit-scrollbar {
@@ -254,7 +286,11 @@
   text-align: left;
   opacity: 0;
   transform: translateY(-10px);
-  animation: fadeInWorkoutItem 0.4s ease-out forwards;
+  /* Delay animation slightly to let container finish expanding first */
+  animation: fadeInWorkoutItem 0.25s ease-out 0.15s forwards;
+  /* Reserve space for the item even when invisible to prevent height jump */
+  min-height: 32px;
+  visibility: hidden;
 }
 
 
@@ -273,10 +309,12 @@
   from {
     opacity: 0;
     transform: translateY(-10px);
+    visibility: hidden;
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    visibility: visible;
   }
 }
 
@@ -383,6 +421,8 @@
   justify-content: center;
   padding: 0 10px;
   height: 100%;
+  transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: opacity;
 }
 
 .condensed-icon {
@@ -390,7 +430,12 @@
   height: 48px;
   border-radius: 8px;
   object-fit: contain;
-  transition: all 0.3s ease;
+  transition: 
+    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, height, opacity, transform;
 }
 
 .card-icon {
@@ -398,13 +443,20 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: opacity;
 }
 
 .card-icon img {
   width: 48px;
   height: 48px;
   object-fit: contain;
-  transition: all 0.3s ease;
+  transition: 
+    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, height, opacity, transform;
 }
 
 /* Card icon hover effects removed for cleaner look */
@@ -414,6 +466,10 @@
   font-weight: 600;
   margin: 0 0 8px 0;
   color: white;
+  transition: 
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
 }
 
 .home-card p {
@@ -421,6 +477,10 @@
   color: rgba(255, 255, 255, 0.7);
   margin: 0;
   line-height: 1.4;
+  transition: 
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
 }
 
 .selected-workout {

@@ -10,7 +10,8 @@ const Timer = ({
   isRunning: propIsRunning,
   targetTime: propTargetTime,
   selectedWorkoutIndex: propSelectedWorkoutIndex,
-  onTimerStateChange
+  onTimerStateChange,
+  selectedWorkoutName = ''
 }) => {
   // Default workouts if none provided
   const defaultWorkouts = [
@@ -120,6 +121,13 @@ const Timer = ({
           updateParentState({ timeLeft: newTimeLeft });
         }}
       />
+
+      {/* Selected Workout Title - Hidden when running but keeps spacing */}
+      {selectedWorkoutName && (
+        <div className={`timer-workout-title ${isRunning ? 'hidden' : ''}`}>
+          {selectedWorkoutName}
+        </div>
+      )}
 
       <WorkoutList
         workoutList={workoutList}

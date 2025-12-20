@@ -119,7 +119,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                     <div 
                       key={index}
                       className={`home-workout-item ${timerSelectedWorkout === workout ? 'selected' : ''}`}
-                      style={{ animationDelay: `${index * 0.1}s` }}
+                      style={{ animationDelay: `${index * 0.06}s` }}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleWorkoutSelect('timer', workout);
@@ -184,7 +184,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                     <div 
                       key={index}
                       className={`home-workout-item ${stopwatchSelectedWorkout === workout ? 'selected' : ''}`}
-                      style={{ animationDelay: `${index * 0.1}s` }}
+                      style={{ animationDelay: `${index * 0.06}s` }}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleWorkoutSelect('stopwatch', workout);
