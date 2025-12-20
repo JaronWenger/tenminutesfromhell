@@ -9,12 +9,15 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack, workoutType,
   const [hasChanges, setHasChanges] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(workoutName);
+  // Track the last saved state to compare against
+  const [lastSavedExercises, setLastSavedExercises] = useState([...exercises]);
+  const [lastSavedTitle, setLastSavedTitle] = useState(workoutName);
 
-  // Check if there are changes compared to original exercises or title
+  // Check if there are changes compared to last saved state
   useEffect(() => {
-    const hasChangesMade = JSON.stringify(localExercises) !== JSON.stringify(exercises) || editedTitle !== workoutName;
+    const hasChangesMade = JSON.stringify(localExercises) !== JSON.stringify(lastSavedExercises) || editedTitle !== lastSavedTitle;
     setHasChanges(hasChangesMade);
-  }, [localExercises, exercises, editedTitle, workoutName]);
+  }, [localExercises, lastSavedExercises, editedTitle, lastSavedTitle]);
 
   const handleAddExercise = () => {
     setShowAddPopup(true);
@@ -47,21 +50,22 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack, workoutType,
   };
 
   const handleSave = () => {
-    if (hasChanges || editedTitle !== workoutName) {
+    if (hasChanges || editedTitle !== lastSavedTitle) {
       onSave(localExercises, editedTitle);
-      setHasChanges(false);
+      // Update the last saved state to match current state
+      setLastSavedExercises([...localExercises]);
+      setLastSavedTitle(editedTitle);
+      // This will make hasChanges become false on next render
     }
   };
 
   const handleButtonClick = () => {
-    if (hasChanges || editedTitle !== workoutName) {
-      // Save changes first, then start
+    if (hasChanges || editedTitle !== lastSavedTitle) {
+      // Save changes but stay on the page - DO NOT navigate
       handleSave();
-      if (onStart) {
-        onStart();
-      }
+      // Don't call onStart - just save and let the button change to "Start"
     } else {
-      // No changes, just start
+      // No changes, navigate to tab
       if (onStart) {
         onStart();
       }

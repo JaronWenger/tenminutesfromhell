@@ -5,10 +5,36 @@
   align-items: center;
   justify-content: flex-start;
   min-height: 100vh;
+  width: 100%;
   background: transparent;
   color: white;
   position: relative;
   overflow: hidden;
+}
+
+/* Side overlays for desktop to capture clicks on left/right sides */
+.home-side-overlay {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.home-side-overlay-left {
+  left: 0;
+}
+
+.home-side-overlay-right {
+  right: 0;
+}
+
+/* Hide side overlays on mobile */
+@media (max-width: 768px) {
+  .home-side-overlay {
+    display: none;
+  }
 }
 
 /* Fire Background with SPARKS.gif */

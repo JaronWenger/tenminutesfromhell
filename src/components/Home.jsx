@@ -56,12 +56,42 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
     setExpandedCard(null);
   };
 
+  const handleOutsideClick = (e) => {
+    // Only collapse if clicking outside both boxes and not on interactive elements
+    // Check if the click target is a button, link, or inside a card
+    const target = e.target;
+    const isInteractive = target.tagName === 'BUTTON' || 
+                         target.tagName === 'A' || 
+                         target.closest('.home-card') ||
+                         target.closest('button') ||
+                         target.closest('a');
+    
+    // Only collapse if not clicking on interactive elements and a card is expanded
+    if (expandedCard && !isInteractive) {
+      setExpandedCard(null);
+    }
+  };
+
   return (
-    <div className="home-container">
+    <div className="home-container" onClick={handleOutsideClick}>
       {/* Fire Background */}
       <div className="fire-background">
         <img src={Sparks} alt="Fire sparks" className="sparks-gif" />
       </div>
+      
+      {/* Left and right side overlays for desktop to capture clicks */}
+      {expandedCard && (
+        <>
+          <div 
+            className="home-side-overlay home-side-overlay-left"
+            onClick={handleOutsideClick}
+          />
+          <div 
+            className="home-side-overlay home-side-overlay-right"
+            onClick={handleOutsideClick}
+          />
+        </>
+      )}
       
       <div className="home-title">
         <h1 className="main-title">
@@ -74,7 +104,10 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
         <div className="home-cards">
           <div 
             className={`home-card clickable ${expandedCard === 'timer' ? 'expanded' : ''} ${expandedCard === 'stopwatch' ? 'condensed' : ''}`}
-            onClick={handleTimerClick}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTimerClick();
+            }}
           >
             {expandedCard === 'timer' ? (
               <>
@@ -136,7 +169,10 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
           
           <div 
             className={`home-card clickable ${expandedCard === 'stopwatch' ? 'expanded' : ''} ${expandedCard === 'timer' ? 'condensed' : ''}`}
-            onClick={handleStopwatchClick}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStopwatchClick();
+            }}
           >
             {expandedCard === 'stopwatch' ? (
               <>
