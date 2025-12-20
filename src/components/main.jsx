@@ -412,10 +412,24 @@ const Main = () => {
 
   const handleEditPageBack = () => {
     if (currentEditLevel === 'exercise-edit') {
+      // If we're on home tab, go back to home instead of categories
+      if (activeTab === 'home') {
+        setCurrentEditPage(null);
+        setCurrentEditLevel('categories');
+        setCurrentEditingWorkout(null);
+        setActiveTab('home');
+      } else {
+        // Otherwise, go back to categories level
+        setCurrentEditLevel('categories');
+        setCurrentEditingWorkout(null);
+      }
+    } else {
+      // Close edit page completely and go back to home
+      setCurrentEditPage(null);
       setCurrentEditLevel('categories');
       setCurrentEditingWorkout(null);
-    } else {
-      setCurrentEditPage(null);
+      // Navigate back to home when closing edit page
+      setActiveTab('home');
     }
   };
 
@@ -425,13 +439,15 @@ const Main = () => {
   };
 
   const handleEditWorkoutSelect = (type, workout) => {
+    // If coming from home (type is provided and currentEditPage is null), set up edit state
+    if (type && !currentEditPage) {
+      setCurrentEditPage(type);
+      setCurrentEditLevel('categories');
+    }
+    
     if (currentEditLevel === 'categories') {
       // Handle "New Workout" case
       if (workout === 'New Workout') {
-        // Set currentEditPage if type is provided (coming from Home)
-        if (type) {
-          setCurrentEditPage(type);
-        }
         setCurrentEditLevel('exercise-edit');
         setCurrentEditingWorkout('New Workout');
         return;
@@ -442,10 +458,6 @@ const Main = () => {
         setTimerSelectedWorkout(workout);
       } else if (type === 'stopwatch') {
         setStopwatchSelectedWorkout(workout);
-      }
-      // Set currentEditPage if type is provided (coming from Home)
-      if (type) {
-        setCurrentEditPage(type);
       }
       setCurrentEditLevel('exercise-edit');
       setCurrentEditingWorkout(workout);
@@ -689,6 +701,7 @@ const Main = () => {
             stopwatchWorkouts={stopwatchWorkouts}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
+            onNavigateToTab={handleNavigateToTab}
           />
         );
       case 'timer':
@@ -727,6 +740,7 @@ const Main = () => {
             stopwatchWorkouts={stopwatchWorkouts}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
+            onNavigateToTab={handleNavigateToTab}
           />
         );
     }

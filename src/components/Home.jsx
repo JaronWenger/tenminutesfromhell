@@ -4,7 +4,7 @@ import Tab2 from '../assets/Tab2.jpg';
 import Tab3 from '../assets/Tab3.jpg';
 import Sparks from '../assets/SPARKS.gif';
 
-const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout, timerWorkouts, stopwatchWorkouts, onWorkoutSelect, onArrowClick }) => {
+const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout, timerWorkouts, stopwatchWorkouts, onWorkoutSelect, onArrowClick, onNavigateToTab }) => {
   const [expandedCard, setExpandedCard] = useState(null);
 
   const handleTimerClick = () => {
@@ -24,8 +24,19 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
   };
 
   const handleWorkoutSelect = (type, workout) => {
-    onWorkoutSelect(type, workout);
-    // Don't collapse - stay expanded
+    // Check if this workout is already selected
+    const isAlreadySelected = (type === 'timer' && timerSelectedWorkout === workout) || 
+                              (type === 'stopwatch' && stopwatchSelectedWorkout === workout);
+    
+    if (isAlreadySelected && onNavigateToTab) {
+      // If already selected, navigate to the tab
+      onNavigateToTab(type);
+      setExpandedCard(null);
+    } else {
+      // Otherwise, just select the workout
+      onWorkoutSelect(type, workout);
+      // Don't collapse - stay expanded
+    }
   };
 
   const handleHeaderClick = (e) => {
