@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import './ExerciseEditPage.css';
 
@@ -12,12 +12,35 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack, workoutType,
   // Track the last saved state to compare against
   const [lastSavedExercises, setLastSavedExercises] = useState([...exercises]);
   const [lastSavedTitle, setLastSavedTitle] = useState(workoutName);
+  // Ref for the title input to detect clicks outside
+  const titleInputRef = useRef(null);
 
   // Check if there are changes compared to last saved state
   useEffect(() => {
     const hasChangesMade = JSON.stringify(localExercises) !== JSON.stringify(lastSavedExercises) || editedTitle !== lastSavedTitle;
     setHasChanges(hasChangesMade);
   }, [localExercises, lastSavedExercises, editedTitle, lastSavedTitle]);
+
+  // Handle clicks outside the title input to exit edit mode
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isEditingTitle && titleInputRef.current && !titleInputRef.current.contains(event.target)) {
+        setIsEditingTitle(false);
+      }
+    };
+
+    if (isEditingTitle) {
+      // Add event listener when editing
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isEditingTitle]);
 
   const handleAddExercise = () => {
     setShowAddPopup(true);
@@ -76,6 +99,16 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack, workoutType,
     setIsEditingTitle(true);
   };
 
+  const handleTitleClick = (e) => {
+    // On mobile/touch devices, allow single tap to edit
+    // On desktop, only double-click works (this handler won't interfere)
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      // This is a touch device - allow single tap
+      setIsEditingTitle(true);
+    }
+    // On desktop, do nothing here - let onDoubleClick handle it
+  };
+
   const handleTitleChange = (e) => {
     setEditedTitle(e.target.value);
   };
@@ -110,6 +143,7 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack, workoutType,
         </button>
         {isEditingTitle ? (
           <input
+            ref={titleInputRef}
             type="text"
             value={editedTitle}
             onChange={handleTitleChange}
@@ -119,7 +153,11 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack, workoutType,
             autoFocus
           />
         ) : (
-          <h1 className="exercise-edit-title" onDoubleClick={handleTitleDoubleClick}>
+          <h1 
+            className="exercise-edit-title" 
+            onClick={handleTitleClick}
+            onDoubleClick={handleTitleDoubleClick}
+          >
             {editedTitle}
           </h1>
         )}
