@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import './ExerciseEditPage.css';
 
-const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack }) => {
+const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack, workoutType, onStart }) => {
   const [localExercises, setLocalExercises] = useState([...exercises]);
   const [showAddPopup, setShowAddPopup] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
@@ -50,6 +50,21 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack }) => {
     if (hasChanges || editedTitle !== workoutName) {
       onSave(localExercises, editedTitle);
       setHasChanges(false);
+    }
+  };
+
+  const handleButtonClick = () => {
+    if (hasChanges || editedTitle !== workoutName) {
+      // Save changes first, then start
+      handleSave();
+      if (onStart) {
+        onStart();
+      }
+    } else {
+      // No changes, just start
+      if (onStart) {
+        onStart();
+      }
     }
   };
 
@@ -156,11 +171,10 @@ const ExerciseEditPage = ({ workoutName, exercises, onSave, onBack }) => {
           + Add Exercise
         </button>
         <button 
-          className={`save-btn ${!hasChanges ? 'disabled' : ''}`}
-          onClick={handleSave}
-          disabled={!hasChanges}
+          className="save-btn"
+          onClick={handleButtonClick}
         >
-          {hasChanges ? 'Save Changes' : 'No Changes'}
+          {hasChanges ? 'Save Changes' : 'Start'}
         </button>
       </div>
 

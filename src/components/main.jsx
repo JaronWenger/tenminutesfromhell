@@ -428,6 +428,10 @@ const Main = () => {
     if (currentEditLevel === 'categories') {
       // Handle "New Workout" case
       if (workout === 'New Workout') {
+        // Set currentEditPage if type is provided (coming from Home)
+        if (type) {
+          setCurrentEditPage(type);
+        }
         setCurrentEditLevel('exercise-edit');
         setCurrentEditingWorkout('New Workout');
         return;
@@ -438,6 +442,10 @@ const Main = () => {
         setTimerSelectedWorkout(workout);
       } else if (type === 'stopwatch') {
         setStopwatchSelectedWorkout(workout);
+      }
+      // Set currentEditPage if type is provided (coming from Home)
+      if (type) {
+        setCurrentEditPage(type);
       }
       setCurrentEditLevel('exercise-edit');
       setCurrentEditingWorkout(workout);
@@ -484,6 +492,41 @@ const Main = () => {
     
     // Stay on the same page - don't navigate away
     // The changes are saved but user remains on the edit page
+  };
+
+  const handleStartWorkout = () => {
+    // Save the workout type before clearing state
+    let workoutType = currentEditPage;
+    const workoutName = currentEditingWorkout;
+    
+    // If workoutType is null, try to determine it from the workout name
+    if (!workoutType && workoutName) {
+      if (timerWorkouts.includes(workoutName)) {
+        workoutType = 'timer';
+      } else if (stopwatchWorkouts.includes(workoutName)) {
+        workoutType = 'stopwatch';
+      }
+    }
+    
+    // Only proceed if we have a valid workout type
+    if (!workoutType || (workoutType !== 'timer' && workoutType !== 'stopwatch')) {
+      console.error('Invalid workout type:', workoutType, 'for workout:', workoutName);
+      return;
+    }
+    
+    // Select the workout in the main page
+    if (workoutType === 'timer') {
+      setTimerSelectedWorkout(workoutName);
+    } else if (workoutType === 'stopwatch') {
+      setStopwatchSelectedWorkout(workoutName);
+    }
+    
+    // Set active tab FIRST, then clear edit state
+    // This ensures the tab is set before React re-renders
+    setActiveTab(workoutType);
+    setCurrentEditPage(null);
+    setCurrentEditLevel('categories');
+    setCurrentEditingWorkout(null);
   };
 
   const handleStopwatchLap = () => {
@@ -566,7 +609,42 @@ const Main = () => {
   };
 
   const renderContent = () => {
-    // Show exercise edit page if active
+    // If activeTab is timer/stopwatch AND we're not in edit mode, show the tab
+    // This allows navigation from edit pages to tabs
+    if ((activeTab === 'timer' || activeTab === 'stopwatch') && !currentEditPage) {
+      switch (activeTab) {
+        case 'timer':
+          return (
+            <Timer 
+              timeLeft={timerState.timeLeft}
+              isRunning={timerState.isRunning}
+              targetTime={timerState.targetTime}
+              selectedWorkoutIndex={timerState.selectedWorkoutIndex}
+              onTimerStateChange={handleTimerStateChange}
+              workouts={getExerciseList(timerSelectedWorkout)}
+            />
+          );
+        case 'stopwatch':
+          return (
+            <Stopwatch 
+              time={stopwatchState.time}
+              isRunning={stopwatchState.isRunning}
+              laps={stopwatchState.laps}
+              onStopwatchStateChange={handleStopwatchStateChange}
+              showWorkoutView={showWorkoutView}
+              currentWorkoutIndex={currentWorkoutIndex}
+              onWorkoutSwipe={handleWorkoutSwipe}
+              selectedWorkoutIndex={selectedWorkoutIndex}
+              onWorkoutSelect={handleWorkoutSelect}
+              workoutList={getExerciseList(stopwatchSelectedWorkout)}
+            />
+          );
+        default:
+          break;
+      }
+    }
+    
+    // Show exercise edit page if active (when not navigating to timer/stopwatch)
     if (currentEditLevel === 'exercise-edit' && currentEditingWorkout) {
       const exercises = getExerciseList(currentEditingWorkout);
       return (
@@ -575,11 +653,13 @@ const Main = () => {
           exercises={exercises}
           onSave={handleExerciseSave}
           onBack={handleEditPageBack}
+          workoutType={currentEditPage}
+          onStart={handleStartWorkout}
         />
       );
     }
 
-    // Show edit page if active
+    // Show edit page if active (when not navigating to timer/stopwatch)
     if (currentEditPage) {
       const workouts = currentEditPage === 'timer' ? timerWorkouts : stopwatchWorkouts;
       const selectedWorkout = currentEditPage === 'timer' ? timerSelectedWorkout : stopwatchSelectedWorkout;
@@ -638,7 +718,17 @@ const Main = () => {
           />
         );
       default:
-        return <Home />;
+        return (
+          <Home 
+            onNavigateToEdit={handleNavigateToEdit}
+            timerSelectedWorkout={timerSelectedWorkout}
+            stopwatchSelectedWorkout={stopwatchSelectedWorkout}
+            timerWorkouts={timerWorkouts}
+            stopwatchWorkouts={stopwatchWorkouts}
+            onWorkoutSelect={handleWorkoutSelection}
+            onArrowClick={handleEditWorkoutSelect}
+          />
+        );
     }
   };
 

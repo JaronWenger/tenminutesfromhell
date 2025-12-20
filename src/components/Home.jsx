@@ -71,7 +71,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                   <img src={Tab2} alt="Timer" className="header-icon" />
                 </div>
                 <div className="workouts-list">
-                  {timerWorkouts.map((workout, index) => (
+                  {(timerWorkouts || []).map((workout, index) => (
                     <div 
                       key={index}
                       className={`home-workout-item ${timerSelectedWorkout === workout ? 'selected' : ''}`}
@@ -133,7 +133,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
                   <img src={Tab3} alt="Stopwatch" className="header-icon" />
                 </div>
                 <div className="workouts-list">
-                  {stopwatchWorkouts.map((workout, index) => (
+                  {(stopwatchWorkouts || []).map((workout, index) => (
                     <div 
                       key={index}
                       className={`home-workout-item ${stopwatchSelectedWorkout === workout ? 'selected' : ''}`}
