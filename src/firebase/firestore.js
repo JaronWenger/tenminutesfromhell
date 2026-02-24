@@ -4,6 +4,8 @@ import {
   getDocs,
   setDoc,
   addDoc,
+  query,
+  orderBy,
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from './config';
@@ -43,6 +45,24 @@ export const saveUserWorkout = async (userId, workout) => {
   } else {
     await addDoc(workoutsRef, { ...data, createdAt: serverTimestamp() });
   }
+};
+
+// Get all workout history for a user
+export const getUserHistory = async (userId) => {
+  const q = query(
+    collection(db, 'users', userId, 'history'),
+    orderBy('completedAt', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => {
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      completedAt: data.completedAt?.toDate?.() || null,
+      date: data.date?.toDate?.() || null
+    };
+  });
 };
 
 // Record a completed workout to history

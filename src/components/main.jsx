@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Timer from './Timer';
 import Home from './Home';
 import Stopwatch from './Stopwatch';
+import StatsPage from './StatsPage';
 import TabBar from './TabBar';
 import EditPage from './EditPage';
 import ExerciseEditPage from './ExerciseEditPage';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory } from '../firebase/firestore';
+import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory } from '../firebase/firestore';
 
 const Main = () => {
   const [activeTab, setActiveTab] = useState('home');
@@ -70,12 +71,17 @@ const Main = () => {
   const [timerSelectedWorkout, setTimerSelectedWorkout] = useState('The Devils 10');
   const [stopwatchSelectedWorkout, setStopwatchSelectedWorkout] = useState('Back & Bis');
 
-  // Load user workouts from Firestore when user logs in
+  // Stats page state
+  const [workoutHistory, setWorkoutHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Load user workouts and history from Firestore when user logs in
   useEffect(() => {
     if (!user) {
       // Reset to defaults when logged out
       setTimerWorkoutData(DEFAULT_TIMER_WORKOUTS);
       setStopwatchWorkoutData(DEFAULT_STOPWATCH_WORKOUTS);
+      setWorkoutHistory([]);
       return;
     }
 
@@ -93,7 +99,19 @@ const Main = () => {
         console.error('Failed to load workouts:', err);
       }
     };
+    const loadHistory = async () => {
+      setHistoryLoading(true);
+      try {
+        const history = await getUserHistory(user.uid);
+        if (!cancelled) setWorkoutHistory(history);
+      } catch (err) {
+        console.error('Failed to load history:', err);
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    };
     loadWorkouts();
+    loadHistory();
     return () => { cancelled = true; };
   }, [user]);
 
@@ -171,6 +189,11 @@ const Main = () => {
                 duration: prev.targetTime,
                 setCount: exercises.length,
                 exercises
+              }).then(() => {
+                // Refresh history for stats page
+                getUserHistory(user.uid)
+                  .then(setWorkoutHistory)
+                  .catch(err => console.error('Failed to refresh history:', err));
               }).catch(err => console.error('Failed to record history:', err));
             }
             return { ...prev, timeLeft: 0, isRunning: false };
@@ -524,39 +547,28 @@ const Main = () => {
   };
 
   const renderContent = () => {
-    if ((activeTab === 'timer' || activeTab === 'stopwatch') && !currentEditPage) {
-      switch (activeTab) {
-        case 'timer':
-          return (
-            <Timer
-              timeLeft={timerState.timeLeft}
-              isRunning={timerState.isRunning}
-              targetTime={timerState.targetTime}
-              selectedWorkoutIndex={timerState.selectedWorkoutIndex}
-              onTimerStateChange={handleTimerStateChange}
-              workouts={getExerciseList(timerSelectedWorkout)}
-              selectedWorkoutName={timerSelectedWorkout}
-            />
-          );
-        case 'stopwatch':
-          return (
-            <Stopwatch
-              time={stopwatchState.time}
-              isRunning={stopwatchState.isRunning}
-              laps={stopwatchState.laps}
-              onStopwatchStateChange={handleStopwatchStateChange}
-              showWorkoutView={showWorkoutView}
-              currentWorkoutIndex={currentWorkoutIndex}
-              onWorkoutSwipe={handleWorkoutSwipe}
-              selectedWorkoutIndex={selectedWorkoutIndex}
-              onWorkoutSelect={handleWorkoutSelect}
-              workoutList={getExerciseList(stopwatchSelectedWorkout)}
-              selectedWorkoutName={stopwatchSelectedWorkout}
-            />
-          );
-        default:
-          break;
-      }
+    if (activeTab === 'timer' && !currentEditPage) {
+      return (
+        <Timer
+          timeLeft={timerState.timeLeft}
+          isRunning={timerState.isRunning}
+          targetTime={timerState.targetTime}
+          selectedWorkoutIndex={timerState.selectedWorkoutIndex}
+          onTimerStateChange={handleTimerStateChange}
+          workouts={getExerciseList(timerSelectedWorkout)}
+          selectedWorkoutName={timerSelectedWorkout}
+        />
+      );
+    }
+
+    if (activeTab === 'stats' && !currentEditPage) {
+      return (
+        <StatsPage
+          user={user}
+          history={workoutHistory}
+          loading={historyLoading}
+        />
+      );
     }
 
     if (currentEditLevel === 'exercise-edit' && currentEditingWorkout) {
@@ -597,9 +609,7 @@ const Main = () => {
           <Home
             onNavigateToEdit={handleNavigateToEdit}
             timerSelectedWorkout={timerSelectedWorkout}
-            stopwatchSelectedWorkout={stopwatchSelectedWorkout}
             timerWorkouts={timerWorkouts}
-            stopwatchWorkouts={stopwatchWorkouts}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
             onNavigateToTab={handleNavigateToTab}
@@ -617,20 +627,12 @@ const Main = () => {
             selectedWorkoutName={timerSelectedWorkout}
           />
         );
-      case 'stopwatch':
+      case 'stats':
         return (
-          <Stopwatch
-            time={stopwatchState.time}
-            isRunning={stopwatchState.isRunning}
-            laps={stopwatchState.laps}
-            onStopwatchStateChange={handleStopwatchStateChange}
-            showWorkoutView={showWorkoutView}
-            currentWorkoutIndex={currentWorkoutIndex}
-            onWorkoutSwipe={handleWorkoutSwipe}
-            selectedWorkoutIndex={selectedWorkoutIndex}
-            onWorkoutSelect={handleWorkoutSelect}
-            workoutList={getExerciseList(stopwatchSelectedWorkout)}
-            selectedWorkoutName={stopwatchSelectedWorkout}
+          <StatsPage
+            user={user}
+            history={workoutHistory}
+            loading={historyLoading}
           />
         );
       default:
@@ -638,9 +640,7 @@ const Main = () => {
           <Home
             onNavigateToEdit={handleNavigateToEdit}
             timerSelectedWorkout={timerSelectedWorkout}
-            stopwatchSelectedWorkout={stopwatchSelectedWorkout}
             timerWorkouts={timerWorkouts}
-            stopwatchWorkouts={stopwatchWorkouts}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
             onNavigateToTab={handleNavigateToTab}
@@ -656,27 +656,6 @@ const Main = () => {
         <TabBar
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          stopwatchControls={activeTab === 'stopwatch' ? {
-            isRunning: stopwatchState.isRunning,
-            onStart: handleStopwatchStart,
-            onStop: handleStopwatchStop,
-            onReset: handleStopwatchReset,
-            onLap: handleStopwatchLap,
-            lapCount: stopwatchState.laps.length,
-            showLapTimes: showLapTimes,
-            isClosingLapTimes: isClosingLapTimes,
-            onLapBarTap: handleLapBarTap,
-            onLapBarTouchStart: handleLapBarTouchStart,
-            onLapBarTouchMove: handleLapBarTouchMove,
-            onLapBarTouchEnd: handleLapBarTouchEnd,
-            onCloseLapTimes: handleCloseLapTimes,
-            lapTimes: stopwatchState.laps.map(lap => formatLapTime(lap)),
-            showWorkoutView: showWorkoutView,
-            currentWorkoutIndex: currentWorkoutIndex,
-            onWorkoutViewToggle: handleWorkoutViewToggle,
-            onWorkoutSwipe: handleWorkoutSwipe,
-            onClearSets: handleClearSets
-          } : null}
         />
       )}
     </main>
