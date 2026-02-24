@@ -4,6 +4,7 @@ import {
   getDocs,
   setDoc,
   addDoc,
+  deleteDoc,
   query,
   orderBy,
   serverTimestamp
@@ -63,6 +64,41 @@ export const getUserHistory = async (userId) => {
       date: data.date?.toDate?.() || null
     };
   });
+};
+
+// Delete a workout for a user
+export const deleteUserWorkout = async (userId, workoutName, isDefault) => {
+  const workoutsRef = collection(db, 'users', userId, 'customWorkouts');
+  const snapshot = await getDocs(workoutsRef);
+
+  // Find existing doc by name or defaultName
+  const existing = snapshot.docs.find(d => {
+    const data = d.data();
+    return data.name === workoutName || data.defaultName === workoutName;
+  });
+
+  if (isDefault) {
+    // For default workouts, save a deletion marker so it stays removed on reload
+    if (existing) {
+      await setDoc(doc(db, 'users', userId, 'customWorkouts', existing.id), {
+        deleted: true,
+        defaultName: workoutName,
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      await addDoc(workoutsRef, {
+        deleted: true,
+        defaultName: workoutName,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  } else {
+    // For custom workouts, just delete the doc
+    if (existing) {
+      await deleteDoc(doc(db, 'users', userId, 'customWorkouts', existing.id));
+    }
+  }
 };
 
 // Record a completed workout to history

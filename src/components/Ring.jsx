@@ -19,11 +19,11 @@ const Ring = ({
   const getProgressColor = () => {
     const currentSeconds = timeLeft % 60;
     
-    // Red for seconds 1-15 of each minute (except the last minute)
+    // Blue for rest/prep seconds 1-15 of each minute (except the last minute)
     if (currentSeconds >= 1 && currentSeconds <= 15 && timeLeft > 60) {
-      return '#ff3b30'; // Red for seconds 1-15 of each minute
+      return '#007aff'; // Blue for rest periods
     } else {
-      return '#007aff'; // Blue for the rest (including the entire last minute)
+      return '#ff3b30'; // Red for active exercise time
     }
   };
 

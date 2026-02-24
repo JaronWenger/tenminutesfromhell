@@ -22,11 +22,11 @@
 
 .progress-ring-fill {
   transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
-  filter: drop-shadow(0 0 12px rgba(0, 122, 255, 0.4));
+  filter: drop-shadow(0 0 12px rgba(255, 59, 48, 0.4));
 }
 
-.progress-ring-fill[stroke="#ff3b30"] {
-  filter: drop-shadow(0 0 12px rgba(255, 59, 48, 0.4));
+.progress-ring-fill[stroke="#007aff"] {
+  filter: drop-shadow(0 0 12px rgba(0, 122, 255, 0.4));
 }
 
 .time-text {

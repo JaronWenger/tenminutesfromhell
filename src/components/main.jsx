@@ -8,7 +8,7 @@ import EditPage from './EditPage';
 import ExerciseEditPage from './ExerciseEditPage';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory } from '../firebase/firestore';
+import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
 
 const Main = () => {
   const [activeTab, setActiveTab] = useState('home');
@@ -120,23 +120,34 @@ const Main = () => {
     const timerDefaults = [...DEFAULT_TIMER_WORKOUTS];
     const stopwatchDefaults = [...DEFAULT_STOPWATCH_WORKOUTS];
 
-    const timerResult = timerDefaults.map(d => {
-      const override = customWorkouts.find(
-        c => c.defaultName === d.name || (!c.defaultName && c.name === d.name)
-      );
-      return override ? { ...d, ...override, exercises: override.exercises } : d;
-    });
+    // Collect deleted default names
+    const deletedDefaults = customWorkouts
+      .filter(c => c.deleted)
+      .map(c => c.defaultName)
+      .filter(Boolean);
 
-    const stopwatchResult = stopwatchDefaults.map(d => {
-      const override = customWorkouts.find(
-        c => c.defaultName === d.name || (!c.defaultName && c.name === d.name)
-      );
-      return override ? { ...d, ...override, exercises: override.exercises } : d;
-    });
+    const timerResult = timerDefaults
+      .filter(d => !deletedDefaults.includes(d.name))
+      .map(d => {
+        const override = customWorkouts.find(
+          c => !c.deleted && (c.defaultName === d.name || (!c.defaultName && c.name === d.name))
+        );
+        return override ? { ...d, ...override, exercises: override.exercises } : d;
+      });
 
-    // Add any fully custom workouts (not overriding defaults)
+    const stopwatchResult = stopwatchDefaults
+      .filter(d => !deletedDefaults.includes(d.name))
+      .map(d => {
+        const override = customWorkouts.find(
+          c => !c.deleted && (c.defaultName === d.name || (!c.defaultName && c.name === d.name))
+        );
+        return override ? { ...d, ...override, exercises: override.exercises } : d;
+      });
+
+    // Add any fully custom workouts (not overriding defaults, not deleted)
     const defaultNames = [...timerDefaults, ...stopwatchDefaults].map(d => d.name);
     customWorkouts.forEach(c => {
+      if (c.deleted) return;
       const isOverride = defaultNames.includes(c.name) || defaultNames.includes(c.defaultName);
       if (!isOverride) {
         if (c.type === 'timer') timerResult.push(c);
@@ -438,6 +449,31 @@ const Main = () => {
     }
   };
 
+  const handleDeleteWorkout = (workoutName) => {
+    const defaultNames = DEFAULT_TIMER_WORKOUTS.map(d => d.name);
+    const isDefault = defaultNames.includes(workoutName);
+
+    // Remove from local state
+    setTimerWorkoutData(prev => {
+      const remaining = prev.filter(w => w.name !== workoutName);
+      // If deleted workout was selected, select the first remaining
+      if (timerSelectedWorkout === workoutName && remaining.length > 0) {
+        setTimerSelectedWorkout(remaining[0].name);
+      }
+      return remaining;
+    });
+
+    // Persist to Firestore
+    if (user) {
+      deleteUserWorkout(user.uid, workoutName, isDefault)
+        .catch(err => console.error('Failed to delete workout:', err));
+    }
+  };
+
+  const handleReorderWorkouts = (reordered) => {
+    setTimerWorkoutData(reordered);
+  };
+
   const handleStartWorkout = () => {
     let workoutType = currentEditPage;
     const workoutName = currentEditingWorkout;
@@ -607,12 +643,14 @@ const Main = () => {
       case 'home':
         return (
           <Home
-            onNavigateToEdit={handleNavigateToEdit}
+            timerWorkoutData={timerWorkoutData}
             timerSelectedWorkout={timerSelectedWorkout}
-            timerWorkouts={timerWorkouts}
+            workoutHistory={workoutHistory}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
             onNavigateToTab={handleNavigateToTab}
+            onDeleteWorkout={handleDeleteWorkout}
+            onReorder={handleReorderWorkouts}
           />
         );
       case 'timer':
@@ -638,12 +676,14 @@ const Main = () => {
       default:
         return (
           <Home
-            onNavigateToEdit={handleNavigateToEdit}
+            timerWorkoutData={timerWorkoutData}
             timerSelectedWorkout={timerSelectedWorkout}
-            timerWorkouts={timerWorkouts}
+            workoutHistory={workoutHistory}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
             onNavigateToTab={handleNavigateToTab}
+            onDeleteWorkout={handleDeleteWorkout}
+            onReorder={handleReorderWorkouts}
           />
         );
     }

@@ -1,569 +1,269 @@
-/* Home Component Styles */
+/* Home — Modern Workout List */
 .home-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
   min-height: 100vh;
   width: 100%;
-  background: transparent;
+  max-width: 500px;
+  margin: 0 auto;
   color: white;
+  padding: 0 16px;
+  box-sizing: border-box;
   position: relative;
-  overflow: hidden;
 }
 
-/* Side overlays for desktop to capture clicks on left/right sides */
-.home-side-overlay {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  width: 50%;
-  z-index: 10;
-  pointer-events: auto;
-}
-
-.home-side-overlay-left {
-  left: 0;
-}
-
-.home-side-overlay-right {
-  right: 0;
-}
-
-/* Hide side overlays on mobile */
-@media (max-width: 768px) {
-  .home-side-overlay {
-    display: none;
-  }
-}
-
-/* Fire Background with SPARKS.gif */
-.fire-background {
+/* ── Sparks Background ── */
+.home-sparks-bg {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 1;
+  z-index: 0;
   pointer-events: none;
 }
 
-.sparks-gif {
+.home-sparks-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 1;
-  position: absolute;
-  top: 0;
-  left: 0;
+  opacity: 0.5;
 }
 
-.home-title {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 40px;
-  position: relative;
-  z-index: 20;
-  padding: 20px;
-}
-
-.main-title {
-  font-family: 'Impact', 'Arial Black', 'Helvetica Neue', sans-serif;
-  font-size: 4rem;
-  font-weight: 600;
-  text-align: center;
-  margin: 0;
-  color: #ff4500;
-  text-shadow: 0 0 15px rgba(255, 69, 0, 0.7);
-  letter-spacing: 3px;
-  line-height: 1.3;
-  text-transform: uppercase;
-}
-
-.hell-text {
-  font-family: 'Impact', 'Arial Black', 'Helvetica Neue', sans-serif;
-  font-size: 5.5rem;
-  font-weight: 600;
-  color: #ff4500;
-  text-shadow: 0 0 15px rgba(255, 69, 0, 0.7);
-  letter-spacing: 4px;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.home-content {
-  max-width: 500px;
-  width: 100%;
-  text-align: center;
-  padding: 0 20px 40px 20px;
-  position: relative;
-  z-index: 20;
-}
-
+/* ── Header ── */
 .home-header {
-  margin-bottom: 60px;
-}
-
-/* Removed old title styles - using new main-title instead */
-
-.home-subtitle {
-  font-size: 1.2rem;
-  color: rgba(255, 255, 255, 0.7);
-  font-weight: 400;
-  margin: 0;
-}
-
-.home-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  margin-bottom: 40px;
-  justify-content: center;
-  align-items: center;
-}
-
-.home-card {
-  background: #000000;
-  border: 2px solid rgba(255, 59, 48, 0.3);
-  border-radius: 16px;
-  padding: 24px 24px;
-  min-width: 180px;
-  min-height: 180px;
-  max-height: 180px;
-  transition: 
-    min-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    padding 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s;
-  overflow: hidden;
-  will-change: min-height, max-height;
-  /* Use contain to prevent layout shifts from children */
-  contain: layout style;
-  box-sizing: border-box;
-}
-
-.home-card.expanded {
-  padding: 24px 24px;
-  min-height: 300px;
-  max-height: 350px;
-  border: 2px solid rgba(255, 59, 48, 0.3);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  will-change: min-height, max-height;
-  /* Ensure transition timing matches condensed */
-  transition: 
-    min-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    padding 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s;
-  box-sizing: border-box;
-}
-
-.home-card.condensed {
-  padding: 12px 24px;
-  min-height: 75px;
-  max-height: 75px;
-  will-change: min-height, max-height;
-  /* Match the same transition timing as base card for simultaneous animation */
-  transition: 
-    min-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    padding 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s,
-    border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0s;
-  box-sizing: border-box;
-}
-
-.home-card.clickable {
-  cursor: pointer;
-}
-
-/* Hover effects removed for cleaner look */
-/* Active state removed to prevent upward movement on click */
-
-/* Expanded state styles */
-.expanded-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 0 15px 0;
-  cursor: pointer;
-  transition: 
-    background-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-    opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-    transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  margin-bottom: 15px;
+  justify-content: space-between;
+  padding: 20px 4px 24px;
   position: relative;
-  will-change: opacity, transform;
+  z-index: 2;
 }
 
-.expanded-header::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: rgba(255, 59, 48, 0.2);
-  opacity: 0;
-  animation: fadeIn 0.3s ease-in-out 0.15s both;
-}
-
-.expanded-header:hover {
-  background: transparent;
-}
-
-.header-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  object-fit: contain;
-  transition: 
-    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: width, height, opacity, transform;
-}
-
-.workouts-list {
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  opacity: 1;
-  overflow: visible;
-  position: relative;
-  transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  will-change: opacity;
-  /* Reserve space immediately to prevent height jumps */
-  min-height: 0;
-  height: auto;
-}
-
-.workouts-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.workouts-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.workouts-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 59, 48, 0.3);
-  border-radius: 3px;
-}
-
-.workouts-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 59, 48, 0.5);
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Home page specific workout items - minimal text style */
-.home-workout-item {
-  display: flex;
-  align-items: center;
-  padding: 4px 16px;
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 1px solid rgba(255, 59, 48, 0.2) !important;
-  border-radius: 0 !important;
-  cursor: pointer;
-  transition: none !important;
-  box-shadow: none !important;
-  text-align: left;
-  opacity: 0;
-  transform: translateY(-10px);
-  /* Delay animation slightly to let container finish expanding first */
-  animation: fadeInWorkoutItem 0.25s ease-out 0.15s forwards;
-  /* Reserve space for the item even when invisible to prevent height jump */
-  min-height: 32px;
-  visibility: hidden;
-}
-
-
-@keyframes fadeInFromTop {
-  from {
-    opacity: 0;
-    transform: translateY(-20px) translateZ(0);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) translateZ(0);
-  }
-}
-
-@keyframes fadeInWorkoutItem {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-    visibility: hidden;
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    visibility: visible;
-  }
-}
-
-.home-workout-item:last-child {
-  border-bottom: none !important;
-}
-
-.home-workout-item:hover {
-  background: transparent !important;
-  transform: none !important;
-}
-
-.home-workout-item.selected {
-  background: rgba(255, 59, 48, 0.1) !important;
-  border-left: 3px solid #ff3b30 !important;
-}
-
-.home-workout-number {
-  display: none !important;
-}
-
-.add-workout-plus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  color: #ff3b30;
-  font-size: 1.5rem;
-  font-weight: bold;
-  cursor: pointer;
-  opacity: 0;
-  transform: translateY(-10px);
-  animation: fadeInWorkoutItem 0.4s ease-out forwards;
-  animation-delay: 0.8s;
-  width: auto;
-  margin: 0 auto;
-}
-
-/* Keep original workout-item styles for timer page */
-.workout-item {
-  display: flex;
-  align-items: center;
-  padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.workout-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 59, 48, 0.3);
-  transform: translateY(-1px);
-}
-
-.workout-item.selected {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.workout-number {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255, 59, 48, 0.2);
+.home-header-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
   color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin-right: 16px;
+  letter-spacing: 1px;
+}
+
+/* Override AuthButton fixed positioning inside header */
+.home-header-auth {
   flex-shrink: 0;
 }
 
-.workout-item.selected .workout-number {
-  background: rgba(255, 255, 255, 0.15);
+.home-header-auth .auth-button {
+  position: static;
+  width: 34px;
+  height: 34px;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.workout-name {
+.home-header-auth .auth-button:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.home-header-auth .auth-icon {
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* ── Workout List ── */
+.home-workout-list {
   flex: 1;
-  color: #ffffff;
-  font-size: 1.1rem;
-  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 120px 0;
+  position: relative;
+  z-index: 2;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.workout-arrow {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 1.2rem;
-  font-weight: bold;
-  transition: all 0.2s ease;
+/* ── Card Wrapper (swipe + drag) ── */
+.workout-card-wrapper {
+  position: relative;
+  border-radius: 14px;
+  margin-bottom: 8px;
 }
 
-.workout-item:hover .workout-arrow {
-  color: #ff4500;
-  transform: translateX(2px);
+.workout-card-wrapper.swipe-open {
+  overflow: hidden;
 }
 
-/* Condensed view styles */
-.condensed-view {
+/* ── Workout Card ── */
+.workout-card {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  height: 100%;
-  transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  will-change: opacity;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  cursor: pointer;
+  position: relative;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.condensed-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  object-fit: contain;
-  transition: 
-    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: width, height, opacity, transform;
+.workout-card.selected {
+  background: rgba(255, 59, 48, 0.1);
+  border-color: rgba(255, 59, 48, 0.3);
 }
 
-.card-icon {
-  margin-bottom: 16px;
+.workout-card:active {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.workout-card.selected:active {
+  background: rgba(255, 59, 48, 0.14);
+}
+
+/* ── Card Left (name + details) ── */
+.workout-card-left {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  will-change: opacity;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
-.card-icon img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  transition: 
-    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: width, height, opacity, transform;
-}
-
-/* Card icon hover effects removed for cleaner look */
-
-.home-card h3 {
-  font-size: 1.3rem;
+.workout-card-name {
+  font-size: 0.95rem;
   font-weight: 600;
-  margin: 0 0 8px 0;
-  color: white;
-  transition: 
-    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: opacity, transform;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.2px;
 }
 
-.home-card p {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.7);
-  margin: 0;
-  line-height: 1.4;
-  transition: 
-    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: opacity, transform;
+.workout-card-detail {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.73rem;
+  color: rgba(255, 255, 255, 0.35);
 }
 
-.selected-workout {
-  color: #ff4500 !important;
+.workout-card-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.workout-card-dot {
+  opacity: 0.4;
+}
+
+.workout-card-exercises {
+  /* inherits from .workout-card-detail */
+}
+
+.workout-card-completions {
+  color: rgba(255, 59, 48, 0.6);
   font-weight: 500;
-  font-size: 0.85rem;
-  margin-top: 8px;
 }
 
-.home-footer {
+/* ── Dragging State ── */
+.workout-card.dragging {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 59, 48, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transform: scale(1.02);
+}
+
+/* Cards animate into position during reorder */
+.workout-card-wrapper {
+  transition: transform 0.15s ease;
+}
+
+/* ── Edit Button ── */
+.workout-card-edit {
+  color: rgba(255, 255, 255, 0.25);
+  padding: 8px;
+  margin: -4px -4px -4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.workout-card-edit:active {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
 }
 
-/* Responsive adjustments */
+/* ── Swipe Delete ── */
+.workout-card-delete {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background: #ff3b30;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 0 14px 14px 0;
+}
+
+.workout-card-delete:active {
+  background: #d63029;
+}
+
+/* ── Add Workout ── */
+.workout-card-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.workout-card-add:active {
+  color: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Responsive ── */
 @media (max-width: 480px) {
-  .home-title {
-    margin-bottom: 30px;
-    padding: 15px;
+  .home-container {
+    padding: 0 14px;
   }
-  
-  .main-title {
-    font-size: 2.5rem;
-    letter-spacing: 2px;
-    line-height: 1.3;
-  }
-  
-  .hell-text {
-    font-size: 3.2rem;
-    letter-spacing: 3px;
-    line-height: 1.2;
-  }
-  
-  .home-content {
-    padding: 0 16px 30px 16px;
-  }
-  
-  .home-title {
-    font-size: 2rem;
-  }
-  
-  .home-subtitle {
+
+  .home-header-title {
     font-size: 1rem;
+    letter-spacing: 0.8px;
   }
-  
-  
-  .home-card {
-    width: 100%;
-    max-width: 280px;
+
+  .workout-card {
+    padding: 11px 12px;
   }
 }
 
-/* Tablet and desktop styles - wider cards */
-@media (min-width: 481px) {
-  .home-card {
-    width: 100%;
-    max-width: 400px;
-    padding: 40px 30px;
-  }
-}
-
-/* Show only title in horizontal mode on phones */
 @media (orientation: landscape) and (hover: none) {
-  .home-content {
-    display: none !important;
-  }
-  
-  .home-title {
-    margin-bottom: 0 !important;
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .main-title {
-    font-size: 4.5rem !important;
-    line-height: 1.3;
-  }
-  
-  .hell-text {
-    font-size: 6rem !important;
-    line-height: 1.2;
+  .home-container {
+    min-height: auto;
   }
 }
-
