@@ -3,6 +3,7 @@ import './Home.css';
 import Tab2 from '../assets/Tab2.jpg';
 import Tab3 from '../assets/Tab3.jpg';
 import Sparks from '../assets/SPARKS.gif';
+import AuthButton from './AuthButton';
 
 const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout, timerWorkouts, stopwatchWorkouts, onWorkoutSelect, onArrowClick, onNavigateToTab }) => {
   const [expandedCard, setExpandedCard] = useState(null);
@@ -74,6 +75,7 @@ const Home = ({ onNavigateToEdit, timerSelectedWorkout, stopwatchSelectedWorkout
 
   return (
     <div className="home-container" onClick={handleOutsideClick}>
+      <AuthButton />
       {/* Fire Background */}
       <div className="fire-background">
         <img src={Sparks} alt="Fire sparks" className="sparks-gif" />

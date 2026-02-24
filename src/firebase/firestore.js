@@ -1,0 +1,59 @@
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  addDoc,
+  serverTimestamp
+} from 'firebase/firestore';
+import { db } from './config';
+
+// Get all custom workouts for a user
+export const getUserWorkouts = async (userId) => {
+  const snapshot = await getDocs(
+    collection(db, 'users', userId, 'customWorkouts')
+  );
+  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+// Save or update a custom workout
+export const saveUserWorkout = async (userId, workout) => {
+  const workoutsRef = collection(db, 'users', userId, 'customWorkouts');
+
+  // Check if this workout already exists (by name or defaultName)
+  const snapshot = await getDocs(workoutsRef);
+  const existing = snapshot.docs.find(d => {
+    const data = d.data();
+    return data.name === workout.name ||
+      (workout.defaultName && data.defaultName === workout.defaultName) ||
+      (data.defaultName === workout.name);
+  });
+
+  const data = {
+    name: workout.name,
+    type: workout.type,
+    exercises: workout.exercises,
+    isDefault: workout.isDefault || false,
+    defaultName: workout.defaultName || null,
+    updatedAt: serverTimestamp()
+  };
+
+  if (existing) {
+    await setDoc(doc(db, 'users', userId, 'customWorkouts', existing.id), data, { merge: true });
+  } else {
+    await addDoc(workoutsRef, { ...data, createdAt: serverTimestamp() });
+  }
+};
+
+// Record a completed workout to history
+export const recordWorkoutHistory = async (userId, entry) => {
+  await addDoc(collection(db, 'users', userId, 'history'), {
+    workoutName: entry.workoutName,
+    workoutType: entry.workoutType,
+    date: serverTimestamp(),
+    duration: entry.duration,
+    setCount: entry.setCount,
+    exercises: entry.exercises,
+    completedAt: serverTimestamp()
+  });
+};

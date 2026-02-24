@@ -1,10 +1,13 @@
+import { AuthProvider } from './contexts/AuthContext';
 import Main from './components/main';
 
 function App() {
   return (
-    <div className="App">
-      <Main />
-    </div>
+    <AuthProvider>
+      <div className="App">
+        <Main />
+      </div>
+    </AuthProvider>
   );
 }
 
