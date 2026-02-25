@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://hiitem.com/sitemap.xml
+Sitemap: https://www.hiitem.com/sitemap.xml
