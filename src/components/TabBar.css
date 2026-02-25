@@ -85,6 +85,15 @@
   filter: brightness(1);
 }
 
+.tab-icon-svg svg {
+  opacity: 0.6;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-item.active .tab-icon-svg svg {
+  opacity: 1;
+}
+
 .tab-label {
   font-size: 12px;
   font-weight: 500;

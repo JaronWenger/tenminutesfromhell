@@ -168,7 +168,7 @@ const Home = ({
                         className={`workout-card-wrapper ${isSwipeOpen ? 'swipe-open' : ''}`}
                         style={{
                           ...provided.draggableProps.style,
-                          marginBottom: '6px',
+                          marginBottom: '9px',
                           padding: 0
                         }}
                       >
