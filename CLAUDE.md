@@ -1,4 +1,4 @@
-# Ten Minutes From Hell
+# HIITem
 
 High-intensity interval workout timer PWA. Users select a workout, each exercise runs for 1 minute with a 15-second prep countdown, and the app tracks completion history.
 
