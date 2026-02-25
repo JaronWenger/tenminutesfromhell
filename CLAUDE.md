@@ -55,7 +55,45 @@ All user data lives under `users/{userId}/`:
 - **`customWorkouts/`** — `{ name, type, exercises[], isDefault, defaultName?, deleted?, updatedAt }`
 - **`history/`** — `{ workoutName, workoutType, duration, setCount, exercises[], completedAt }`
 
-Security rules: authenticated users can only read/write their own `users/{uid}/**` documents.
+Social data in top-level collections:
+- **`userProfiles/{userId}`** — `{ uid, displayName, photoURL, workoutCount, autoShare, createdAt, updatedAt }`
+- **`following/{userId}/userFollowing/{targetId}`** — `{ followedAt }`
+- **`followers/{userId}/userFollowers/{followerId}`** — `{ followedAt }`
+- **`posts/{postId}`** — `{ userId, workoutName, duration, exerciseCount, displayName, photoURL, likeCount, createdAt }`
+- **`posts/{postId}/likes/{userId}`** — `{ likedAt }`
+
+## Firestore Security Rules
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /userProfiles/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /following/{userId}/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /followers/{userId}/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    match /posts/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+    }
+    match /posts/{postId}/likes/{likeId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}
+```
 
 ## Key Architecture Decisions
 
