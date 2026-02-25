@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getFeedPosts,
   getAllUsers,
   getFollowing,
+  getSuggestedUsers,
   followUser,
   unfollowUser,
   toggleLike,
   batchCheckLikes
 } from '../firebase/social';
 import './FeedPage.css';
+
+const APP_URL = 'https://hiitem.com';
+const INVITE_TEXT = `Join me on HIITem — high-intensity workouts in just 10 minutes! ${APP_URL}`;
 
 const FeedPage = ({ isOpen, onClose, requestClose }) => {
   const { user } = useAuth();
@@ -20,6 +25,12 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
   const [likedPosts, setLikedPosts] = useState({});
   const [loading, setLoading] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+
+  // People sub-tab state
+  const [peopleSubTab, setPeopleSubTab] = useState('suggested');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [contacts, setContacts] = useState([]);
+  const [suggestedUsers, setSuggestedUsers] = useState([]);
 
   const loadFeed = useCallback(async () => {
     if (!user) return;
@@ -45,12 +56,15 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     if (!user) return;
     setLoading(true);
     try {
-      const [allUsers, following] = await Promise.all([
+      const [allUsers, following, suggested] = await Promise.all([
         getAllUsers(),
-        getFollowing(user.uid)
+        getFollowing(user.uid),
+        getSuggestedUsers(user.uid)
       ]);
+      console.log('[People] getAllUsers returned:', allUsers.length, 'users', allUsers.map(u => u.displayName));
       setUsers(allUsers.filter(u => u.uid !== user.uid));
       setFollowingIds(following);
+      setSuggestedUsers(suggested);
     } catch (err) {
       console.error('Failed to load people:', err);
     } finally {
@@ -131,6 +145,43 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     }
   };
 
+  const handleImportContacts = async () => {
+    try {
+      const selected = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+      setContacts(selected.map(c => ({
+        name: c.name?.[0] || 'Unknown',
+        tel: c.tel?.[0] || null
+      })));
+    } catch (err) {
+      // User cancelled or API error
+      console.error('Contact import failed:', err);
+    }
+  };
+
+  const handleInviteSMS = (tel) => {
+    const body = encodeURIComponent(INVITE_TEXT);
+    const smsUri = tel ? `sms:${tel}?body=${body}` : `sms:?body=${body}`;
+    window.open(smsUri);
+  };
+
+  const handleShareInvite = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'HIITem', text: INVITE_TEXT, url: APP_URL });
+      } catch {
+        // User cancelled share
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(INVITE_TEXT);
+        alert('Invite link copied!');
+      } catch {
+        // Fallback
+        window.prompt('Copy this invite link:', INVITE_TEXT);
+      }
+    }
+  };
+
   const timeAgo = (date) => {
     if (!date) return '';
     const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -150,7 +201,43 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Build people list: non-followed (sorted by mutual count) first, then followed
+  const getPeopleList = () => {
+    const suggestedMap = {};
+    suggestedUsers.forEach(s => { suggestedMap[s.uid] = s.mutualCount; });
+
+    const notFollowed = users.filter(u => !followingIds.includes(u.uid));
+    const followed = users.filter(u => followingIds.includes(u.uid));
+
+    // Sort non-followed by mutual count desc
+    notFollowed.sort((a, b) => {
+      const aMutual = suggestedMap[a.uid] || 0;
+      const bMutual = suggestedMap[b.uid] || 0;
+      return bMutual - aMutual;
+    });
+
+    // Combine: non-followed first, then followed
+    return [...notFollowed, ...followed].map(u => ({
+      ...u,
+      mutualCount: suggestedMap[u.uid] || 0,
+      isFollowing: followingIds.includes(u.uid)
+    }));
+  };
+
+  // Filter list by search query
+  const filterBySearch = (list) => {
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter(item => {
+      const name = (item.displayName || item.name || '').toLowerCase();
+      return name.includes(q);
+    });
+  };
+
   if (!isOpen) return null;
+
+  const peopleList = getPeopleList();
+  const hasContactsAPI = typeof navigator !== 'undefined' && 'contacts' in navigator;
 
   return (
     <div className={`feed-page ${isClosing ? 'feed-page-closing' : ''}`}>
@@ -249,39 +336,192 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
         {/* People Tab */}
         {user && !loading && activeTab === 'people' && (
           <>
-            {users.length === 0 ? (
-              <div className="feed-empty">
-                <p>No other users yet</p>
-                <span>Invite friends to join</span>
-              </div>
-            ) : (
-              users.map(u => {
-                const isFollowing = followingIds.includes(u.uid);
-                return (
-                  <div key={u.uid} className="feed-person-card">
-                    <div className="feed-person-avatar">
-                      {u.photoURL ? (
-                        <img src={u.photoURL} alt="" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="feed-person-avatar-placeholder">
-                          {(u.displayName || '?')[0].toUpperCase()}
+            {/* Search Bar */}
+            <div className="feed-search-wrap">
+              <svg className="feed-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                className="feed-search"
+                type="text"
+                placeholder="Search for people"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Sub-tabs */}
+            <div className="feed-subtabs">
+              <button
+                className={`feed-subtab ${peopleSubTab === 'suggested' ? 'active' : ''}`}
+                onClick={() => setPeopleSubTab('suggested')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                <span>Suggested</span>
+              </button>
+              <button
+                className={`feed-subtab ${peopleSubTab === 'contacts' ? 'active' : ''}`}
+                onClick={() => setPeopleSubTab('contacts')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                <span>Contacts</span>
+              </button>
+              <button
+                className={`feed-subtab ${peopleSubTab === 'qr' ? 'active' : ''}`}
+                onClick={() => setPeopleSubTab('qr')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="8" height="8" rx="1"/>
+                  <rect x="14" y="2" width="8" height="8" rx="1"/>
+                  <rect x="2" y="14" width="8" height="8" rx="1"/>
+                  <rect x="14" y="14" width="4" height="4" rx="0.5"/>
+                  <line x1="22" y1="14" x2="22" y2="22"/>
+                  <line x1="18" y1="22" x2="22" y2="22"/>
+                </svg>
+                <span>QR Code</span>
+              </button>
+            </div>
+
+            {/* Suggested Sub-tab */}
+            {peopleSubTab === 'suggested' && (
+              <>
+                {filterBySearch(peopleList).length === 0 ? (
+                  <div className="feed-empty">
+                    <p>{searchQuery ? 'No results' : 'No users yet'}</p>
+                    <span>{searchQuery ? 'Try a different name' : 'Invite friends to join'}</span>
+                  </div>
+                ) : (
+                  filterBySearch(peopleList).map(u => (
+                    <div key={u.uid} className="feed-person-card">
+                      <div className="feed-person-avatar">
+                        {u.photoURL ? (
+                          <img src={u.photoURL} alt="" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="feed-person-avatar-placeholder">
+                            {(u.displayName || '?')[0].toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="feed-person-info">
+                        <span className="feed-person-name">{u.displayName}</span>
+                        <span className="feed-person-stats">
+                          {u.mutualCount > 0
+                            ? `${u.mutualCount} mutual friend${u.mutualCount !== 1 ? 's' : ''}`
+                            : `${u.workoutCount || 0} workouts`
+                          }
+                        </span>
+                      </div>
+                      <button
+                        className={`feed-follow-btn ${u.isFollowing ? 'following' : ''}`}
+                        onClick={() => u.isFollowing ? handleUnfollow(u.uid) : handleFollow(u.uid)}
+                      >
+                        {u.isFollowing ? 'Following' : 'Follow'}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </>
+            )}
+
+            {/* Contacts Sub-tab */}
+            {peopleSubTab === 'contacts' && (
+              <>
+                {hasContactsAPI ? (
+                  <>
+                    <button className="feed-import-btn" onClick={handleImportContacts}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <line x1="20" y1="8" x2="20" y2="14"/>
+                        <line x1="23" y1="11" x2="17" y2="11"/>
+                      </svg>
+                      Import Contacts
+                    </button>
+                    {filterBySearch(contacts).length > 0 ? (
+                      filterBySearch(contacts).map((c, i) => (
+                        <div key={i} className="feed-contact-card">
+                          <div className="feed-contact-avatar">
+                            {(c.name || '?')[0].toUpperCase()}
+                          </div>
+                          <div className="feed-person-info">
+                            <span className="feed-person-name">{c.name}</span>
+                            {c.tel && <span className="feed-person-stats">{c.tel}</span>}
+                          </div>
+                          <button
+                            className="feed-invite-btn"
+                            onClick={() => handleInviteSMS(c.tel)}
+                          >
+                            Invite
+                          </button>
                         </div>
-                      )}
-                    </div>
-                    <div className="feed-person-info">
-                      <span className="feed-person-name">{u.displayName}</span>
-                      <span className="feed-person-stats">{u.workoutCount || 0} workouts</span>
-                    </div>
-                    <button
-                      className={`feed-follow-btn ${isFollowing ? 'following' : ''}`}
-                      onClick={() => isFollowing ? handleUnfollow(u.uid) : handleFollow(u.uid)}
-                    >
-                      {isFollowing ? 'Following' : 'Follow'}
+                      ))
+                    ) : contacts.length > 0 && searchQuery ? (
+                      <div className="feed-empty">
+                        <p>No matching contacts</p>
+                      </div>
+                    ) : contacts.length === 0 ? (
+                      <div className="feed-empty">
+                        <p>No contacts imported</p>
+                        <span>Tap "Import Contacts" to get started</span>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="feed-contacts-fallback">
+                    <p>Contact import isn't available on this device</p>
+                    <button className="feed-import-btn" onClick={handleShareInvite}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="18" cy="5" r="3"/>
+                        <circle cx="6" cy="12" r="3"/>
+                        <circle cx="18" cy="19" r="3"/>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                      </svg>
+                      Invite Friends
                     </button>
                   </div>
-                );
-              })
+                )}
+              </>
             )}
+
+            {/* QR Code Sub-tab */}
+            {peopleSubTab === 'qr' && (
+              <div className="feed-qr-container">
+                <div className="feed-qr-card">
+                  <QRCodeSVG
+                    value={APP_URL}
+                    size={180}
+                    bgColor="#ffffff"
+                    fgColor="#0a0a0c"
+                    level="M"
+                  />
+                </div>
+                <span className="feed-qr-label">Scan to join</span>
+              </div>
+            )}
+
+            {/* Sticky bottom invite */}
+            <div className="feed-bottom-invite">
+              <button className="feed-bottom-invite-btn" onClick={handleShareInvite}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3"/>
+                  <circle cx="6" cy="12" r="3"/>
+                  <circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                Invite Friends
+              </button>
+            </div>
           </>
         )}
       </div>

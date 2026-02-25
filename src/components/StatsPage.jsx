@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
-import { signInWithGoogle } from '../firebase/auth';
 import './StatsPage.css';
 
-const StatsPage = ({ user, history, loading }) => {
+const StatsPage = ({ user, history, loading, onLoginClick }) => {
   const stats = useMemo(() => {
     const entries = history || [];
 
@@ -242,7 +241,7 @@ const StatsPage = ({ user, history, loading }) => {
             {renderContent()}
           </div>
           <div className="stats-signin-overlay">
-            <button className="stats-signin-btn" onClick={() => signInWithGoogle()}>
+            <button className="stats-signin-btn" onClick={onLoginClick}>
               Sign in to track your stats
             </button>
           </div>

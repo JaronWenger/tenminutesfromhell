@@ -10,7 +10,7 @@ High-intensity interval workout timer PWA. Users select a workout, each exercise
 - **Auth**: React Context (`src/contexts/AuthContext.js`) provides `{ user, loading }` globally
 - **Styling**: Plain CSS files per component (no Tailwind, no CSS-in-JS)
 - **Drag-drop**: `react-beautiful-dnd` 13.1 in ExerciseEditPage; native touch handlers in Home
-- **Deploy**: GitHub Pages via `gh-pages` to tenminutesfromhell.com
+- **Deploy**: GitHub Pages via `gh-pages` to hiitem.com
 
 ## Project Structure
 

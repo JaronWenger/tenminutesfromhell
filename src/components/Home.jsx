@@ -4,16 +4,6 @@ import './Home.css';
 import Sparks from '../assets/SPARKS.gif';
 import AuthButton from './AuthButton';
 
-const APP_TITLES = [
-  'TEN MINUTES FROM HELL',
-  'HIITBOSS',
-  'MEGAHIIT',
-  'HITTHYPE',
-  'HITTem',
-  'HITTMODE',
-  'HITTSHRED',
-  'winHIIT'
-];
 
 const Home = ({
   timerWorkoutData,
@@ -25,12 +15,12 @@ const Home = ({
   onDeleteWorkout,
   onReorder,
   onBellClick,
+  onLoginClick,
   onProfileClick
 }) => {
   const [swipingIndex, setSwipingIndex] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [titleIndex, setTitleIndex] = useState(0);
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -139,14 +129,9 @@ const Home = ({
 
       <div className="home-header">
         <div className="home-header-auth">
-          <AuthButton onProfileClick={onProfileClick} />
+          <AuthButton onLoginClick={onLoginClick} onProfileClick={onProfileClick} />
         </div>
-        <span
-          className="home-header-title"
-          onClick={() => setTitleIndex((titleIndex + 1) % APP_TITLES.length)}
-        >
-          {APP_TITLES[titleIndex]}
-        </span>
+        <span className="home-header-title">HIITem</span>
         <button className="home-header-bell" onClick={onBellClick}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>

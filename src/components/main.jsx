@@ -8,6 +8,7 @@ import EditPage from './EditPage';
 import ExerciseEditPage from './ExerciseEditPage';
 import FeedPage from './FeedPage';
 import SideMenu from './SideMenu';
+import LoginModal from './LoginModal';
 import SharePrompt from './SharePrompt';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
@@ -94,6 +95,8 @@ const Main = () => {
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [pendingShareData, setPendingShareData] = useState(null);
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
   const [activeColor, setActiveColor] = useState('#ff3b30');
   const [restColor, setRestColor] = useState('#007aff');
 
@@ -747,6 +750,7 @@ const Main = () => {
           user={user}
           history={workoutHistory}
           loading={historyLoading}
+          onLoginClick={() => setShowLoginModal(true)}
         />
       );
     }
@@ -796,6 +800,7 @@ const Main = () => {
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
             onBellClick={() => setShowFeedPage(true)}
+            onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
           />
         );
@@ -833,6 +838,7 @@ const Main = () => {
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
             onBellClick={() => setShowFeedPage(true)}
+            onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
           />
         );
@@ -857,6 +863,7 @@ const Main = () => {
             setActiveTab(tab);
             if (showFeedPage) setFeedCloseRequested(true);
             if (showSideMenu) setSideMenuCloseRequested(true);
+            if (showLoginModal) setLoginModalCloseRequested(true);
           }}
         />
       )}
@@ -874,6 +881,11 @@ const Main = () => {
         activeColor={activeColor}
         restColor={restColor}
         onColorChange={handleColorChange}
+      />
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => { setShowLoginModal(false); setLoginModalCloseRequested(false); }}
+        requestClose={loginModalCloseRequested}
       />
       {showSharePrompt && (
         <SharePrompt

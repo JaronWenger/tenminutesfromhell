@@ -306,6 +306,222 @@
   opacity: 0.7;
 }
 
+/* ── Search Bar ── */
+.feed-search-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.feed-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+}
+
+.feed-search {
+  width: 100%;
+  padding: 10px 14px 10px 36px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.feed-search::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.feed-search:focus {
+  border-color: rgba(255, 59, 48, 0.4);
+}
+
+/* ── Sub-tabs (Strava-style pill row) ── */
+.feed-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 0;
+}
+
+.feed-subtab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.73rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feed-subtab.active {
+  background: rgba(255, 59, 48, 0.12);
+  border-color: rgba(255, 59, 48, 0.3);
+  color: rgba(255, 59, 48, 0.9);
+}
+
+.feed-subtab:active {
+  opacity: 0.7;
+}
+
+.feed-subtab svg {
+  flex-shrink: 0;
+}
+
+/* ── Contact Card ── */
+.feed-contact-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.feed-contact-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.feed-invite-btn {
+  padding: 7px 16px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid rgba(255, 59, 48, 0.5);
+  background: transparent;
+  color: rgba(255, 59, 48, 0.9);
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+
+.feed-invite-btn:active {
+  opacity: 0.7;
+}
+
+/* ── Import Contacts button ── */
+.feed-import-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.feed-import-btn:active {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Contacts fallback ── */
+.feed-contacts-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.feed-contacts-fallback p {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.82rem;
+  margin: 0 0 16px;
+}
+
+/* ── QR Code ── */
+.feed-qr-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.feed-qr-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feed-qr-label {
+  margin-top: 16px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+/* ── Sticky bottom invite ── */
+.feed-bottom-invite {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0 20px;
+  background: linear-gradient(to top, #0a0a0c 60%, transparent);
+  margin-top: auto;
+}
+
+.feed-bottom-invite-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  background: rgba(255, 59, 48, 0.8);
+  border: none;
+  border-radius: 14px;
+  color: white;
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.feed-bottom-invite-btn:active {
+  opacity: 0.8;
+}
+
 /* ── Responsive ── */
 @media (max-width: 480px) {
   .feed-header {

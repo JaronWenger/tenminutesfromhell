@@ -1,9 +1,9 @@
-# 🔥 TEN MINUTES FROM HELL
+# HIITem
 
-[tenminutesfromhell.com](https://www.tenminutesfromhell.com) The only timer your workout needs.
+[hiitem.com](https://www.hiitem.com) The only timer your workout needs.
 
 <p align="center">
-  <a href="https://tenminutesfromhell.com" target="_blank">
+  <a href="https://hiitem.com" target="_blank">
     <img width="1496" height="846" alt="Screenshot 2025-08-31 at 10 39 33 AM" src="https://github.com/user-attachments/assets/1a006671-b6de-4bec-a4dc-5abe7d89fbc7" />
   </a>
 </p>

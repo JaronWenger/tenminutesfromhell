@@ -121,6 +121,32 @@ export const getFollowing = async (userId) => {
   return snapshot.docs.map(d => d.id);
 };
 
+// ── Suggested Users (mutual friends) ──
+
+export const getSuggestedUsers = async (userId) => {
+  // Get who the current user follows
+  const myFollowing = await getFollowing(userId);
+  if (myFollowing.length === 0) return [];
+
+  // For each followed user, get who they follow
+  const mutualCounts = {};
+  await Promise.all(
+    myFollowing.map(async (followedUid) => {
+      const theirFollowing = await getFollowing(followedUid);
+      theirFollowing.forEach(uid => {
+        // Skip self and already-followed users
+        if (uid === userId || myFollowing.includes(uid)) return;
+        mutualCounts[uid] = (mutualCounts[uid] || 0) + 1;
+      });
+    })
+  );
+
+  // Convert to array sorted by mutual count desc
+  return Object.entries(mutualCounts)
+    .map(([uid, mutualCount]) => ({ uid, mutualCount }))
+    .sort((a, b) => b.mutualCount - a.mutualCount);
+};
+
 // ── Posts ──
 
 export const createPost = async (userId, workoutData, profile) => {
