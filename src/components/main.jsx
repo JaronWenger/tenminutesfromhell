@@ -13,12 +13,14 @@ import SharePrompt from './SharePrompt';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAutoSharePreference, setAutoSharePreference, createPost, getUserColors, setUserColors, getWorkoutOrder, setWorkoutOrder, getSidePlankAlertPreference, setSidePlankAlertPreference, getPrepTimePreference, setPrepTimePreference, getRestTimePreference, setRestTimePreference, getActiveLastMinutePreference, setActiveLastMinutePreference } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference } from '../firebase/social';
 
 const hexToRgb = (hex) => {
+  if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return '255, 59, 48';
   return `${r}, ${g}, ${b}`;
 };
 
@@ -173,21 +175,15 @@ const Main = () => {
         console.error('Failed to ensure user profile:', err);
       }
       try {
-        const pref = await getAutoSharePreference(user.uid);
-        if (!cancelled) setAutoShareEnabled(pref);
-        const colors = await getUserColors(user.uid);
-        if (!cancelled) {
-          if (colors.activeColor) setActiveColor(colors.activeColor);
-          if (colors.restColor) setRestColor(colors.restColor);
-        }
-        const sidePlankPref = await getSidePlankAlertPreference(user.uid);
-        if (!cancelled) setSidePlankAlertEnabled(sidePlankPref);
-        const prepTimePref = await getPrepTimePreference(user.uid);
-        if (!cancelled) setPrepTime(prepTimePref);
-        const restTimePref = await getRestTimePreference(user.uid);
-        if (!cancelled) setRestTime(restTimePref);
-        const activeLastMinPref = await getActiveLastMinutePreference(user.uid);
-        if (!cancelled) setActiveLastMinute(activeLastMinPref);
+        const prefs = await getAllPreferences(user.uid);
+        if (cancelled) return;
+        setAutoShareEnabled(prefs.autoShare);
+        if (prefs.activeColor) setActiveColor(prefs.activeColor);
+        if (prefs.restColor) setRestColor(prefs.restColor);
+        setSidePlankAlertEnabled(prefs.sidePlankAlert);
+        setPrepTime(prefs.prepTime);
+        setRestTime(prefs.restTime);
+        setActiveLastMinute(prefs.activeLastMinute);
       } catch (err) {
         console.error('Failed to load settings:', err);
       }
@@ -243,16 +239,14 @@ const Main = () => {
 
   // Share workout post helper
   const handleShareWorkout = useCallback(async (workoutData) => {
-    if (!user) { console.log('[Share] No user, aborting'); return; }
+    if (!user) return;
     try {
-      console.log('[Share] Creating post for:', workoutData.workoutName);
-      const postId = await createPost(user.uid, workoutData, {
+      await createPost(user.uid, workoutData, {
         displayName: user.displayName,
         photoURL: user.photoURL
       });
-      console.log('[Share] Post created successfully, id:', postId);
     } catch (err) {
-      console.error('[Share] Failed to share workout:', err);
+      console.error('Failed to share workout:', err);
     }
   }, [user]);
 
@@ -368,7 +362,6 @@ const Main = () => {
   useEffect(() => {
     if (timerState.timeLeft === 0 && !timerState.isRunning && timerState.targetTime > 0 && !timerCompletedRef.current) {
       timerCompletedRef.current = true;
-      console.log('[Completion] Timer completed! targetTime:', timerState.targetTime, 'user:', !!user, 'autoShare:', autoShareEnabled);
 
       // Release wake lock
       if (wakeLockRef.current) {
@@ -395,27 +388,18 @@ const Main = () => {
           setCount: exercises.length,
           exercises
         };
-        console.log('[Completion] Recording history for:', workoutData.workoutName);
         recordWorkoutHistory(user.uid, workoutData).then(() => {
-          console.log('[Completion] History recorded successfully');
           getUserHistory(user.uid)
             .then(setWorkoutHistory)
             .catch(err => console.error('Failed to refresh history:', err));
-        }).catch(err => console.error('[Completion] Failed to record history:', err));
+        }).catch(err => console.error('Failed to record history:', err));
 
-        console.log('[Completion] autoShareEnabled:', autoShareEnabled, typeof autoShareEnabled);
         if (autoShareEnabled === true) {
-          console.log('[Completion] Sharing workout...');
           handleShareWorkout(workoutData);
         } else if (autoShareEnabled === null) {
-          console.log('[Completion] Showing share prompt...');
           setPendingShareData(workoutData);
           setShowSharePrompt(true);
-        } else {
-          console.log('[Completion] Auto-share is off, not sharing');
         }
-      } else {
-        console.log('[Completion] No user, skipping history/share');
       }
     }
 
@@ -475,34 +459,28 @@ const Main = () => {
 
   // Timer state change handler
   const handleTimerStateChange = (newState) => {
-    setTimerState(prev => {
-      const updated = { ...prev, ...newState };
-
-      // Handle wake lock
-      if (newState.isRunning && !prev.isRunning) {
-        requestWakeLock();
-      } else if (!newState.isRunning && prev.isRunning) {
-        releaseWakeLock();
-      }
-
-      return updated;
-    });
+    if (newState.isRunning !== undefined) {
+      setTimerState(prev => {
+        if (newState.isRunning && !prev.isRunning) requestWakeLock();
+        else if (!newState.isRunning && prev.isRunning) releaseWakeLock();
+        return { ...prev, ...newState };
+      });
+    } else {
+      setTimerState(prev => ({ ...prev, ...newState }));
+    }
   };
 
   // Stopwatch state change handler
   const handleStopwatchStateChange = (newState) => {
-    setStopwatchState(prev => {
-      const updated = { ...prev, ...newState };
-
-      // Handle wake lock
-      if (newState.isRunning && !prev.isRunning) {
-        requestWakeLock();
-      } else if (!newState.isRunning && prev.isRunning) {
-        releaseWakeLock();
-      }
-
-      return updated;
-    });
+    if (newState.isRunning !== undefined) {
+      setStopwatchState(prev => {
+        if (newState.isRunning && !prev.isRunning) requestWakeLock();
+        else if (!newState.isRunning && prev.isRunning) releaseWakeLock();
+        return { ...prev, ...newState };
+      });
+    } else {
+      setStopwatchState(prev => ({ ...prev, ...newState }));
+    }
   };
 
   // Stopwatch control handlers
@@ -665,14 +643,16 @@ const Main = () => {
     // Remove from local state
     setTimerWorkoutData(prev => {
       const remaining = prev.filter(w => w.name !== workoutName);
-      // If deleted workout was selected, select the first remaining
+      // Select first remaining if deleted was selected (scheduled after render)
       if (timerSelectedWorkout === workoutName && remaining.length > 0) {
-        setTimerSelectedWorkout(remaining[0].name);
+        setTimeout(() => setTimerSelectedWorkout(remaining[0].name), 0);
       }
-      // Persist updated order
+      // Persist updated order (scheduled after render)
       if (user) {
-        setWorkoutOrder(user.uid, remaining.map(w => w.name))
-          .catch(err => console.error('Failed to save workout order:', err));
+        setTimeout(() => {
+          setWorkoutOrder(user.uid, remaining.map(w => w.name))
+            .catch(err => console.error('Failed to save workout order:', err));
+        }, 0);
       }
       return remaining;
     });
@@ -880,21 +860,6 @@ const Main = () => {
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
             prepTime={prepTime}
-          />
-        );
-      case 'timer':
-        return (
-          <Timer
-            timeLeft={timerState.timeLeft}
-            isRunning={timerState.isRunning}
-            targetTime={timerState.targetTime}
-            selectedWorkoutIndex={timerState.selectedWorkoutIndex}
-            onTimerStateChange={handleTimerStateChange}
-            workouts={getExerciseList(timerSelectedWorkout)}
-            selectedWorkoutName={timerSelectedWorkout}
-            activeColor={activeColor}
-            restColor={restColor}
-            sidePlankAlertEnabled={sidePlankAlertEnabled}
           />
         );
       case 'stats':

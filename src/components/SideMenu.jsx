@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../firebase/auth';
 import { getFollowing, getFollowers, getUserProfiles } from '../firebase/social';
@@ -17,6 +17,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
   const [showList, setShowList] = useState(null); // null | 'following' | 'followers'
   const [listProfiles, setListProfiles] = useState([]);
   const [listLoading, setListLoading] = useState(false);
+  const listRequestRef = useRef(0);
 
   // Load counts when menu opens
   useEffect(() => {
@@ -34,10 +35,20 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     if (showList === type) { setShowList(null); return; }
     setShowList(type);
     setListLoading(true);
+    const requestId = ++listRequestRef.current;
     const ids = type === 'following' ? followingIds : followerIds;
-    const profiles = await getUserProfiles(ids);
-    setListProfiles(profiles);
-    setListLoading(false);
+    try {
+      const profiles = await getUserProfiles(ids);
+      if (requestId === listRequestRef.current) {
+        setListProfiles(profiles);
+        setListLoading(false);
+      }
+    } catch (err) {
+      if (requestId === listRequestRef.current) {
+        setListProfiles([]);
+        setListLoading(false);
+      }
+    }
   }, [showList, followingIds, followerIds]);
 
   // Allow parent to trigger animated close

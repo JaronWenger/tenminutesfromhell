@@ -41,10 +41,38 @@ export const ensureUserProfile = async (user) => {
   }
 };
 
-export const getAutoSharePreference = async (userId) => {
+// Single read for all user preferences (replaces 7 individual reads)
+export const getAllPreferences = async (userId) => {
+  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
+  if (!snap.exists()) {
+    return {
+      autoShare: null,
+      activeColor: null,
+      restColor: null,
+      workoutOrder: null,
+      sidePlankAlert: true,
+      prepTime: 15,
+      restTime: 15,
+      activeLastMinute: true,
+    };
+  }
+  const data = snap.data();
+  return {
+    autoShare: data.autoShare ?? null,
+    activeColor: data.activeColor || null,
+    restColor: data.restColor || null,
+    workoutOrder: data.workoutOrder || null,
+    sidePlankAlert: data.sidePlankAlert ?? true,
+    prepTime: data.prepTime ?? 15,
+    restTime: data.restTime ?? 15,
+    activeLastMinute: data.activeLastMinute ?? true,
+  };
+};
+
+export const getWorkoutOrder = async (userId) => {
   const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
   if (!snap.exists()) return null;
-  return snap.data().autoShare ?? null;
+  return snap.data().workoutOrder || null;
 };
 
 export const setAutoSharePreference = async (userId, value) => {
@@ -52,16 +80,6 @@ export const setAutoSharePreference = async (userId, value) => {
     autoShare: value,
     updatedAt: serverTimestamp()
   }, { merge: true });
-};
-
-export const getUserColors = async (userId) => {
-  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
-  if (!snap.exists()) return { activeColor: null, restColor: null };
-  const data = snap.data();
-  return {
-    activeColor: data.activeColor || null,
-    restColor: data.restColor || null
-  };
 };
 
 export const setUserColors = async (userId, { activeColor, restColor }) => {
@@ -72,23 +90,11 @@ export const setUserColors = async (userId, { activeColor, restColor }) => {
   }, { merge: true });
 };
 
-export const getWorkoutOrder = async (userId) => {
-  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
-  if (!snap.exists()) return null;
-  return snap.data().workoutOrder || null;
-};
-
 export const setWorkoutOrder = async (userId, orderArray) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     workoutOrder: orderArray,
     updatedAt: serverTimestamp()
   }, { merge: true });
-};
-
-export const getSidePlankAlertPreference = async (userId) => {
-  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
-  if (!snap.exists()) return true;
-  return snap.data().sidePlankAlert ?? true;
 };
 
 export const setSidePlankAlertPreference = async (userId, value) => {
@@ -98,12 +104,6 @@ export const setSidePlankAlertPreference = async (userId, value) => {
   }, { merge: true });
 };
 
-export const getPrepTimePreference = async (userId) => {
-  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
-  if (!snap.exists()) return 15;
-  return snap.data().prepTime ?? 15;
-};
-
 export const setPrepTimePreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     prepTime: value,
@@ -111,23 +111,11 @@ export const setPrepTimePreference = async (userId, value) => {
   }, { merge: true });
 };
 
-export const getRestTimePreference = async (userId) => {
-  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
-  if (!snap.exists()) return 15;
-  return snap.data().restTime ?? 15;
-};
-
 export const setRestTimePreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     restTime: value,
     updatedAt: serverTimestamp()
   }, { merge: true });
-};
-
-export const getActiveLastMinutePreference = async (userId) => {
-  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
-  if (!snap.exists()) return true;
-  return snap.data().activeLastMinute ?? true;
 };
 
 export const setActiveLastMinutePreference = async (userId, value) => {

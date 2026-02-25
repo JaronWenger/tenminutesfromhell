@@ -29,7 +29,6 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
   // People sub-tab state
   const [peopleSubTab, setPeopleSubTab] = useState('suggested');
   const [searchQuery, setSearchQuery] = useState('');
-  const [contacts, setContacts] = useState([]);
   const [suggestedUsers, setSuggestedUsers] = useState([]);
 
   const loadFeed = useCallback(async () => {
@@ -37,7 +36,6 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     setLoading(true);
     try {
       const feedPosts = await getFeedPosts(user.uid);
-      console.log('[Feed] Loaded posts:', feedPosts.length, feedPosts);
       setPosts(feedPosts);
       if (feedPosts.length > 0) {
         const likes = await batchCheckLikes(
@@ -62,7 +60,6 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
         getFollowing(user.uid),
         getSuggestedUsers(user.uid)
       ]);
-      console.log('[People] getAllUsers returned:', allUsers.length, 'users', allUsers.map(u => u.displayName));
       setUsers(allUsers.filter(u => u.uid !== user.uid));
       setFollowingIds(following);
       setSuggestedUsers(suggested);
@@ -146,25 +143,6 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     }
   };
 
-  const handleImportContacts = async () => {
-    try {
-      const selected = await navigator.contacts.select(['name', 'tel'], { multiple: true });
-      setContacts(selected.map(c => ({
-        name: c.name?.[0] || 'Unknown',
-        tel: c.tel?.[0] || null
-      })));
-    } catch (err) {
-      // User cancelled or API error
-      console.error('Contact import failed:', err);
-    }
-  };
-
-  const handleInviteSMS = (tel) => {
-    const body = encodeURIComponent(INVITE_TEXT);
-    const smsUri = tel ? `sms:${tel}?body=${body}` : `sms:?body=${body}`;
-    window.open(smsUri);
-  };
-
   const handleShareInvite = async () => {
     if (navigator.share) {
       try {
@@ -183,20 +161,8 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     }
   };
 
-  const timeAgo = (date) => {
-    if (!date) return '';
-    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (seconds < 60) return 'just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    return date.toLocaleDateString();
-  };
-
   const formatDuration = (seconds) => {
+    if (!seconds && seconds !== 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -238,7 +204,6 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
   if (!isOpen) return null;
 
   const peopleList = getPeopleList();
-  const hasContactsAPI = typeof navigator !== 'undefined' && 'contacts' in navigator;
 
   return (
     <div className={`feed-page ${isClosing ? 'feed-page-closing' : ''}`}>
