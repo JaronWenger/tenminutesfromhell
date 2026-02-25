@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://tenminutesfromhell.com/sitemap.xml
+Sitemap: https://hiitem.com/sitemap.xml
