@@ -111,6 +111,118 @@
   text-overflow: ellipsis;
 }
 
+/* ── Following / Followers Row ── */
+.sidemenu-follow-row {
+  display: flex;
+  gap: 0;
+  padding: 10px 20px 6px;
+}
+
+.sidemenu-follow-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 16px 4px 0;
+  transition: opacity 0.15s ease;
+}
+
+.sidemenu-follow-stat:active {
+  opacity: 0.6;
+}
+
+.sidemenu-follow-stat.active .sidemenu-follow-count {
+  color: rgba(255, 59, 48, 0.9);
+}
+
+.sidemenu-follow-count {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+  transition: color 0.2s ease;
+}
+
+.sidemenu-follow-label {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
+}
+
+/* ── Settings fade out ── */
+.sidemenu-items-hidden {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  padding: 0;
+  transition: opacity 0.2s ease, max-height 0.25s ease;
+  pointer-events: none;
+}
+
+/* ── Follow List (top-to-bottom fade in) ── */
+.sidemenu-follow-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0;
+}
+
+.sidemenu-follow-list-empty {
+  padding: 24px 20px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+  animation: sidemenu-list-item-in 0.3s ease forwards;
+}
+
+.sidemenu-follow-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  opacity: 0;
+  transform: translateY(-8px);
+  animation: sidemenu-list-item-in 0.3s ease forwards;
+}
+
+@keyframes sidemenu-list-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sidemenu-follow-list-avatar img,
+.sidemenu-follow-list-avatar-placeholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.sidemenu-follow-list-avatar-placeholder {
+  background: rgba(255, 59, 48, 0.2);
+  color: rgba(255, 59, 48, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  width: 36px;
+  height: 36px;
+}
+
+.sidemenu-follow-list-name {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 /* ── Menu Items ── */
 .sidemenu-items {
   padding: 8px 0;
@@ -172,6 +284,52 @@
 
 .sidemenu-toggle.on .sidemenu-toggle-knob {
   transform: translateX(18px);
+}
+
+/* ── Stepper (prep time) ── */
+.sidemenu-item-stepper {
+  cursor: default;
+}
+
+.sidemenu-item-stepper:active {
+  background: transparent;
+}
+
+.sidemenu-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sidemenu-stepper-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.sidemenu-stepper-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sidemenu-stepper-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  min-width: 32px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Color Picker ── */

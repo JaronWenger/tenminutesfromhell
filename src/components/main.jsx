@@ -13,7 +13,7 @@ import SharePrompt from './SharePrompt';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAutoSharePreference, setAutoSharePreference, createPost, getUserColors, setUserColors, getWorkoutOrder, setWorkoutOrder } from '../firebase/social';
+import { ensureUserProfile, getAutoSharePreference, setAutoSharePreference, createPost, getUserColors, setUserColors, getWorkoutOrder, setWorkoutOrder, getSidePlankAlertPreference, setSidePlankAlertPreference, getPrepTimePreference, setPrepTimePreference, getRestTimePreference, setRestTimePreference, getActiveLastMinutePreference, setActiveLastMinutePreference } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -42,11 +42,15 @@ const Main = () => {
     return found ? found.exercises : [];
   }, [timerWorkoutData, stopwatchWorkoutData]);
 
+  const [prepTime, setPrepTime] = useState(15);
+  const [restTime, setRestTime] = useState(15);
+  const [activeLastMinute, setActiveLastMinute] = useState(true);
+
   // Calculate total time from exercise count
   const calculateTotalTime = useCallback((workoutName) => {
     const exercises = getExerciseList(workoutName || 'The Devils 10');
-    return (exercises.length * 60) + 15;
-  }, [getExerciseList]);
+    return (exercises.length * 60) + prepTime;
+  }, [getExerciseList, prepTime]);
 
   // Timer state
   const [timerState, setTimerState] = useState(() => {
@@ -99,6 +103,7 @@ const Main = () => {
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
   const [activeColor, setActiveColor] = useState('#ff3b30');
   const [restColor, setRestColor] = useState('#007aff');
+  const [sidePlankAlertEnabled, setSidePlankAlertEnabled] = useState(true);
 
   // Load user workouts and history from Firestore when user logs in
   useEffect(() => {
@@ -110,6 +115,10 @@ const Main = () => {
       setAutoShareEnabled(null);
       setActiveColor('#ff3b30');
       setRestColor('#007aff');
+      setSidePlankAlertEnabled(true);
+      setPrepTime(15);
+      setRestTime(15);
+      setActiveLastMinute(true);
       return;
     }
 
@@ -171,6 +180,14 @@ const Main = () => {
           if (colors.activeColor) setActiveColor(colors.activeColor);
           if (colors.restColor) setRestColor(colors.restColor);
         }
+        const sidePlankPref = await getSidePlankAlertPreference(user.uid);
+        if (!cancelled) setSidePlankAlertEnabled(sidePlankPref);
+        const prepTimePref = await getPrepTimePreference(user.uid);
+        if (!cancelled) setPrepTime(prepTimePref);
+        const restTimePref = await getRestTimePreference(user.uid);
+        if (!cancelled) setRestTime(restTimePref);
+        const activeLastMinPref = await getActiveLastMinutePreference(user.uid);
+        if (!cancelled) setActiveLastMinute(activeLastMinPref);
       } catch (err) {
         console.error('Failed to load settings:', err);
       }
@@ -226,14 +243,16 @@ const Main = () => {
 
   // Share workout post helper
   const handleShareWorkout = useCallback(async (workoutData) => {
-    if (!user) return;
+    if (!user) { console.log('[Share] No user, aborting'); return; }
     try {
-      await createPost(user.uid, workoutData, {
+      console.log('[Share] Creating post for:', workoutData.workoutName);
+      const postId = await createPost(user.uid, workoutData, {
         displayName: user.displayName,
         photoURL: user.photoURL
       });
+      console.log('[Share] Post created successfully, id:', postId);
     } catch (err) {
-      console.error('Failed to share workout:', err);
+      console.error('[Share] Failed to share workout:', err);
     }
   }, [user]);
 
@@ -255,6 +274,36 @@ const Main = () => {
     setAutoShareEnabled(newValue);
     await setAutoSharePreference(user.uid, newValue);
   }, [user, autoShareEnabled]);
+
+  const handleToggleSidePlankAlert = useCallback(async () => {
+    const newValue = !sidePlankAlertEnabled;
+    setSidePlankAlertEnabled(newValue);
+    if (user) {
+      setSidePlankAlertPreference(user.uid, newValue).catch(err => console.error('Failed to save side plank alert:', err));
+    }
+  }, [user, sidePlankAlertEnabled]);
+
+  const handlePrepTimeChange = useCallback(async (newValue) => {
+    setPrepTime(newValue);
+    if (user) {
+      setPrepTimePreference(user.uid, newValue).catch(err => console.error('Failed to save prep time:', err));
+    }
+  }, [user]);
+
+  const handleToggleActiveLastMinute = useCallback(async () => {
+    const newValue = !activeLastMinute;
+    setActiveLastMinute(newValue);
+    if (user) {
+      setActiveLastMinutePreference(user.uid, newValue).catch(err => console.error('Failed to save active last minute:', err));
+    }
+  }, [user, activeLastMinute]);
+
+  const handleRestTimeChange = useCallback(async (newValue) => {
+    setRestTime(newValue);
+    if (user) {
+      setRestTimePreference(user.uid, newValue).catch(err => console.error('Failed to save rest time:', err));
+    }
+  }, [user]);
 
   const handleColorChange = useCallback(async (type, hex) => {
     if (type === 'active') setActiveColor(hex);
@@ -289,50 +338,12 @@ const Main = () => {
   const timerIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  // Timer interval management
+  // Timer interval — pure countdown only, no side effects in updater
   useEffect(() => {
     if (timerState.isRunning) {
       timerIntervalRef.current = setInterval(() => {
         setTimerState(prev => {
-          if (prev.timeLeft <= 0) {
-            // Release wake lock when timer completes
-            if (wakeLockRef.current) {
-              wakeLockRef.current.release();
-              wakeLockRef.current = null;
-            }
-            // Fire GTM event for workout completion
-            if (window.dataLayer) {
-              window.dataLayer.push({
-                event: 'workout_complete',
-                workout_duration: prev.targetTime,
-                workout_type: 'ten_minutes_from_hell'
-              });
-            }
-            // Record workout history to Firestore
-            if (user) {
-              const exercises = getExerciseList(timerSelectedWorkout);
-              const workoutData = {
-                workoutName: timerSelectedWorkout,
-                workoutType: 'timer',
-                duration: prev.targetTime,
-                setCount: exercises.length,
-                exercises
-              };
-              recordWorkoutHistory(user.uid, workoutData).then(() => {
-                // Refresh history for stats page
-                getUserHistory(user.uid)
-                  .then(setWorkoutHistory)
-                  .catch(err => console.error('Failed to refresh history:', err));
-              }).catch(err => console.error('Failed to record history:', err));
-
-              // Social sharing logic
-              if (autoShareEnabled === true) {
-                handleShareWorkout(workoutData);
-              } else if (autoShareEnabled === null) {
-                setPendingShareData(workoutData);
-                setShowSharePrompt(true);
-              }
-            }
+          if (prev.timeLeft <= 1) {
             return { ...prev, timeLeft: 0, isRunning: false };
           }
           return { ...prev, timeLeft: prev.timeLeft - 1 };
@@ -350,7 +361,69 @@ const Main = () => {
         clearInterval(timerIntervalRef.current);
       }
     };
-  }, [timerState.isRunning, user, timerSelectedWorkout, getExerciseList, autoShareEnabled, handleShareWorkout]);
+  }, [timerState.isRunning]);
+
+  // Detect workout completion — runs side effects outside of state updater
+  const timerCompletedRef = useRef(false);
+  useEffect(() => {
+    if (timerState.timeLeft === 0 && !timerState.isRunning && timerState.targetTime > 0 && !timerCompletedRef.current) {
+      timerCompletedRef.current = true;
+      console.log('[Completion] Timer completed! targetTime:', timerState.targetTime, 'user:', !!user, 'autoShare:', autoShareEnabled);
+
+      // Release wake lock
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+
+      // Fire GTM event
+      if (window.dataLayer) {
+        window.dataLayer.push({
+          event: 'workout_complete',
+          workout_duration: timerState.targetTime,
+          workout_type: 'ten_minutes_from_hell'
+        });
+      }
+
+      // Record history and share
+      if (user) {
+        const exercises = getExerciseList(timerSelectedWorkout);
+        const workoutData = {
+          workoutName: timerSelectedWorkout,
+          workoutType: 'timer',
+          duration: timerState.targetTime,
+          setCount: exercises.length,
+          exercises
+        };
+        console.log('[Completion] Recording history for:', workoutData.workoutName);
+        recordWorkoutHistory(user.uid, workoutData).then(() => {
+          console.log('[Completion] History recorded successfully');
+          getUserHistory(user.uid)
+            .then(setWorkoutHistory)
+            .catch(err => console.error('Failed to refresh history:', err));
+        }).catch(err => console.error('[Completion] Failed to record history:', err));
+
+        console.log('[Completion] autoShareEnabled:', autoShareEnabled, typeof autoShareEnabled);
+        if (autoShareEnabled === true) {
+          console.log('[Completion] Sharing workout...');
+          handleShareWorkout(workoutData);
+        } else if (autoShareEnabled === null) {
+          console.log('[Completion] Showing share prompt...');
+          setPendingShareData(workoutData);
+          setShowSharePrompt(true);
+        } else {
+          console.log('[Completion] Auto-share is off, not sharing');
+        }
+      } else {
+        console.log('[Completion] No user, skipping history/share');
+      }
+    }
+
+    // Reset completion flag when timer is reset (timeLeft > 0)
+    if (timerState.timeLeft > 0) {
+      timerCompletedRef.current = false;
+    }
+  }, [timerState.timeLeft, timerState.isRunning, timerState.targetTime, user, timerSelectedWorkout, getExerciseList, autoShareEnabled, handleShareWorkout]);
 
   // Stopwatch interval ref
   const stopwatchIntervalRef = useRef(null);
@@ -740,6 +813,10 @@ const Main = () => {
           selectedWorkoutName={timerSelectedWorkout}
           activeColor={activeColor}
           restColor={restColor}
+          sidePlankAlertEnabled={sidePlankAlertEnabled}
+          prepTime={prepTime}
+          restTime={restTime}
+          activeLastMinute={activeLastMinute}
         />
       );
     }
@@ -802,6 +879,7 @@ const Main = () => {
             onBellClick={() => setShowFeedPage(true)}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
+            prepTime={prepTime}
           />
         );
       case 'timer':
@@ -816,6 +894,7 @@ const Main = () => {
             selectedWorkoutName={timerSelectedWorkout}
             activeColor={activeColor}
             restColor={restColor}
+            sidePlankAlertEnabled={sidePlankAlertEnabled}
           />
         );
       case 'stats':
@@ -840,6 +919,7 @@ const Main = () => {
             onBellClick={() => setShowFeedPage(true)}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
+            prepTime={prepTime}
           />
         );
     }
@@ -878,6 +958,14 @@ const Main = () => {
         requestClose={sideMenuCloseRequested}
         autoShareEnabled={autoShareEnabled}
         onToggleAutoShare={handleToggleAutoShare}
+        sidePlankAlertEnabled={sidePlankAlertEnabled}
+        onToggleSidePlankAlert={handleToggleSidePlankAlert}
+        prepTime={prepTime}
+        onPrepTimeChange={handlePrepTimeChange}
+        restTime={restTime}
+        onRestTimeChange={handleRestTimeChange}
+        activeLastMinute={activeLastMinute}
+        onToggleActiveLastMinute={handleToggleActiveLastMinute}
         activeColor={activeColor}
         restColor={restColor}
         onColorChange={handleColorChange}

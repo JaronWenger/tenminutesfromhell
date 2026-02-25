@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import './Timer.css';
 import Ring from './Ring';
 import WorkoutList from './WorkoutList';
+import Sparks from '../assets/SPARKS.gif';
 
-const Timer = ({ 
-  workouts = [], 
+const Timer = ({
+  workouts = [],
   prepTime = 15,
   timeLeft: propTimeLeft,
   isRunning: propIsRunning,
@@ -13,7 +14,10 @@ const Timer = ({
   onTimerStateChange,
   selectedWorkoutName = '',
   activeColor = '#ff3b30',
-  restColor = '#007aff'
+  restColor = '#007aff',
+  sidePlankAlertEnabled = true,
+  restTime = 15,
+  activeLastMinute = true
 }) => {
   // Default workouts if none provided
   const defaultWorkouts = [
@@ -40,6 +44,16 @@ const Timer = ({
   const [isRunning, setIsRunning] = useState(propIsRunning !== undefined ? propIsRunning : false);
   const [targetTime, setTargetTime] = useState(propTargetTime !== undefined ? propTargetTime : calculateTotalTime());
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(propSelectedWorkoutIndex !== undefined ? propSelectedWorkoutIndex : 0);
+  const [showSparks, setShowSparks] = useState(false);
+  const [sparksClosing, setSparksClosing] = useState(false);
+
+  // Show sparks when workout completes
+  useEffect(() => {
+    if (timeLeft === 0 && !isRunning && targetTime > 0) {
+      setShowSparks(true);
+      setSparksClosing(false);
+    }
+  }, [timeLeft, isRunning, targetTime]);
 
   // Update local state when props change
   useEffect(() => {
@@ -92,6 +106,13 @@ const Timer = ({
   };
 
   const resetTimer = () => {
+    if (showSparks) {
+      setSparksClosing(true);
+      setTimeout(() => {
+        setShowSparks(false);
+        setSparksClosing(false);
+      }, 600);
+    }
     setIsRunning(false);
     setTimeLeft(targetTime);
     updateParentState({ isRunning: false, timeLeft: targetTime });
@@ -108,8 +129,24 @@ const Timer = ({
   // Calculate which workout should be active
   const workoutIndex = Math.min(Math.floor((targetTime - timeLeft) / 60), workoutList.length - 1);
 
+  // Side plank halfway flicker detection
+  const currentExercise = workoutList[workoutIndex] || '';
+  const isSidePlank = currentExercise.toLowerCase().includes('side plank');
+  const currentSeconds = timeLeft % 60;
+  const isRestPhase = currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true);
+  const isActivePhase = !isRestPhase;
+  const activeSeconds = 60 - restTime;
+  const halfwaySecond = Math.round(31 + restTime / 2);
+  const isHalfwayFlicker = sidePlankAlertEnabled && isSidePlank && isActivePhase && isRunning &&
+    (currentSeconds === halfwaySecond);
+
   return (
     <div className="timer-container">
+      {showSparks && (
+        <div className={`timer-sparks-bg ${sparksClosing ? 'timer-sparks-closing' : ''}`}>
+          <img src={Sparks} alt="" className="timer-sparks-img" />
+        </div>
+      )}
       <Ring
         timeLeft={timeLeft}
         targetTime={targetTime}
@@ -124,6 +161,9 @@ const Timer = ({
         }}
         activeColor={activeColor}
         restColor={restColor}
+        flickering={isHalfwayFlicker}
+        restTime={restTime}
+        activeLastMinute={activeLastMinute}
       />
 
       {/* Selected Workout Title - Hidden when running but keeps spacing */}

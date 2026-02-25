@@ -1,16 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../firebase/auth';
+import { getFollowing, getFollowers, getUserProfiles } from '../firebase/social';
 import './SideMenu.css';
 
 const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
 const OTHER_COLORS = ['#ff9500', '#34c759', '#af52de', '#ff2d55', '#5ac8fa', '#30b0c7', '#ffffff'];
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, activeColor, restColor, onColorChange }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, activeColor, restColor, onColorChange }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
+  const [followingIds, setFollowingIds] = useState([]);
+  const [followerIds, setFollowerIds] = useState([]);
+  const [showList, setShowList] = useState(null); // null | 'following' | 'followers'
+  const [listProfiles, setListProfiles] = useState([]);
+  const [listLoading, setListLoading] = useState(false);
+
+  // Load counts when menu opens
+  useEffect(() => {
+    if (isOpen && user) {
+      Promise.all([getFollowing(user.uid), getFollowers(user.uid)])
+        .then(([following, followers]) => {
+          setFollowingIds(following);
+          setFollowerIds(followers);
+        })
+        .catch(err => console.error('Failed to load follow counts:', err));
+    }
+  }, [isOpen, user]);
+
+  const handleShowList = useCallback(async (type) => {
+    if (showList === type) { setShowList(null); return; }
+    setShowList(type);
+    setListLoading(true);
+    const ids = type === 'following' ? followingIds : followerIds;
+    const profiles = await getUserProfiles(ids);
+    setListProfiles(profiles);
+    setListLoading(false);
+  }, [showList, followingIds, followerIds]);
 
   // Allow parent to trigger animated close
   useEffect(() => {
@@ -21,6 +49,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
 
   const triggerClose = () => {
     setIsClosing(true);
+    setShowList(null);
     setTimeout(() => {
       setIsClosing(false);
       onClose();
@@ -62,8 +91,20 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
           </div>
         </div>
 
-        {/* Menu items */}
-        <div className="sidemenu-items">
+        {/* Following / Followers */}
+        <div className="sidemenu-follow-row">
+          <button className={`sidemenu-follow-stat ${showList === 'following' ? 'active' : ''}`} onClick={() => handleShowList('following')}>
+            <span className="sidemenu-follow-count">{followingIds.length}</span>
+            <span className="sidemenu-follow-label">Following</span>
+          </button>
+          <button className={`sidemenu-follow-stat ${showList === 'followers' ? 'active' : ''}`} onClick={() => handleShowList('followers')}>
+            <span className="sidemenu-follow-count">{followerIds.length}</span>
+            <span className="sidemenu-follow-label">Followers</span>
+          </button>
+        </div>
+
+        {/* Settings (fade out when list is shown) */}
+        <div className={`sidemenu-items ${showList ? 'sidemenu-items-hidden' : ''}`}>
           <div className="sidemenu-item" onClick={handleSignOut}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -83,6 +124,78 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             </svg>
             <span className="sidemenu-item-label">Auto-Share Workouts</span>
             <div className={`sidemenu-toggle ${autoShareEnabled === true ? 'on' : ''}`}>
+              <div className="sidemenu-toggle-knob" />
+            </div>
+          </div>
+
+          <div className="sidemenu-divider" />
+
+          <div className="sidemenu-item" onClick={onToggleSidePlankAlert}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            </svg>
+            <span className="sidemenu-item-label">Side plank switch side alert</span>
+            <div className={`sidemenu-toggle ${sidePlankAlertEnabled === true ? 'on' : ''}`}>
+              <div className="sidemenu-toggle-knob" />
+            </div>
+          </div>
+
+          <div className="sidemenu-divider" />
+
+          <div className="sidemenu-item sidemenu-item-stepper">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span className="sidemenu-item-label">Prep time</span>
+            <div className="sidemenu-stepper">
+              <button
+                className="sidemenu-stepper-btn"
+                onClick={(e) => { e.stopPropagation(); if (prepTime > 0) onPrepTimeChange(prepTime - 5); }}
+              >
+                −
+              </button>
+              <span className="sidemenu-stepper-value">{prepTime}s</span>
+              <button
+                className="sidemenu-stepper-btn"
+                onClick={(e) => { e.stopPropagation(); if (prepTime < 30) onPrepTimeChange(prepTime + 5); }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="sidemenu-item sidemenu-item-stepper">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18.36 5.64a9 9 0 1 1-12.73 0"/>
+              <line x1="12" y1="2" x2="12" y2="12"/>
+            </svg>
+            <span className="sidemenu-item-label">Rest time</span>
+            <div className="sidemenu-stepper">
+              <button
+                className="sidemenu-stepper-btn"
+                onClick={(e) => { e.stopPropagation(); if (restTime > 0) onRestTimeChange(restTime - 5); }}
+              >
+                −
+              </button>
+              <span className="sidemenu-stepper-value">{restTime}s</span>
+              <button
+                className="sidemenu-stepper-btn"
+                onClick={(e) => { e.stopPropagation(); if (restTime < 30) onRestTimeChange(restTime + 5); }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="sidemenu-divider" />
+
+          <div className="sidemenu-item" onClick={onToggleActiveLastMinute}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            <span className="sidemenu-item-label">Stay active last minute</span>
+            <div className={`sidemenu-toggle ${activeLastMinute === true ? 'on' : ''}`}>
               <div className="sidemenu-toggle-knob" />
             </div>
           </div>
@@ -109,6 +222,34 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             </div>
           </div>
         </div>
+
+        {/* Follow list (fade in when shown) */}
+        {showList && (
+          <div className="sidemenu-follow-list">
+            {listLoading ? (
+              <div className="sidemenu-follow-list-empty">Loading...</div>
+            ) : listProfiles.length === 0 ? (
+              <div className="sidemenu-follow-list-empty">
+                {showList === 'following' ? 'Not following anyone yet' : 'No followers yet'}
+              </div>
+            ) : (
+              listProfiles.map((p, i) => (
+                <div key={p.uid} className="sidemenu-follow-list-item" style={{ animationDelay: `${i * 40}ms` }}>
+                  <div className="sidemenu-follow-list-avatar">
+                    {p.photoURL ? (
+                      <img src={p.photoURL} alt="" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="sidemenu-follow-list-avatar-placeholder">
+                        {(p.displayName || '?')[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <span className="sidemenu-follow-list-name">{p.displayName}</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Color picker popup — fixed center of screen */}

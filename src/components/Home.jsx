@@ -16,7 +16,8 @@ const Home = ({
   onReorder,
   onBellClick,
   onLoginClick,
-  onProfileClick
+  onProfileClick,
+  prepTime = 15
 }) => {
   const [swipingIndex, setSwipingIndex] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -149,7 +150,7 @@ const Home = ({
               className="home-workout-list"
             >
               {timerWorkoutData.map((workout, index) => {
-                const totalSeconds = (workout.exercises.length * 60) + 15;
+                const totalSeconds = (workout.exercises.length * 60) + prepTime;
                 const completions = getCompletionCount(workout.name);
                 const isSelected = timerSelectedWorkout === workout.name;
                 const isSwipeOpen = swipingIndex === index;

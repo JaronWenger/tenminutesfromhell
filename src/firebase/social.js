@@ -85,6 +85,58 @@ export const setWorkoutOrder = async (userId, orderArray) => {
   }, { merge: true });
 };
 
+export const getSidePlankAlertPreference = async (userId) => {
+  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
+  if (!snap.exists()) return true;
+  return snap.data().sidePlankAlert ?? true;
+};
+
+export const setSidePlankAlertPreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    sidePlankAlert: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const getPrepTimePreference = async (userId) => {
+  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
+  if (!snap.exists()) return 15;
+  return snap.data().prepTime ?? 15;
+};
+
+export const setPrepTimePreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    prepTime: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const getRestTimePreference = async (userId) => {
+  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
+  if (!snap.exists()) return 15;
+  return snap.data().restTime ?? 15;
+};
+
+export const setRestTimePreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    restTime: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const getActiveLastMinutePreference = async (userId) => {
+  const snap = await getDoc(doc(db, 'users', userId, 'settings', 'preferences'));
+  if (!snap.exists()) return true;
+  return snap.data().activeLastMinute ?? true;
+};
+
+export const setActiveLastMinutePreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    activeLastMinute: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
 // ── Users (People tab) ──
 
 export const getAllUsers = async () => {
@@ -119,6 +171,24 @@ export const getFollowing = async (userId) => {
     collection(db, 'following', userId, 'userFollowing')
   );
   return snapshot.docs.map(d => d.id);
+};
+
+export const getFollowers = async (userId) => {
+  const snapshot = await getDocs(
+    collection(db, 'followers', userId, 'userFollowers')
+  );
+  return snapshot.docs.map(d => d.id);
+};
+
+export const getUserProfiles = async (userIds) => {
+  if (!userIds || userIds.length === 0) return [];
+  const profiles = await Promise.all(
+    userIds.map(async (uid) => {
+      const snap = await getDoc(doc(db, 'userProfiles', uid));
+      return snap.exists() ? { uid, ...snap.data() } : { uid, displayName: 'Unknown' };
+    })
+  );
+  return profiles;
 };
 
 // ── Suggested Users (mutual friends) ──

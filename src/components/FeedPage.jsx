@@ -14,7 +14,7 @@ import {
 import './FeedPage.css';
 
 const APP_URL = 'https://hiitem.com';
-const INVITE_TEXT = `Join me on HIITem — high-intensity workouts in just 10 minutes! ${APP_URL}`;
+const INVITE_TEXT = `Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress! ${APP_URL}`;
 
 const FeedPage = ({ isOpen, onClose, requestClose }) => {
   const { user } = useAuth();
@@ -37,6 +37,7 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     setLoading(true);
     try {
       const feedPosts = await getFeedPosts(user.uid);
+      console.log('[Feed] Loaded posts:', feedPosts.length, feedPosts);
       setPosts(feedPosts);
       if (feedPosts.length > 0) {
         const likes = await batchCheckLikes(
@@ -46,7 +47,7 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
         setLikedPosts(likes);
       }
     } catch (err) {
-      console.error('Failed to load feed:', err);
+      console.error('[Feed] Failed to load feed:', err.message, err);
     } finally {
       setLoading(false);
     }
@@ -305,18 +306,12 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
                     </div>
                     <div className="feed-post-meta">
                       <span className="feed-post-name">{post.displayName}</span>
-                      <span className="feed-post-time">{timeAgo(post.createdAt)}</span>
+                      <span className="feed-post-time">
+                        {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                        {post.createdAt ? ` at ${post.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                      </span>
+                      <span className="feed-post-subtitle">{post.workoutName} &middot; {formatDuration(post.duration)} &middot; {post.exerciseCount} exercises</span>
                     </div>
-                  </div>
-                  <div className="feed-post-body">
-                    <span className="feed-post-workout">{post.workoutName}</span>
-                    <div className="feed-post-stats">
-                      <span>{formatDuration(post.duration)}</span>
-                      <span className="feed-post-dot">&middot;</span>
-                      <span>{post.exerciseCount} exercises</span>
-                    </div>
-                  </div>
-                  <div className="feed-post-actions">
                     <button
                       className={`feed-like-btn ${likedPosts[post.id] ? 'liked' : ''}`}
                       onClick={() => handleLike(post.id)}
@@ -370,8 +365,8 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
                 onClick={() => setPeopleSubTab('contacts')}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
                 </svg>
                 <span>Contacts</span>
               </button>
@@ -434,63 +429,18 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
 
             {/* Contacts Sub-tab */}
             {peopleSubTab === 'contacts' && (
-              <>
-                {hasContactsAPI ? (
-                  <>
-                    <button className="feed-import-btn" onClick={handleImportContacts}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                        <circle cx="8.5" cy="7" r="4"/>
-                        <line x1="20" y1="8" x2="20" y2="14"/>
-                        <line x1="23" y1="11" x2="17" y2="11"/>
-                      </svg>
-                      Import Contacts
-                    </button>
-                    {filterBySearch(contacts).length > 0 ? (
-                      filterBySearch(contacts).map((c, i) => (
-                        <div key={i} className="feed-contact-card">
-                          <div className="feed-contact-avatar">
-                            {(c.name || '?')[0].toUpperCase()}
-                          </div>
-                          <div className="feed-person-info">
-                            <span className="feed-person-name">{c.name}</span>
-                            {c.tel && <span className="feed-person-stats">{c.tel}</span>}
-                          </div>
-                          <button
-                            className="feed-invite-btn"
-                            onClick={() => handleInviteSMS(c.tel)}
-                          >
-                            Invite
-                          </button>
-                        </div>
-                      ))
-                    ) : contacts.length > 0 && searchQuery ? (
-                      <div className="feed-empty">
-                        <p>No matching contacts</p>
-                      </div>
-                    ) : contacts.length === 0 ? (
-                      <div className="feed-empty">
-                        <p>No contacts imported</p>
-                        <span>Tap "Import Contacts" to get started</span>
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="feed-contacts-fallback">
-                    <p>Contact import isn't available on this device</p>
-                    <button className="feed-import-btn" onClick={handleShareInvite}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="18" cy="5" r="3"/>
-                        <circle cx="6" cy="12" r="3"/>
-                        <circle cx="18" cy="19" r="3"/>
-                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                      </svg>
-                      Invite Friends
-                    </button>
-                  </div>
-                )}
-              </>
+              <div className="feed-contacts-invite">
+                <button className="feed-bottom-invite-btn" onClick={handleShareInvite}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="18" cy="5" r="3"/>
+                    <circle cx="6" cy="12" r="3"/>
+                    <circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  </svg>
+                  Invite Friends
+                </button>
+              </div>
             )}
 
             {/* QR Code Sub-tab */}

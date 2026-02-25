@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './Ring.css';
 
 const Ring = ({
@@ -10,8 +10,27 @@ const Ring = ({
   onReset,
   onTimeClick,
   activeColor = '#ff3b30',
-  restColor = '#007aff'
+  restColor = '#007aff',
+  flickering = false,
+  restTime = 15,
+  activeLastMinute = true
 }) => {
+  // Flicker: alternate between active/rest colors rapidly
+  const [flickerToggle, setFlickerToggle] = useState(false);
+  const flickerRef = useRef(null);
+
+  useEffect(() => {
+    if (flickering) {
+      flickerRef.current = setInterval(() => {
+        setFlickerToggle(prev => !prev);
+      }, 250);
+    } else {
+      if (flickerRef.current) clearInterval(flickerRef.current);
+      setFlickerToggle(false);
+    }
+    return () => { if (flickerRef.current) clearInterval(flickerRef.current); };
+  }, [flickering]);
+
   const progress = ((targetTime - timeLeft) / targetTime) * 100;
   const circumference = 2 * Math.PI * 120;
   const strokeDasharray = circumference;
@@ -19,10 +38,13 @@ const Ring = ({
 
   // Determine progress color based on seconds within current minute
   const getProgressColor = () => {
+    if (flickering) {
+      return flickerToggle ? restColor : activeColor;
+    }
     const currentSeconds = timeLeft % 60;
 
     // Rest/prep seconds 1-15 of each minute (except the last minute)
-    if (currentSeconds >= 1 && currentSeconds <= 15 && timeLeft > 60) {
+    if (currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true)) {
       return restColor;
     } else {
       return activeColor;
@@ -80,19 +102,21 @@ const Ring = ({
       </div>
 
       {!isRunning && (
-        <button 
-          className="play-btn" 
+        <button
+          className="play-btn"
           onClick={onStart}
         >
-          ▶
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white" style={{ marginLeft: '1px' }}>
+            <path d="M7.5 4.5c0-1.08 1.22-1.71 2.1-1.08l10.2 7.5c.76.56.76 1.6 0 2.16l-10.2 7.5c-.88.63-2.1 0-2.1-1.08V4.5z"/>
+          </svg>
         </button>
       )}
       
       {!isRunning && timeLeft < targetTime && (
         <button className="reset-btn" onClick={onReset}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="currentColor"/>
-            <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
           </svg>
         </button>
       )}
