@@ -1,0 +1,323 @@
+/* ── Feed Page (fullscreen slide-in overlay) ── */
+.feed-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0a0a0c;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  animation: feed-slide-in 0.3s ease forwards;
+}
+
+.feed-page-closing {
+  animation: feed-slide-out 0.28s ease forwards;
+}
+
+@keyframes feed-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes feed-slide-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+/* ── Header ── */
+.feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  flex-shrink: 0;
+}
+
+.feed-back-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease;
+}
+
+.feed-back-btn:active {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.feed-header-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 1px;
+  flex: 1;
+  text-align: center;
+}
+
+.feed-header-spacer {
+  width: 34px;
+  flex-shrink: 0;
+}
+
+/* ── Tabs ── */
+.feed-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.feed-tab {
+  flex: 1;
+  padding: 10px 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.feed-tab.active {
+  color: #ffffff;
+  border-bottom-color: rgba(255, 59, 48, 0.8);
+}
+
+/* ── Content ── */
+.feed-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px 100px;
+}
+
+.feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.feed-empty p {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.feed-empty span {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.78rem;
+}
+
+/* ── Post Card ── */
+.feed-post-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.feed-post-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.feed-post-avatar img,
+.feed-post-avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.feed-post-avatar-placeholder {
+  background: rgba(255, 59, 48, 0.2);
+  color: rgba(255, 59, 48, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.feed-post-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.feed-post-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.feed-post-time {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.feed-post-body {
+  margin-bottom: 10px;
+}
+
+.feed-post-workout {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.feed-post-stats {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.73rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.feed-post-dot {
+  opacity: 0.4;
+}
+
+.feed-post-actions {
+  display: flex;
+  align-items: center;
+}
+
+.feed-like-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 4px 8px 4px 0;
+  transition: color 0.15s ease;
+}
+
+.feed-like-btn.liked {
+  color: rgba(255, 59, 48, 0.9);
+}
+
+.feed-like-btn:active {
+  opacity: 0.7;
+}
+
+/* ── Person Card ── */
+.feed-person-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.feed-person-avatar img,
+.feed-person-avatar-placeholder {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.feed-person-avatar-placeholder {
+  background: rgba(255, 59, 48, 0.2);
+  color: rgba(255, 59, 48, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.feed-person-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.feed-person-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-person-stats {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.feed-follow-btn {
+  padding: 7px 16px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+  background: rgba(255, 59, 48, 0.8);
+  color: white;
+}
+
+.feed-follow-btn.following {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.feed-follow-btn:active {
+  opacity: 0.7;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .feed-header {
+    padding: 14px 14px 10px;
+  }
+
+  .feed-header-title {
+    font-size: 1rem;
+    letter-spacing: 0.8px;
+  }
+
+  .feed-content {
+    padding: 0 14px 100px;
+  }
+}

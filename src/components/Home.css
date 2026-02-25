@@ -46,11 +46,14 @@
   font-weight: 700;
   color: #ffffff;
   letter-spacing: 1px;
+  flex: 1;
+  text-align: center;
 }
 
 /* Override AuthButton fixed positioning inside header */
 .home-header-auth {
   flex-shrink: 0;
+  width: 34px;
 }
 
 .home-header-auth .auth-button {
@@ -73,6 +76,34 @@
   color: rgba(255, 255, 255, 0.45);
 }
 
+.home-header-spacer {
+  width: 34px;
+  flex-shrink: 0;
+}
+
+.home-header-bell {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.home-header-bell:active {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* ── Workout List ── */
 .home-workout-list {
   flex: 1;
@@ -89,7 +120,7 @@
 .workout-card-wrapper {
   position: relative;
   border-radius: 14px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .workout-card-wrapper.swipe-open {
@@ -169,17 +200,24 @@
   font-weight: 500;
 }
 
+/* ── Reordering Mode ── */
+.home-workout-list.reordering {
+  overflow: hidden;
+}
+
 /* ── Dragging State ── */
 .workout-card.dragging {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 59, 48, 0.3);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  transform: scale(1.02);
 }
 
-/* Cards animate into position during reorder */
-.workout-card-wrapper {
-  transition: transform 0.15s ease;
+.workout-card.dragging.selected {
+  background: rgba(255, 59, 48, 0.15);
+  border-color: rgba(255, 59, 48, 0.5);
+  box-shadow: 0 4px 20px rgba(255, 59, 48, 0.25);
+  transform: scale(1.02);
+  z-index: 10;
 }
 
 /* ── Edit Button ── */

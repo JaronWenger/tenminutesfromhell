@@ -21,12 +21,7 @@
 }
 
 .progress-ring-fill {
-  transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
-  filter: drop-shadow(0 0 12px rgba(255, 59, 48, 0.4));
-}
-
-.progress-ring-fill[stroke="#007aff"] {
-  filter: drop-shadow(0 0 12px rgba(0, 122, 255, 0.4));
+  transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease, filter 0.3s ease;
 }
 
 .time-text {
@@ -62,9 +57,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #007aff 0%, #0056cc 100%);
+  background: var(--color-rest, #007aff);
   color: white;
-  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+  box-shadow: 0 4px 16px rgba(var(--color-rest-rgb, 0, 122, 255), 0.3);
   bottom: 50px;
   left: calc(50% - 30px);
   -webkit-tap-highlight-color: transparent;
@@ -75,13 +70,13 @@
 }
 
 .play-btn:hover {
-  background: linear-gradient(135deg, #007aff 0%, #0056cc 100%);
-  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+  background: var(--color-rest, #007aff);
+  box-shadow: 0 4px 16px rgba(var(--color-rest-rgb, 0, 122, 255), 0.3);
 }
 
 .play-btn:active {
-  background: linear-gradient(135deg, #007aff 0%, #0056cc 100%);
-  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+  background: var(--color-rest, #007aff);
+  box-shadow: 0 4px 16px rgba(var(--color-rest-rgb, 0, 122, 255), 0.3);
 }
 
 .pause-btn {

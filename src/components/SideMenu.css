@@ -1,0 +1,283 @@
+/* ── Side Menu Overlay (covers everything including tabs) ── */
+.sidemenu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 600;
+  display: flex;
+}
+
+/* ── Panel (slides in from left, ~80% width) ── */
+.sidemenu-panel {
+  width: 80%;
+  max-width: 340px;
+  height: 100%;
+  background: #111114;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: sidemenu-slide-in 0.28s ease forwards;
+  position: relative;
+  z-index: 2;
+}
+
+.sidemenu-panel-closing {
+  animation: sidemenu-slide-out 0.26s ease forwards;
+}
+
+@keyframes sidemenu-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes sidemenu-slide-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+/* ── Backdrop (the visible strip on the right) ── */
+.sidemenu-backdrop {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.5);
+  animation: sidemenu-fade-in 0.28s ease forwards;
+}
+
+.sidemenu-overlay-closing .sidemenu-backdrop {
+  animation: sidemenu-fade-out 0.26s ease forwards;
+}
+
+@keyframes sidemenu-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sidemenu-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ── Profile Header ── */
+.sidemenu-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 20px 8px;
+}
+
+.sidemenu-avatar img,
+.sidemenu-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.sidemenu-avatar-placeholder {
+  background: rgba(255, 59, 48, 0.2);
+  color: rgba(255, 59, 48, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sidemenu-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sidemenu-profile-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidemenu-profile-email {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Menu Items ── */
+.sidemenu-items {
+  padding: 8px 0;
+  flex: 1;
+}
+
+.sidemenu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  transition: background 0.15s ease;
+}
+
+.sidemenu-item:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidemenu-item-label {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sidemenu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 8px 20px;
+}
+
+/* ── Toggle Switch ── */
+.sidemenu-toggle {
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.sidemenu-toggle.on {
+  background: rgba(255, 59, 48, 0.7);
+}
+
+.sidemenu-toggle-knob {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s ease;
+}
+
+.sidemenu-toggle.on .sidemenu-toggle-knob {
+  transform: translateX(18px);
+}
+
+/* ── Color Picker ── */
+.sidemenu-color-section {
+  padding: 8px 20px 12px;
+}
+
+.sidemenu-color-header {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 12px;
+}
+
+.sidemenu-color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sidemenu-color-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  width: 44px;
+  flex-shrink: 0;
+}
+
+.sidemenu-color-preview {
+  width: 40px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: border-color 0.15s ease;
+}
+
+.sidemenu-color-preview:active {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Color Popup (fixed center of screen) ── */
+.sidemenu-color-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  animation: sidemenu-popup-fade-in 0.15s ease forwards;
+}
+
+.sidemenu-color-popup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: #1c1c1e;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  animation: sidemenu-popup-scale-in 0.15s ease forwards;
+}
+
+.sidemenu-color-popup-swatches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@keyframes sidemenu-popup-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sidemenu-popup-scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.sidemenu-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.sidemenu-swatch:active {
+  transform: scale(0.9);
+}
+
+.sidemenu-swatch.selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+}

@@ -6,9 +6,20 @@ import StatsPage from './StatsPage';
 import TabBar from './TabBar';
 import EditPage from './EditPage';
 import ExerciseEditPage from './ExerciseEditPage';
+import FeedPage from './FeedPage';
+import SideMenu from './SideMenu';
+import SharePrompt from './SharePrompt';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
+import { ensureUserProfile, getAutoSharePreference, setAutoSharePreference, createPost, getUserColors, setUserColors, getWorkoutOrder, setWorkoutOrder } from '../firebase/social';
+
+const hexToRgb = (hex) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r}, ${g}, ${b}`;
+};
 
 const Main = () => {
   const [activeTab, setActiveTab] = useState('home');
@@ -75,6 +86,17 @@ const Main = () => {
   const [workoutHistory, setWorkoutHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Social / Feed state
+  const [showFeedPage, setShowFeedPage] = useState(false);
+  const [feedCloseRequested, setFeedCloseRequested] = useState(false);
+  const [showSideMenu, setShowSideMenu] = useState(false);
+  const [sideMenuCloseRequested, setSideMenuCloseRequested] = useState(false);
+  const [showSharePrompt, setShowSharePrompt] = useState(false);
+  const [pendingShareData, setPendingShareData] = useState(null);
+  const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
+  const [activeColor, setActiveColor] = useState('#ff3b30');
+  const [restColor, setRestColor] = useState('#007aff');
+
   // Load user workouts and history from Firestore when user logs in
   useEffect(() => {
     if (!user) {
@@ -82,18 +104,40 @@ const Main = () => {
       setTimerWorkoutData(DEFAULT_TIMER_WORKOUTS);
       setStopwatchWorkoutData(DEFAULT_STOPWATCH_WORKOUTS);
       setWorkoutHistory([]);
+      setAutoShareEnabled(null);
+      setActiveColor('#ff3b30');
+      setRestColor('#007aff');
       return;
     }
 
     let cancelled = false;
     const loadWorkouts = async () => {
       try {
-        const custom = await getUserWorkouts(user.uid);
+        const [custom, savedOrder] = await Promise.all([
+          getUserWorkouts(user.uid),
+          getWorkoutOrder(user.uid)
+        ]);
         if (cancelled) return;
         if (custom.length > 0) {
           const merged = mergeWorkouts(custom);
-          setTimerWorkoutData(merged.timer);
+          let timer = merged.timer;
+          if (savedOrder && savedOrder.length > 0) {
+            const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
+            timer = [...timer].sort((a, b) => {
+              const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
+              const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
+              return ai - bi;
+            });
+          }
+          setTimerWorkoutData(timer);
           setStopwatchWorkoutData(merged.stopwatch);
+        } else if (savedOrder && savedOrder.length > 0) {
+          const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
+          setTimerWorkoutData(prev => [...prev].sort((a, b) => {
+            const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
+            const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
+            return ai - bi;
+          }));
         }
       } catch (err) {
         console.error('Failed to load workouts:', err);
@@ -110,8 +154,27 @@ const Main = () => {
         if (!cancelled) setHistoryLoading(false);
       }
     };
+    const loadSocialProfile = async () => {
+      try {
+        await ensureUserProfile(user);
+      } catch (err) {
+        console.error('Failed to ensure user profile:', err);
+      }
+      try {
+        const pref = await getAutoSharePreference(user.uid);
+        if (!cancelled) setAutoShareEnabled(pref);
+        const colors = await getUserColors(user.uid);
+        if (!cancelled) {
+          if (colors.activeColor) setActiveColor(colors.activeColor);
+          if (colors.restColor) setRestColor(colors.restColor);
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      }
+    };
     loadWorkouts();
     loadHistory();
+    loadSocialProfile();
     return () => { cancelled = true; };
   }, [user]);
 
@@ -158,6 +221,57 @@ const Main = () => {
     return { timer: timerResult, stopwatch: stopwatchResult };
   };
 
+  // Share workout post helper
+  const handleShareWorkout = useCallback(async (workoutData) => {
+    if (!user) return;
+    try {
+      await createPost(user.uid, workoutData, {
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      });
+    } catch (err) {
+      console.error('Failed to share workout:', err);
+    }
+  }, [user]);
+
+  // Share prompt handlers
+  const handleSharePromptAccept = useCallback(async () => {
+    if (!user) return;
+    await setAutoSharePreference(user.uid, true);
+    setAutoShareEnabled(true);
+    setShowSharePrompt(false);
+    if (pendingShareData) {
+      handleShareWorkout(pendingShareData);
+      setPendingShareData(null);
+    }
+  }, [user, pendingShareData, handleShareWorkout]);
+
+  const handleToggleAutoShare = useCallback(async () => {
+    if (!user) return;
+    const newValue = autoShareEnabled !== true;
+    setAutoShareEnabled(newValue);
+    await setAutoSharePreference(user.uid, newValue);
+  }, [user, autoShareEnabled]);
+
+  const handleColorChange = useCallback(async (type, hex) => {
+    if (type === 'active') setActiveColor(hex);
+    else setRestColor(hex);
+    if (user) {
+      const colors = type === 'active'
+        ? { activeColor: hex, restColor }
+        : { activeColor, restColor: hex };
+      setUserColors(user.uid, colors).catch(err => console.error('Failed to save colors:', err));
+    }
+  }, [user, activeColor, restColor]);
+
+  const handleSharePromptDismiss = useCallback(async () => {
+    if (!user) return;
+    await setAutoSharePreference(user.uid, false);
+    setAutoShareEnabled(false);
+    setShowSharePrompt(false);
+    setPendingShareData(null);
+  }, [user]);
+
   // Recalculate timer when workout selection changes
   useEffect(() => {
     const newTotalTime = calculateTotalTime(timerSelectedWorkout);
@@ -194,18 +308,27 @@ const Main = () => {
             // Record workout history to Firestore
             if (user) {
               const exercises = getExerciseList(timerSelectedWorkout);
-              recordWorkoutHistory(user.uid, {
+              const workoutData = {
                 workoutName: timerSelectedWorkout,
                 workoutType: 'timer',
                 duration: prev.targetTime,
                 setCount: exercises.length,
                 exercises
-              }).then(() => {
+              };
+              recordWorkoutHistory(user.uid, workoutData).then(() => {
                 // Refresh history for stats page
                 getUserHistory(user.uid)
                   .then(setWorkoutHistory)
                   .catch(err => console.error('Failed to refresh history:', err));
               }).catch(err => console.error('Failed to record history:', err));
+
+              // Social sharing logic
+              if (autoShareEnabled === true) {
+                handleShareWorkout(workoutData);
+              } else if (autoShareEnabled === null) {
+                setPendingShareData(workoutData);
+                setShowSharePrompt(true);
+              }
             }
             return { ...prev, timeLeft: 0, isRunning: false };
           }
@@ -224,7 +347,7 @@ const Main = () => {
         clearInterval(timerIntervalRef.current);
       }
     };
-  }, [timerState.isRunning, user, timerSelectedWorkout, getExerciseList]);
+  }, [timerState.isRunning, user, timerSelectedWorkout, getExerciseList, autoShareEnabled, handleShareWorkout]);
 
   // Stopwatch interval ref
   const stopwatchIntervalRef = useRef(null);
@@ -319,13 +442,23 @@ const Main = () => {
     // Record history before resetting
     if (user && stopwatchState.time > 0) {
       const exercises = getExerciseList(stopwatchSelectedWorkout);
-      recordWorkoutHistory(user.uid, {
+      const workoutData = {
         workoutName: stopwatchSelectedWorkout,
         workoutType: 'stopwatch',
         duration: Math.round(stopwatchState.time / 1000),
         setCount: stopwatchState.laps.length,
         exercises
-      }).catch(err => console.error('Failed to record history:', err));
+      };
+      recordWorkoutHistory(user.uid, workoutData)
+        .catch(err => console.error('Failed to record history:', err));
+
+      // Social sharing logic
+      if (autoShareEnabled === true) {
+        handleShareWorkout(workoutData);
+      } else if (autoShareEnabled === null) {
+        setPendingShareData(workoutData);
+        setShowSharePrompt(true);
+      }
     }
     handleStopwatchStateChange({ time: 0, isRunning: false, laps: [] });
     setShowLapTimes(false);
@@ -460,6 +593,11 @@ const Main = () => {
       if (timerSelectedWorkout === workoutName && remaining.length > 0) {
         setTimerSelectedWorkout(remaining[0].name);
       }
+      // Persist updated order
+      if (user) {
+        setWorkoutOrder(user.uid, remaining.map(w => w.name))
+          .catch(err => console.error('Failed to save workout order:', err));
+      }
       return remaining;
     });
 
@@ -472,6 +610,10 @@ const Main = () => {
 
   const handleReorderWorkouts = (reordered) => {
     setTimerWorkoutData(reordered);
+    if (user) {
+      setWorkoutOrder(user.uid, reordered.map(w => w.name))
+        .catch(err => console.error('Failed to save workout order:', err));
+    }
   };
 
   const handleStartWorkout = () => {
@@ -593,6 +735,8 @@ const Main = () => {
           onTimerStateChange={handleTimerStateChange}
           workouts={getExerciseList(timerSelectedWorkout)}
           selectedWorkoutName={timerSelectedWorkout}
+          activeColor={activeColor}
+          restColor={restColor}
         />
       );
     }
@@ -651,6 +795,8 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
+            onBellClick={() => setShowFeedPage(true)}
+            onProfileClick={() => setShowSideMenu(true)}
           />
         );
       case 'timer':
@@ -663,6 +809,8 @@ const Main = () => {
             onTimerStateChange={handleTimerStateChange}
             workouts={getExerciseList(timerSelectedWorkout)}
             selectedWorkoutName={timerSelectedWorkout}
+            activeColor={activeColor}
+            restColor={restColor}
           />
         );
       case 'stats':
@@ -684,18 +832,53 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
+            onBellClick={() => setShowFeedPage(true)}
+            onProfileClick={() => setShowSideMenu(true)}
           />
         );
     }
   };
 
   return (
-    <main className="tab-content">
+    <main
+      className="tab-content"
+      style={{
+        '--color-active': activeColor,
+        '--color-active-rgb': hexToRgb(activeColor),
+        '--color-rest': restColor,
+        '--color-rest-rgb': hexToRgb(restColor),
+      }}
+    >
       {renderContent()}
       {!currentEditPage && currentEditLevel !== 'exercise-edit' && (
         <TabBar
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            if (showFeedPage) setFeedCloseRequested(true);
+            if (showSideMenu) setSideMenuCloseRequested(true);
+          }}
+        />
+      )}
+      <FeedPage
+        isOpen={showFeedPage}
+        onClose={() => { setShowFeedPage(false); setFeedCloseRequested(false); }}
+        requestClose={feedCloseRequested}
+      />
+      <SideMenu
+        isOpen={showSideMenu}
+        onClose={() => { setShowSideMenu(false); setSideMenuCloseRequested(false); }}
+        requestClose={sideMenuCloseRequested}
+        autoShareEnabled={autoShareEnabled}
+        onToggleAutoShare={handleToggleAutoShare}
+        activeColor={activeColor}
+        restColor={restColor}
+        onColorChange={handleColorChange}
+      />
+      {showSharePrompt && (
+        <SharePrompt
+          onShare={handleSharePromptAccept}
+          onDismiss={handleSharePromptDismiss}
         />
       )}
     </main>

@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { signInWithGoogle, signOut } from '../firebase/auth';
+import { signInWithGoogle } from '../firebase/auth';
 import './AuthButton.css';
 
-const AuthButton = () => {
+const AuthButton = ({ onProfileClick }) => {
   const { user, loading } = useAuth();
 
   if (loading) return null;
@@ -11,7 +11,7 @@ const AuthButton = () => {
   const handleClick = async () => {
     try {
       if (user) {
-        await signOut();
+        if (onProfileClick) onProfileClick();
       } else {
         await signInWithGoogle();
       }

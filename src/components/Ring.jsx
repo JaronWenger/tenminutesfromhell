@@ -1,14 +1,16 @@
 import React from 'react';
 import './Ring.css';
 
-const Ring = ({ 
-  timeLeft, 
-  targetTime, 
-  isRunning, 
-  onStart, 
-  onStop, 
-  onReset, 
-  onTimeClick 
+const Ring = ({
+  timeLeft,
+  targetTime,
+  isRunning,
+  onStart,
+  onStop,
+  onReset,
+  onTimeClick,
+  activeColor = '#ff3b30',
+  restColor = '#007aff'
 }) => {
   const progress = ((targetTime - timeLeft) / targetTime) * 100;
   const circumference = 2 * Math.PI * 120;
@@ -18,13 +20,21 @@ const Ring = ({
   // Determine progress color based on seconds within current minute
   const getProgressColor = () => {
     const currentSeconds = timeLeft % 60;
-    
-    // Blue for rest/prep seconds 1-15 of each minute (except the last minute)
+
+    // Rest/prep seconds 1-15 of each minute (except the last minute)
     if (currentSeconds >= 1 && currentSeconds <= 15 && timeLeft > 60) {
-      return '#007aff'; // Blue for rest periods
+      return restColor;
     } else {
-      return '#ff3b30'; // Red for active exercise time
+      return activeColor;
     }
+  };
+
+  // Helper to convert hex to rgba for glow filter
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
   const formatTime = (seconds) => {
@@ -57,6 +67,7 @@ const Ring = ({
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
           transform="rotate(-90 150 150)"
+          style={{ filter: `drop-shadow(0 0 12px ${hexToRgba(getProgressColor(), 0.4)})` }}
         />
       </svg>
 

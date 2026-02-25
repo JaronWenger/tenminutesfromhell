@@ -11,7 +11,9 @@ const Timer = ({
   targetTime: propTargetTime,
   selectedWorkoutIndex: propSelectedWorkoutIndex,
   onTimerStateChange,
-  selectedWorkoutName = ''
+  selectedWorkoutName = '',
+  activeColor = '#ff3b30',
+  restColor = '#007aff'
 }) => {
   // Default workouts if none provided
   const defaultWorkouts = [
@@ -120,6 +122,8 @@ const Timer = ({
           setTimeLeft(newTimeLeft);
           updateParentState({ timeLeft: newTimeLeft });
         }}
+        activeColor={activeColor}
+        restColor={restColor}
       />
 
       {/* Selected Workout Title - Hidden when running but keeps spacing */}
