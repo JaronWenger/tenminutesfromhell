@@ -15,7 +15,6 @@ const Ring = ({
   restTime = 15,
   activeLastMinute = true,
   drawIn = false,
-  onDrawComplete,
   revealTime = false
 }) => {
   const [drawInPhase, setDrawInPhase] = useState(drawIn ? 'title' : 'done');
@@ -23,16 +22,7 @@ const Ring = ({
   const [flickerToggle, setFlickerToggle] = useState(false);
   const flickerRef = useRef(null);
 
-  // Ring draw completes at 1.2s — notify parent
-  useEffect(() => {
-    if (!drawIn) return;
-    const timer = setTimeout(() => {
-      if (onDrawComplete) onDrawComplete();
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [drawIn]);
-
-  // Parent says auth is ready — start the fadeout/reveal
+  // Parent says auth is ready — start the fadeout/reveal immediately
   useEffect(() => {
     if (!revealTime || drawInPhase !== 'title') return;
     setDrawInPhase('fadeout');
@@ -116,12 +106,9 @@ const Ring = ({
 
       {drawIn && (drawInPhase === 'title' || drawInPhase === 'fadeout') && (
         <div className="ring-brand-title">
-          {drawInPhase === 'fadeout'
-            ? 'HIITem'.split('').map((char, i) => (
-                <span key={i} className="brand-letter-out" style={{ animationDelay: `${i * 60}ms` }}>{char}</span>
-              ))
-            : 'HIITem'
-          }
+          {'HIITem'.split('').map((char, i) => (
+            <span key={i} className={drawInPhase === 'fadeout' ? 'brand-letter-out' : 'brand-letter'} style={drawInPhase === 'fadeout' ? { animationDelay: `${i * 60}ms` } : undefined}>{char}</span>
+          ))}
         </div>
       )}
       {!(drawIn && drawInPhase === 'title') && (

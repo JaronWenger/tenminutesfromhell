@@ -51,16 +51,16 @@ const Timer = ({
   const [sparksClosing, setSparksClosing] = useState(false);
   const [animatedIn, setAnimatedIn] = useState(!initialLoad);
   const [showWorkoutContent, setShowWorkoutContent] = useState(!initialLoad);
-  const [ringDrawDone, setRingDrawDone] = useState(!initialLoad);
   const [revealTime, setRevealTime] = useState(!initialLoad);
 
-  // When both ring draw is complete AND workout data is ready, reveal everything
+  // As soon as workout data is ready (auth confirmed), reveal everything
+  // Ring draw continues in the background
   useEffect(() => {
-    if (ringDrawDone && workoutReady && !revealTime) {
+    if (workoutReady && !revealTime) {
       setRevealTime(true);
       setShowWorkoutContent(true);
     }
-  }, [ringDrawDone, workoutReady, revealTime]);
+  }, [workoutReady, revealTime]);
 
   // After workout content is shown and animations play, mark initialLoad done
   useEffect(() => {
@@ -192,7 +192,6 @@ const Timer = ({
         restTime={restTime}
         activeLastMinute={activeLastMinute}
         drawIn={initialLoad}
-        onDrawComplete={() => setRingDrawDone(true)}
         revealTime={revealTime}
       />
 

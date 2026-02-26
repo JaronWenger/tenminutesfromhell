@@ -65,7 +65,11 @@
   }
 }
 
-/* Brand letters fade out one at a time */
+/* Brand letters */
+.brand-letter {
+  display: inline;
+}
+
 .brand-letter-out {
   display: inline;
   animation: letterFadeOut 0.2s ease forwards;

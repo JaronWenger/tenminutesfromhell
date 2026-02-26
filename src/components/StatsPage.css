@@ -174,12 +174,14 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 4px;
+  direction: rtl;
 }
 
 .calendar-grid {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  direction: ltr;
 }
 
 .calendar-month-labels {

@@ -6,18 +6,6 @@ const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const StatsPage = ({ user, history, loading, onLoginClick }) => {
   const calendarScrollRef = useRef(null);
 
-  const scrollToEnd = useCallback(() => {
-    const el = calendarScrollRef.current;
-    if (el) {
-      el.scrollLeft = el.scrollWidth;
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(scrollToEnd, 50);
-    return () => clearTimeout(timer);
-  }, [scrollToEnd]);
-
   // Selected week (null = current week)
   const [selectedWeekStart, setSelectedWeekStart] = useState(null);
   const [highlightedWeek, setHighlightedWeek] = useState(null);
