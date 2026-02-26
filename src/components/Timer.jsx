@@ -52,15 +52,22 @@ const Timer = ({
   const [animatedIn, setAnimatedIn] = useState(!initialLoad);
   const [showWorkoutContent, setShowWorkoutContent] = useState(!initialLoad);
   const [revealTime, setRevealTime] = useState(!initialLoad);
+  const [minTimePassed, setMinTimePassed] = useState(!initialLoad);
 
-  // As soon as workout data is ready (auth confirmed), reveal everything
-  // Ring draw continues in the background
+  // Minimum 0.9s wait (75% of circle draw) before revealing
   useEffect(() => {
-    if (workoutReady && !revealTime) {
+    if (!initialLoad) return;
+    const timer = setTimeout(() => setMinTimePassed(true), 900);
+    return () => clearTimeout(timer);
+  }, [initialLoad]);
+
+  // Reveal when both auth is ready AND minimum time has passed
+  useEffect(() => {
+    if (workoutReady && minTimePassed && !revealTime) {
       setRevealTime(true);
       setShowWorkoutContent(true);
     }
-  }, [workoutReady, revealTime]);
+  }, [workoutReady, minTimePassed, revealTime]);
 
   // After workout content is shown and animations play, mark initialLoad done
   useEffect(() => {
