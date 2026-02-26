@@ -54,6 +54,7 @@ export const getAllPreferences = async (userId) => {
       prepTime: 15,
       restTime: 15,
       activeLastMinute: true,
+      selectedWorkout: null,
     };
   }
   const data = snap.data();
@@ -66,6 +67,7 @@ export const getAllPreferences = async (userId) => {
     prepTime: data.prepTime ?? 15,
     restTime: data.restTime ?? 15,
     activeLastMinute: data.activeLastMinute ?? true,
+    selectedWorkout: data.selectedWorkout || null,
   };
 };
 
@@ -86,6 +88,13 @@ export const setUserColors = async (userId, { activeColor, restColor }) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     activeColor,
     restColor,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setSelectedWorkout = async (userId, workoutName) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    selectedWorkout: workoutName,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };

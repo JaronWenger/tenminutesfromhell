@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './Ring.css';
 
 const Ring = ({
@@ -13,11 +13,32 @@ const Ring = ({
   restColor = '#007aff',
   flickering = false,
   restTime = 15,
-  activeLastMinute = true
+  activeLastMinute = true,
+  drawIn = false,
+  onDrawComplete,
+  revealTime = false
 }) => {
+  const [drawInPhase, setDrawInPhase] = useState(drawIn ? 'title' : 'done');
   // Flicker: alternate between active/rest colors rapidly
   const [flickerToggle, setFlickerToggle] = useState(false);
   const flickerRef = useRef(null);
+
+  // Ring draw completes at 1.2s — notify parent
+  useEffect(() => {
+    if (!drawIn) return;
+    const timer = setTimeout(() => {
+      if (onDrawComplete) onDrawComplete();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [drawIn]);
+
+  // Parent says auth is ready — start the fadeout/reveal
+  useEffect(() => {
+    if (!revealTime || drawInPhase !== 'title') return;
+    setDrawInPhase('fadeout');
+    const timer = setTimeout(() => setDrawInPhase('time'), 300);
+    return () => clearTimeout(timer);
+  }, [revealTime]);
 
   useEffect(() => {
     if (flickering) {
@@ -69,7 +90,7 @@ const Ring = ({
     <div className="timer-display">
       <svg className="progress-ring" width="300" height="300">
         <circle
-          className="progress-ring-bg"
+          className={`progress-ring-bg ${drawIn ? 'draw-in' : ''}`}
           stroke="#2c2c2e"
           strokeWidth="8"
           fill="transparent"
@@ -93,17 +114,34 @@ const Ring = ({
         />
       </svg>
 
-      <div
-        className="time-text"
-        onClick={onTimeClick}
-        style={{ cursor: 'pointer' }}
-      >
-        {formatTime(timeLeft)}
-      </div>
+      {drawIn && (drawInPhase === 'title' || drawInPhase === 'fadeout') && (
+        <div className="ring-brand-title">
+          {drawInPhase === 'fadeout'
+            ? 'HIITem'.split('').map((char, i) => (
+                <span key={i} className="brand-letter-out" style={{ animationDelay: `${i * 60}ms` }}>{char}</span>
+              ))
+            : 'HIITem'
+          }
+        </div>
+      )}
+      {!(drawIn && drawInPhase === 'title') && (
+        <div
+          className={`time-text ${drawIn && (drawInPhase === 'fadeout' || drawInPhase === 'time') ? 'draw-in-time' : ''}`}
+          onClick={onTimeClick}
+          style={{ cursor: 'pointer' }}
+        >
+          {drawIn && drawInPhase === 'fadeout'
+            ? formatTime(timeLeft).split('').map((char, i) => (
+                <span key={i} className="digit-stagger" style={{ animationDelay: `${i * 60}ms` }}>{char}</span>
+              ))
+            : formatTime(timeLeft)
+          }
+        </div>
+      )}
 
-      {!isRunning && (
+      {!isRunning && !(drawIn && drawInPhase === 'title') && (
         <button
-          className="play-btn"
+          className={`play-btn ${drawIn && (drawInPhase === 'fadeout' || drawInPhase === 'time') ? 'draw-in-time' : ''}`}
           onClick={onStart}
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="white" style={{ marginLeft: '1px' }}>

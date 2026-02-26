@@ -20,6 +20,87 @@
   transition: stroke 0.3s ease;
 }
 
+/* Draw-in animation: circle fades in and draws itself around 360° */
+.progress-ring-bg.draw-in {
+  stroke-dasharray: 753.98;
+  stroke-dashoffset: 753.98;
+  opacity: 0;
+  animation: ringFadeIn 0.8s ease forwards, ringDrawIn 1.2s ease-in-out forwards;
+  transform: rotate(-90deg);
+  transform-origin: 150px 150px;
+}
+
+@keyframes ringFadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ringDrawIn {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Brand title shown during ring draw */
+.ring-brand-title {
+  position: absolute;
+  z-index: 1;
+  font-family: 'Lilita One', cursive;
+  font-size: 3.5rem;
+  font-weight: 400;
+  letter-spacing: 1px;
+  color: #ffffff;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -60%);
+  white-space: nowrap;
+  opacity: 0;
+  animation: brandFadeIn 0.6s ease forwards 0.2s;
+}
+
+@keyframes brandFadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Brand letters fade out one at a time */
+.brand-letter-out {
+  display: inline;
+  animation: letterFadeOut 0.2s ease forwards;
+}
+
+@keyframes letterFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Time and play button fade in after brand title */
+.draw-in-time {
+  opacity: 0;
+  animation: drawTimeFadeIn 0.5s ease forwards;
+}
+
+@keyframes drawTimeFadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Digit-by-digit stagger fade in */
+.digit-stagger {
+  opacity: 0;
+  display: inline-block;
+  animation: digitFadeIn 0.3s ease forwards;
+}
+
+@keyframes digitFadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
 .progress-ring-fill {
   transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease, filter 0.3s ease;
 }

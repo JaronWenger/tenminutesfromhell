@@ -61,6 +61,44 @@
 
 
 
+/* ── Stagger fade-in on initial load ── */
+.workout-item.fade-in-item,
+.timer-workout-title.fade-in-item {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: none;
+}
+
+.timer-workout-title.fade-in-item {
+  animation: fadeInUpFull var(--stagger-duration, 0.4s) ease var(--stagger-delay, 0ms) both;
+}
+
+.workout-item.fade-in-item {
+  animation: fadeInUp var(--stagger-duration, 0.4s) ease var(--stagger-delay, 0ms) both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 0.6;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUpFull {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ── Sparks completion background ── */
 .timer-sparks-bg {
   position: fixed;

@@ -1,13 +1,14 @@
 import React, { useRef, useEffect } from 'react';
 import './WorkoutList.css';
 
-const WorkoutList = ({ 
-  workoutList, 
-  workoutIndex, 
-  isRunning, 
+const WorkoutList = ({
+  workoutList,
+  workoutIndex,
+  isRunning,
   timeLeft,
   onWorkoutSelect,
-  showAllWhenPaused
+  showAllWhenPaused,
+  staggerIn = false
 }) => {
   const workoutListRef = useRef(null);
 
@@ -35,11 +36,14 @@ const WorkoutList = ({
         // When paused, show all workouts regardless of completion status
         if (showAllWhenPaused) {
           return (
-            <div 
+            <div
               key={index}
-              className={`workout-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isUpcoming ? 'upcoming' : ''} ${isWarning ? 'warning' : ''} ${!isRunning ? 'selectable' : ''}`}
+              className={`workout-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isUpcoming ? 'upcoming' : ''} ${isWarning ? 'warning' : ''} ${!isRunning ? 'selectable' : ''} ${staggerIn ? 'fade-in-item' : ''}`}
               onClick={() => onWorkoutSelect && onWorkoutSelect(index)}
-              style={{ cursor: !isRunning ? 'pointer' : 'default' }}
+              style={{
+                cursor: !isRunning ? 'pointer' : 'default',
+                ...(staggerIn ? { '--stagger-delay': `${100 + index * 40}ms` } : {})
+              }}
             >
               <span className="workout-number">{index + 1}</span>
               <span className="workout-text">{workout}</span>

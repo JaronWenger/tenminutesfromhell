@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './Timer.css';
 import Ring from './Ring';
 import WorkoutList from './WorkoutList';
@@ -17,7 +17,10 @@ const Timer = ({
   restColor = '#007aff',
   sidePlankAlertEnabled = true,
   restTime = 15,
-  activeLastMinute = true
+  activeLastMinute = true,
+  initialLoad = false,
+  workoutReady = true,
+  onInitialLoadDone
 }) => {
   // Default workouts if none provided
   const defaultWorkouts = [
@@ -46,6 +49,30 @@ const Timer = ({
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(propSelectedWorkoutIndex !== undefined ? propSelectedWorkoutIndex : 0);
   const [showSparks, setShowSparks] = useState(false);
   const [sparksClosing, setSparksClosing] = useState(false);
+  const [animatedIn, setAnimatedIn] = useState(!initialLoad);
+  const [showWorkoutContent, setShowWorkoutContent] = useState(!initialLoad);
+  const [ringDrawDone, setRingDrawDone] = useState(!initialLoad);
+  const [revealTime, setRevealTime] = useState(!initialLoad);
+
+  // When both ring draw is complete AND workout data is ready, reveal everything
+  useEffect(() => {
+    if (ringDrawDone && workoutReady && !revealTime) {
+      setRevealTime(true);
+      setShowWorkoutContent(true);
+    }
+  }, [ringDrawDone, workoutReady, revealTime]);
+
+  // After workout content is shown and animations play, mark initialLoad done
+  useEffect(() => {
+    if (showWorkoutContent && !animatedIn) {
+      const totalDelay = 150 + (workoutList.length * 40);
+      const timer = setTimeout(() => {
+        setAnimatedIn(true);
+        if (onInitialLoadDone) onInitialLoadDone();
+      }, totalDelay);
+      return () => clearTimeout(timer);
+    }
+  }, [showWorkoutContent, animatedIn, workoutList.length, onInitialLoadDone]);
 
   // Show sparks when workout completes
   useEffect(() => {
@@ -164,23 +191,34 @@ const Timer = ({
         flickering={isHalfwayFlicker}
         restTime={restTime}
         activeLastMinute={activeLastMinute}
+        drawIn={initialLoad}
+        onDrawComplete={() => setRingDrawDone(true)}
+        revealTime={revealTime}
       />
 
-      {/* Selected Workout Title - Hidden when running but keeps spacing */}
-      {selectedWorkoutName && (
-        <div className={`timer-workout-title ${isRunning ? 'hidden' : ''}`}>
-          {selectedWorkoutName}
-        </div>
+      {showWorkoutContent && (
+        <>
+          {/* Selected Workout Title - Hidden when running but keeps spacing */}
+          {selectedWorkoutName && (
+            <div
+              className={`timer-workout-title ${isRunning ? 'hidden' : ''} ${!animatedIn ? 'fade-in-item' : ''}`}
+              style={!animatedIn ? { '--stagger-delay': '0ms' } : undefined}
+            >
+              {selectedWorkoutName}
+            </div>
+          )}
+
+          <WorkoutList
+            workoutList={workoutList}
+            workoutIndex={workoutIndex}
+            isRunning={isRunning}
+            timeLeft={timeLeft}
+            onWorkoutSelect={selectWorkout}
+            showAllWhenPaused={!isRunning}
+            staggerIn={!animatedIn}
+          />
+        </>
       )}
-
-      <WorkoutList
-        workoutList={workoutList}
-        workoutIndex={workoutIndex}
-        isRunning={isRunning}
-        timeLeft={timeLeft}
-        onWorkoutSelect={selectWorkout}
-        showAllWhenPaused={!isRunning}
-      />
     </div>
   );
 };

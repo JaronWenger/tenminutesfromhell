@@ -13,7 +13,7 @@ import SharePrompt from './SharePrompt';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -25,8 +25,23 @@ const hexToRgb = (hex) => {
 };
 
 const Main = () => {
-  const [activeTab, setActiveTab] = useState('home');
-  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('timer');
+  const { user, loading: authLoading } = useAuth();
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [workoutReady, setWorkoutReady] = useState(false);
+
+  // If not logged in (auth resolved, no user), workout is ready immediately
+  // If logged in, wait for preferences to load (setWorkoutReady called after prefs load)
+  // Safety timeout: if prefs take too long, show content anyway after 2.5s
+  useEffect(() => {
+    if (workoutReady) return;
+    if (!authLoading && !user) {
+      setWorkoutReady(true);
+      return;
+    }
+    const timeout = setTimeout(() => setWorkoutReady(true), 2500);
+    return () => clearTimeout(timeout);
+  }, [authLoading, user, workoutReady]);
 
   // Workout data as state (defaults, overridable by Firestore)
   const [timerWorkoutData, setTimerWorkoutData] = useState(DEFAULT_TIMER_WORKOUTS);
@@ -121,6 +136,7 @@ const Main = () => {
       setPrepTime(15);
       setRestTime(15);
       setActiveLastMinute(true);
+      setTimerSelectedWorkout('The Devils 10');
       return;
     }
 
@@ -184,6 +200,8 @@ const Main = () => {
         setPrepTime(prefs.prepTime);
         setRestTime(prefs.restTime);
         setActiveLastMinute(prefs.activeLastMinute);
+        if (prefs.selectedWorkout) setTimerSelectedWorkout(prefs.selectedWorkout);
+        setWorkoutReady(true);
       } catch (err) {
         console.error('Failed to load settings:', err);
       }
@@ -582,6 +600,11 @@ const Main = () => {
   const handleWorkoutSelection = (type, workout) => {
     if (type === 'timer') {
       setTimerSelectedWorkout(workout);
+      if (user) {
+        setSelectedWorkout(user.uid, workout).catch(err =>
+          console.error('Failed to save selected workout:', err)
+        );
+      }
     } else if (type === 'stopwatch') {
       setStopwatchSelectedWorkout(workout);
     }
@@ -797,6 +820,9 @@ const Main = () => {
           prepTime={prepTime}
           restTime={restTime}
           activeLastMinute={activeLastMinute}
+          initialLoad={initialLoad}
+          workoutReady={workoutReady}
+          onInitialLoadDone={() => setInitialLoad(false)}
         />
       );
     }
