@@ -222,6 +222,7 @@ const Timer = ({
             onWorkoutSelect={selectWorkout}
             showAllWhenPaused={!isRunning}
             staggerIn={!animatedIn}
+            restTime={restTime}
           />
         </>
       )}
