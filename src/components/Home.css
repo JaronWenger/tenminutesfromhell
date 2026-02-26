@@ -292,6 +292,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 16px;
+  box-sizing: border-box;
   animation: home-detail-fade-in 0.28s ease forwards;
 }
 
@@ -325,7 +327,6 @@
   flex-direction: column;
   overflow: hidden;
   transform-origin: center center;
-  will-change: transform, border-radius, background, border-color;
 }
 
 /* ── Content fade (hidden while card is expanding/collapsing) ── */
@@ -344,17 +345,15 @@
   opacity: 1;
 }
 
-/* ── Header ── */
+/* ── Header (single row: icon + title + actions) ── */
 .home-detail-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
 .home-detail-creator {
-  display: flex;
-  align-items: center;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -414,28 +413,30 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
-/* ── Name ── */
-.home-detail-name-section {
-  margin-bottom: 8px;
-}
-
+/* ── Name (inline in header row) ── */
 .home-detail-name {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #ffffff;
   margin: 0;
   letter-spacing: 0.3px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .home-detail-name-input {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #ffffff;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 10px;
-  padding: 6px 10px;
-  width: 100%;
+  padding: 4px 8px;
+  flex: 1;
+  min-width: 0;
   box-sizing: border-box;
   outline: none;
   letter-spacing: 0.3px;
@@ -447,7 +448,10 @@
 
 /* ── Rest Time ── */
 .home-detail-rest {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
 }
 
 .home-detail-rest-display {
@@ -507,20 +511,18 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 20px;
+  gap: 0;
+  margin-bottom: 16px;
 }
 
 .home-detail-exercise {
   display: flex;
   align-items: center;
-  padding: 10px 8px;
+  padding: 7px 8px;
+  min-height: 40px;
+  box-sizing: border-box;
   border-radius: 10px;
   transition: background 0.15s ease;
-}
-
-.home-detail-exercise.editing {
-  background: rgba(255, 255, 255, 0.03);
 }
 
 .home-detail-exercise-num {
@@ -542,43 +544,22 @@
   white-space: nowrap;
 }
 
-/* ── Exercise Edit Actions ── */
-.home-detail-exercise-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  flex-shrink: 0;
-}
-
-.home-detail-move-btn,
+/* ── Exercise Delete Button ── */
 .home-detail-delete-btn {
   width: 26px;
   height: 26px;
   border-radius: 6px;
   border: none;
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 59, 48, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  margin-left: auto;
+  flex-shrink: 0;
   transition: background 0.12s ease, color 0.12s ease;
-}
-
-.home-detail-move-btn:disabled {
-  opacity: 0.2;
-  cursor: default;
-}
-
-.home-detail-move-btn:active:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.home-detail-delete-btn {
-  color: rgba(255, 59, 48, 0.5);
 }
 
 .home-detail-delete-btn:active {
@@ -586,47 +567,32 @@
   color: rgba(255, 59, 48, 0.8);
 }
 
-/* ── Add Exercise Button ── */
-.home-detail-add-exercise {
+
+/* ── Start / Add Exercise Button (pill style, matches stats sign-in) ── */
+.home-detail-start-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px;
-  margin-top: 4px;
-  border: 1px dashed rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.35);
-  font-size: 0.82rem;
-  font-weight: 500;
+  width: auto;
+  margin: 0 auto;
+  padding: 14px 32px;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  border-radius: 40px;
+  background: rgba(30, 10, 10, 0.85);
+  color: #e74c3c;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.home-detail-add-exercise:active {
-  color: rgba(255, 255, 255, 0.55);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* ── Start Button ── */
-.home-detail-start-btn {
-  width: 100%;
-  padding: 14px;
-  border: none;
-  border-radius: 14px;
-  background: #ff3b30;
-  color: #ffffff;
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.3px;
-  transition: background 0.15s ease, transform 0.1s ease;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 30px rgba(231, 76, 60, 0.15), 0 4px 20px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   flex-shrink: 0;
 }
 
 .home-detail-start-btn:active {
-  background: #d63029;
-  transform: scale(0.98);
+  transform: scale(0.97);
+  border-color: rgba(231, 76, 60, 0.7);
+  box-shadow: 0 0 40px rgba(231, 76, 60, 0.25), 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 /* ── Add Exercise Popup ── */
@@ -727,6 +693,10 @@
 
   .workout-card {
     padding: 11px 12px;
+  }
+
+  .home-detail-overlay {
+    padding: 0 14px;
   }
 
   .home-detail-panel {

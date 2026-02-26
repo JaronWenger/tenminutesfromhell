@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import './Home.css';
 import Sparks from '../assets/SPARKS.gif';
@@ -179,12 +180,8 @@ const Home = ({
 
   const handleRowClick = (workout) => {
     if (isSwiping.current || isDragging) return;
-    const isAlreadySelected = timerSelectedWorkout === workout.name;
-    if (isAlreadySelected) {
-      openDetail(workout);
-    } else {
-      onWorkoutSelect('timer', workout.name);
-    }
+    onWorkoutSelect('timer', workout.name);
+    openDetail(workout);
   };
 
   const handleAddWorkout = () => {
@@ -208,6 +205,15 @@ const Home = ({
     const [moved] = reordered.splice(result.source.index, 1);
     reordered.splice(result.destination.index, 0, moved);
     onReorder(reordered);
+  };
+
+  const onExerciseDragEnd = (result) => {
+    if (!result.destination) return;
+    if (result.source.index === result.destination.index) return;
+    const next = [...editExercises];
+    const [moved] = next.splice(result.source.index, 1);
+    next.splice(result.destination.index, 0, moved);
+    setEditExercises(next);
   };
 
   // ── Swipe-to-delete touch handlers ──
@@ -273,14 +279,6 @@ const Home = ({
       exercises: [...editExercises],
       restTime: editRestTime
     }));
-  };
-
-  const handleMoveExercise = (index, direction) => {
-    const newExercises = [...editExercises];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newExercises.length) return;
-    [newExercises[index], newExercises[targetIndex]] = [newExercises[targetIndex], newExercises[index]];
-    setEditExercises(newExercises);
   };
 
   const handleDeleteExercise = (index) => {
@@ -456,7 +454,7 @@ const Home = ({
           >
             {/* Content fades in after expand, fades out before collapse */}
             <div className={`home-detail-content ${contentVisible ? 'visible' : ''}`}>
-              {/* Header */}
+              {/* Title row: icon + name + edit/close */}
               <div className="home-detail-header">
                 <div className="home-detail-creator">
                   {isDefaultWorkout ? (
@@ -471,6 +469,24 @@ const Home = ({
                     </div>
                   )}
                 </div>
+                {isEditing && isEditingTitle ? (
+                  <input
+                    ref={titleInputRef}
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingTitle(false); }}
+                    className="home-detail-name-input"
+                    autoFocus
+                  />
+                ) : (
+                  <h2
+                    className="home-detail-name"
+                    onClick={() => { if (isEditing) setIsEditingTitle(true); }}
+                  >
+                    {isEditing ? editTitle : detailWorkout.name}
+                  </h2>
+                )}
                 <div className="home-detail-header-actions">
                   <button className="home-detail-edit-btn" onClick={handleEditToggle}>
                     {isEditing ? (
@@ -491,28 +507,6 @@ const Home = ({
                     </svg>
                   </button>
                 </div>
-              </div>
-
-              {/* Name */}
-              <div className="home-detail-name-section">
-                {isEditing && isEditingTitle ? (
-                  <input
-                    ref={titleInputRef}
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingTitle(false); }}
-                    className="home-detail-name-input"
-                    autoFocus
-                  />
-                ) : (
-                  <h2
-                    className="home-detail-name"
-                    onClick={() => { if (isEditing) setIsEditingTitle(true); }}
-                  >
-                    {isEditing ? editTitle : detailWorkout.name}
-                  </h2>
-                )}
               </div>
 
               {/* Rest time */}
@@ -540,66 +534,75 @@ const Home = ({
               </div>
 
               {/* Exercise list */}
-              <div className="home-detail-exercises">
-                {(isEditing ? editExercises : detailWorkout.exercises).map((exercise, index) => (
-                  <div key={`${exercise}-${index}`} className={`home-detail-exercise ${isEditing ? 'editing' : ''}`}>
-                    <span className="home-detail-exercise-num">{index + 1}</span>
-                    <span className="home-detail-exercise-name">{exercise}</span>
-                    {isEditing && (
-                      <div className="home-detail-exercise-actions">
-                        <button
-                          className="home-detail-move-btn"
-                          onClick={() => handleMoveExercise(index, 'up')}
-                          disabled={index === 0}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <polyline points="18 15 12 9 6 15"/>
-                          </svg>
-                        </button>
-                        <button
-                          className="home-detail-move-btn"
-                          onClick={() => handleMoveExercise(index, 'down')}
-                          disabled={index === editExercises.length - 1}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <polyline points="6 9 12 15 18 9"/>
-                          </svg>
-                        </button>
-                        <button
-                          className="home-detail-delete-btn"
-                          onClick={() => handleDeleteExercise(index)}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                          </svg>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {isEditing && (
-                  <button
-                    className="home-detail-add-exercise"
-                    onClick={() => setShowAddPopup(true)}
-                  >
-                    + Add Exercise
-                  </button>
-                )}
-              </div>
+              {isEditing ? (
+                <DragDropContext onDragEnd={onExerciseDragEnd}>
+                <Droppable droppableId="detail-exercises" direction="vertical">
+                  {(droppableProvided) => (
+                    <div
+                      {...droppableProvided.droppableProps}
+                      ref={droppableProvided.innerRef}
+                      className="home-detail-exercises"
+                    >
+                      {editExercises.map((exercise, index) => (
+                        <Draggable key={`ex-${index}`} draggableId={`ex-${index}`} index={index}>
+                          {(draggableProvided, snapshot) => {
+                            const child = (
+                              <div
+                                ref={draggableProvided.innerRef}
+                                {...draggableProvided.draggableProps}
+                                {...draggableProvided.dragHandleProps}
+                                className="home-detail-exercise"
+                                style={draggableProvided.draggableProps.style}
+                              >
+                                <span className="home-detail-exercise-num">{index + 1}</span>
+                                <span className="home-detail-exercise-name">{exercise}</span>
+                                <button
+                                  className="home-detail-delete-btn"
+                                  onClick={() => handleDeleteExercise(index)}
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                  </svg>
+                                </button>
+                              </div>
+                            );
+                            return snapshot.isDragging
+                              ? ReactDOM.createPortal(child, document.body)
+                              : child;
+                          }}
+                        </Draggable>
+                      ))}
+                      {droppableProvided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+                </DragDropContext>
+              ) : (
+                <div className="home-detail-exercises">
+                  {detailWorkout.exercises.map((exercise, index) => (
+                    <div key={`${exercise}-${index}`} className="home-detail-exercise">
+                      <span className="home-detail-exercise-num">{index + 1}</span>
+                      <span className="home-detail-exercise-name">{exercise}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Start button */}
-              {!isEditing && (
-                <button
-                  className="home-detail-start-btn"
-                  onClick={() => {
+              {/* Bottom button */}
+              <button
+                className="home-detail-start-btn"
+                onClick={() => {
+                  if (isEditing) {
+                    setShowAddPopup(true);
+                  } else {
                     onStartWorkout(detailWorkout.name);
                     closeDetail();
-                  }}
-                >
-                  Start Workout
-                </button>
-              )}
+                  }
+                }}
+              >
+                {isEditing ? 'Add Exercise' : 'Start Workout'}
+              </button>
             </div>
           </div>
 
