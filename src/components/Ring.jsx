@@ -131,7 +131,7 @@ const Ring = ({
           className={`play-btn ${drawIn && (drawInPhase === 'fadeout' || drawInPhase === 'time') ? 'draw-in-time' : ''}`}
           onClick={onStart}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="white" style={{ marginLeft: '1px' }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white" style={{ marginLeft: '-1px' }}>
             <path d="M7.5 4.5c0-1.08 1.22-1.71 2.1-1.08l10.2 7.5c.76.56.76 1.6 0 2.16l-10.2 7.5c-.88.63-2.1 0-2.1-1.08V4.5z"/>
           </svg>
         </button>
