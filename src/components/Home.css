@@ -222,25 +222,6 @@
   z-index: 10;
 }
 
-/* ── Edit Button ── */
-.workout-card-edit {
-  color: rgba(255, 255, 255, 0.25);
-  padding: 8px;
-  margin: -4px -4px -4px 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  transition: color 0.15s ease, background 0.15s ease;
-  flex-shrink: 0;
-}
-
-.workout-card-edit:active {
-  color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.06);
-}
-
 /* ── Swipe Delete ── */
 .workout-card-delete {
   position: absolute;
@@ -286,6 +267,453 @@
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* ═══════════════════════════════════════════
+   Detail Overlay
+   ═══════════════════════════════════════════ */
+
+/* ── Fade other workouts when detail is open ── */
+.home-container.home-detail-open .home-workout-list {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.home-workout-list,
+.home-header {
+  transition: opacity 0.3s ease;
+}
+
+/* ── Backdrop (transparent — cards fade instead) ── */
+.home-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: home-detail-fade-in 0.28s ease forwards;
+}
+
+.home-detail-overlay.closing {
+  animation: home-detail-fade-out 0.2s ease forwards;
+}
+
+@keyframes home-detail-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes home-detail-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ── Panel (FLIP animated — JS drives transform/bg/border inline) ── */
+.home-detail-panel {
+  width: 100%;
+  max-width: 500px;
+  max-height: 80vh;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 20px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform-origin: center center;
+  will-change: transform, border-radius, background, border-color;
+}
+
+/* ── Content fade (hidden while card is expanding/collapsing) ── */
+.home-detail-content {
+  opacity: 0;
+  transition: opacity 0.22s ease 0.16s;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}
+
+.home-detail-content.visible {
+  opacity: 1;
+}
+
+/* ── Header ── */
+.home-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.home-detail-creator {
+  display: flex;
+  align-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.home-detail-creator-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-detail-app-icon {
+  background: transparent;
+  border: none;
+  padding: 0;
+  object-fit: cover;
+  transform: scale(1.08);
+}
+
+.home-detail-user-icon {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.home-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-detail-edit-btn,
+.home-detail-close-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.home-detail-edit-btn:active,
+.home-detail-close-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ── Name ── */
+.home-detail-name-section {
+  margin-bottom: 8px;
+}
+
+.home-detail-name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+.home-detail-name-input {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 6px 10px;
+  width: 100%;
+  box-sizing: border-box;
+  outline: none;
+  letter-spacing: 0.3px;
+}
+
+.home-detail-name-input:focus {
+  border-color: rgba(255, 59, 48, 0.4);
+}
+
+/* ── Rest Time ── */
+.home-detail-rest {
+  margin-bottom: 16px;
+}
+
+.home-detail-rest-display {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.home-detail-rest-stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-detail-rest-label {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 30px;
+}
+
+.home-detail-stepper-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+
+.home-detail-stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.home-detail-stepper-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.home-detail-rest-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+  min-width: 30px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Exercise List ── */
+.home-detail-exercises {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 20px;
+}
+
+.home-detail-exercise {
+  display: flex;
+  align-items: center;
+  padding: 10px 8px;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+
+.home-detail-exercise.editing {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.home-detail-exercise-num {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 59, 48, 0.5);
+  width: 22px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-detail-exercise-name {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.8);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Exercise Edit Actions ── */
+.home-detail-exercise-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.home-detail-move-btn,
+.home-detail-delete-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.home-detail-move-btn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.home-detail-move-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.home-detail-delete-btn {
+  color: rgba(255, 59, 48, 0.5);
+}
+
+.home-detail-delete-btn:active {
+  background: rgba(255, 59, 48, 0.15);
+  color: rgba(255, 59, 48, 0.8);
+}
+
+/* ── Add Exercise Button ── */
+.home-detail-add-exercise {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  margin-top: 4px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.home-detail-add-exercise:active {
+  color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Start Button ── */
+.home-detail-start-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 14px;
+  background: #ff3b30;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: background 0.15s ease, transform 0.1s ease;
+  flex-shrink: 0;
+}
+
+.home-detail-start-btn:active {
+  background: #d63029;
+  transform: scale(0.98);
+}
+
+/* ── Add Exercise Popup ── */
+.home-detail-add-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-detail-popup-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.home-detail-popup-content {
+  position: relative;
+  z-index: 1;
+  background: rgba(38, 38, 40, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  width: 280px;
+}
+
+.home-detail-popup-content h3 {
+  margin: 0 0 14px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.home-detail-popup-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 14px;
+}
+
+.home-detail-popup-input:focus {
+  border-color: rgba(255, 59, 48, 0.4);
+}
+
+.home-detail-popup-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.home-detail-popup-cancel,
+.home-detail-popup-confirm {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.home-detail-popup-cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.home-detail-popup-cancel:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.home-detail-popup-confirm {
+  background: #ff3b30;
+  color: #ffffff;
+}
+
+.home-detail-popup-confirm:active {
+  background: #d63029;
+}
+
 /* ── Responsive ── */
 @media (max-width: 480px) {
   .home-container {
@@ -299,6 +727,10 @@
 
   .workout-card {
     padding: 11px 12px;
+  }
+
+  .home-detail-panel {
+    padding: 18px 14px;
   }
 }
 

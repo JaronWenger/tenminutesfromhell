@@ -11,9 +11,15 @@
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   color: #fff;
   padding: 20px 16px 100px;
   box-sizing: border-box;
+}
+
+.stats-page::-webkit-scrollbar {
+  display: none;
 }
 
 /* Loading / Empty */
@@ -176,6 +182,12 @@
   -webkit-overflow-scrolling: touch;
   padding-bottom: 4px;
   direction: rtl;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.calendar-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .calendar-grid {

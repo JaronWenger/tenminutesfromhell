@@ -659,6 +659,48 @@ const Main = () => {
     }
   };
 
+  const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime) => {
+    const finalName = newTitle || workoutName;
+
+    // Optimistic local update
+    setTimerWorkoutData(prev =>
+      prev.map(w =>
+        w.name === workoutName
+          ? { ...w, name: finalName, exercises, restTime: newRestTime ?? null }
+          : w
+      )
+    );
+
+    // Update selected workout name if it was renamed
+    if (newTitle && newTitle !== workoutName && timerSelectedWorkout === workoutName) {
+      setTimerSelectedWorkout(finalName);
+    }
+
+    // Persist to Firestore when logged in
+    if (user) {
+      const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
+      const isDefault = defaultNames.includes(workoutName);
+      saveUserWorkout(user.uid, {
+        name: finalName,
+        type: 'timer',
+        exercises,
+        isDefault,
+        defaultName: isDefault && newTitle ? workoutName : null,
+        restTime: newRestTime ?? null
+      }).catch(err => console.error('Failed to save workout:', err));
+    }
+  }, [user, timerSelectedWorkout]);
+
+  const handleHomeStartWorkout = useCallback((workoutName) => {
+    setTimerSelectedWorkout(workoutName);
+    if (user) {
+      setSelectedWorkout(user.uid, workoutName).catch(err =>
+        console.error('Failed to save selected workout:', err)
+      );
+    }
+    setActiveTab('timer');
+  }, [user]);
+
   const handleDeleteWorkout = (workoutName) => {
     const defaultNames = DEFAULT_TIMER_WORKOUTS.map(d => d.name);
     const isDefault = defaultNames.includes(workoutName);
@@ -805,26 +847,7 @@ const Main = () => {
 
   const renderContent = () => {
     if (activeTab === 'timer' && !currentEditPage) {
-      return (
-        <Timer
-          timeLeft={timerState.timeLeft}
-          isRunning={timerState.isRunning}
-          targetTime={timerState.targetTime}
-          selectedWorkoutIndex={timerState.selectedWorkoutIndex}
-          onTimerStateChange={handleTimerStateChange}
-          workouts={getExerciseList(timerSelectedWorkout)}
-          selectedWorkoutName={timerSelectedWorkout}
-          activeColor={activeColor}
-          restColor={restColor}
-          sidePlankAlertEnabled={sidePlankAlertEnabled}
-          prepTime={prepTime}
-          restTime={restTime}
-          activeLastMinute={activeLastMinute}
-          initialLoad={initialLoad}
-          workoutReady={workoutReady}
-          onInitialLoadDone={() => setInitialLoad(false)}
-        />
-      );
+      return null; // Timer is always rendered outside renderContent
     }
 
     if (activeTab === 'stats' && !currentEditPage) {
@@ -886,6 +909,10 @@ const Main = () => {
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
             prepTime={prepTime}
+            globalRestTime={restTime}
+            onDetailSave={handleDetailSave}
+            onStartWorkout={handleHomeStartWorkout}
+            defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
           />
         );
       case 'stats':
@@ -911,6 +938,10 @@ const Main = () => {
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
             prepTime={prepTime}
+            globalRestTime={restTime}
+            onDetailSave={handleDetailSave}
+            onStartWorkout={handleHomeStartWorkout}
+            defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
           />
         );
     }
@@ -926,6 +957,29 @@ const Main = () => {
         '--color-rest-rgb': hexToRgb(restColor),
       }}
     >
+      <div style={{ display: activeTab === 'timer' && !currentEditPage ? 'block' : 'none' }}>
+        <Timer
+          timeLeft={timerState.timeLeft}
+          isRunning={timerState.isRunning}
+          targetTime={timerState.targetTime}
+          selectedWorkoutIndex={timerState.selectedWorkoutIndex}
+          onTimerStateChange={handleTimerStateChange}
+          workouts={getExerciseList(timerSelectedWorkout)}
+          selectedWorkoutName={timerSelectedWorkout}
+          activeColor={activeColor}
+          restColor={restColor}
+          sidePlankAlertEnabled={sidePlankAlertEnabled}
+          prepTime={prepTime}
+          restTime={(() => {
+            const selectedW = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+            return selectedW?.restTime != null ? selectedW.restTime : restTime;
+          })()}
+          activeLastMinute={activeLastMinute}
+          initialLoad={initialLoad}
+          workoutReady={workoutReady}
+          onInitialLoadDone={() => setInitialLoad(false)}
+        />
+      </div>
       {renderContent()}
       {!currentEditPage && currentEditLevel !== 'exercise-edit' && (
         <TabBar

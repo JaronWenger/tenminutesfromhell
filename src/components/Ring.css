@@ -106,7 +106,7 @@
 }
 
 .progress-ring-fill {
-  transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease, filter 0.3s ease;
+  transition: stroke-dashoffset 0.3s ease, filter 0.3s ease;
 }
 
 .time-text {
