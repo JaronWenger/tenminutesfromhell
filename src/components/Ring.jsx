@@ -49,7 +49,7 @@ const Ring = ({
 
   // Determine progress color based on seconds within current minute
   const getProgressColor = () => {
-    if (!isRunning && timeLeft < targetTime && timeLeft > 0) {
+    if (!isRunning && timeLeft > 0) {
       return '#ffffff';
     }
     if (flickering) {

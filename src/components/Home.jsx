@@ -47,10 +47,14 @@ const Home = ({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [selectedExerciseIndex, setSelectedExerciseIndex] = useState(null);
   const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [perPage, setPerPage] = useState(Infinity);
 
   // Native exercise drag reorder (all visuals via direct DOM, no React re-renders during drag)
   const exerciseDragRef = useRef({ active: false, fromIndex: null, toIndex: null, rowHeight: 0 });
   const exerciseRowRefs = useRef([]);
+  const pageOffsetRef = useRef(0);
+  const rowHeightRef = useRef(34);
   const dragJustEndedRef = useRef(false);
 
   // Clear drag inline styles after React re-renders (before browser paint) to avoid flash
@@ -94,6 +98,7 @@ const Home = ({
     setDetailRect(rect);
     setDetailWorkout(workout);
     setDetailPhase('entering');
+    setCurrentPage(0);
     setIsEditing(false);
     setEditExercises([...workout.exercises]);
     setEditTitle(workout.name);
@@ -150,6 +155,49 @@ const Home = ({
 
     return () => clearTimeout(timer);
   }, [detailPhase, detailRect]);
+
+  // Measure max available space for exercises and calculate perPage
+  useEffect(() => {
+    if (detailPhase !== 'open' || !panelRef.current) return;
+    const measure = () => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const style = getComputedStyle(panel);
+      const paddingV = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const header = panel.querySelector('.home-detail-header');
+      const meta = panel.querySelector('.home-detail-meta');
+      const btn = panel.querySelector('.home-detail-start-btn');
+      // Measure actual row height from first exercise, fallback to 34px
+      const firstRow = panel.querySelector('.home-detail-exercise');
+      const rowH = firstRow ? firstRow.getBoundingClientRect().height : 34;
+      rowHeightRef.current = rowH;
+      const fixedH = (header?.offsetHeight || 0) + 2
+        + (meta?.offsetHeight || 0) + 4
+        + (btn?.offsetHeight || 0) + 16; // exercises margin
+      const maxPanelH = window.innerHeight - 80 - 90;
+      const availableNoPag = maxPanelH - paddingV - fixedH;
+      const fitWithout = Math.max(3, Math.floor(availableNoPag / rowH));
+      const exercises = isEditing ? editExercises : (detailWorkout?.exercises || []);
+      if (exercises.length <= fitWithout) {
+        setPerPage(fitWithout);
+      } else {
+        // Need pagination — reserve 36px for the pagination bar
+        const availableWithPag = availableNoPag - 36;
+        setPerPage(Math.max(3, Math.floor(availableWithPag / rowH)));
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [detailPhase, isEditing, editExercises, detailWorkout]);
+
+  // Clamp currentPage when exercise count or perPage changes
+  useEffect(() => {
+    if (perPage === Infinity) return;
+    const exercises = isEditing ? editExercises : (detailWorkout?.exercises || []);
+    const total = Math.ceil(exercises.length / perPage);
+    if (total > 0 && currentPage >= total) setCurrentPage(total - 1);
+  }, [editExercises, detailWorkout, perPage, currentPage, isEditing]);
 
   const closeDetail = useCallback(() => {
     if (detailPhase === 'leaving') return;
@@ -222,6 +270,7 @@ const Home = ({
     setDetailWorkout(newWorkout);
     setDetailRect(rect);
     setDetailPhase('entering');
+    setCurrentPage(0);
     setIsEditing(true);
     setIsEditingTitle(true);
     setEditExercises([]);
@@ -249,7 +298,7 @@ const Home = ({
   };
 
   // Native touch/pointer drag for exercise reorder (100% DOM manipulation, zero React re-renders during drag)
-  const handleExerciseDragStart = useCallback((index, e) => {
+  const handleExerciseDragStart = useCallback((index, e, offset = 0) => {
     if (e.target.closest('.home-detail-delete-btn')) return;
 
     const startY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -328,17 +377,19 @@ const Home = ({
           // Reorder happened — keep inline styles so items stay in place visually.
           // useLayoutEffect will clear them after React re-renders (before paint).
           dragJustEndedRef.current = true;
+          const actualFrom = offset + fromIndex;
+          const actualTo = offset + toIndex;
           setEditExercises(prev => {
             const next = [...prev];
-            const [moved] = next.splice(fromIndex, 1);
-            next.splice(toIndex, 0, moved);
+            const [moved] = next.splice(actualFrom, 1);
+            next.splice(actualTo, 0, moved);
             return next;
           });
           setSelectedExerciseIndex(prev => {
             if (prev === null) return null;
-            if (prev === fromIndex) return toIndex;
-            if (fromIndex < prev && toIndex >= prev) return prev - 1;
-            if (fromIndex > prev && toIndex <= prev) return prev + 1;
+            if (prev === actualFrom) return actualTo;
+            if (actualFrom < prev && actualTo >= prev) return prev - 1;
+            if (actualFrom > prev && actualTo <= prev) return prev + 1;
             return prev;
           });
         } else {
@@ -431,13 +482,24 @@ const Home = ({
 
   const isNewWorkout = detailWorkout?.isNew;
 
+  // Unlock panel height whenever we leave edit mode
+  useLayoutEffect(() => {
+    if (!isEditing && panelRef.current) {
+      panelRef.current.style.height = '';
+    }
+  }, [isEditing]);
+
   // ── Editing handlers ──
   const handleEditToggle = () => {
     if (isEditing) {
       if (!editTitle.trim() || (isNewWorkout && editExercises.length === 0)) return;
       handleSave();
+    } else {
+      // Lock panel height before entering edit mode so pagination doesn't resize it
+      if (panelRef.current) panelRef.current.style.height = panelRef.current.offsetHeight + 'px';
     }
     setIsEditing(!isEditing);
+    setCurrentPage(0);
     setIsEditingTitle(false);
     setShowAddPopup(false);
     setSelectedExerciseIndex(null);
@@ -454,19 +516,20 @@ const Home = ({
     }));
   };
 
-  const handleDeleteExercise = (index) => {
-    const row = exerciseRowRefs.current[index];
+  const handleDeleteExercise = (actualIndex) => {
+    const localIndex = actualIndex - pageOffsetRef.current;
+    const row = exerciseRowRefs.current[localIndex];
     if (row) {
       row.classList.add('exercise-removing');
       setTimeout(() => {
-        setEditExercises(prev => prev.filter((_, i) => i !== index));
-        if (selectedExerciseIndex === index) setSelectedExerciseIndex(null);
-        else if (selectedExerciseIndex !== null && index < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
+        setEditExercises(prev => prev.filter((_, i) => i !== actualIndex));
+        if (selectedExerciseIndex === actualIndex) setSelectedExerciseIndex(null);
+        else if (selectedExerciseIndex !== null && actualIndex < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
       }, 250);
     } else {
-      setEditExercises(prev => prev.filter((_, i) => i !== index));
-      if (selectedExerciseIndex === index) setSelectedExerciseIndex(null);
-      else if (selectedExerciseIndex !== null && index < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
+      setEditExercises(prev => prev.filter((_, i) => i !== actualIndex));
+      if (selectedExerciseIndex === actualIndex) setSelectedExerciseIndex(null);
+      else if (selectedExerciseIndex !== null && actualIndex < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
     }
   };
 
@@ -490,6 +553,9 @@ const Home = ({
         setEditExercises(prev => [...prev, newExerciseName.trim()]);
         setJustAddedIndex(newIndex);
         setTimeout(() => setJustAddedIndex(null), 350);
+        if (perPage !== Infinity) {
+          setCurrentPage(Math.ceil((editExercises.length + 1) / perPage) - 1);
+        }
       }
       setNewExerciseName('');
       setEditingExerciseIndex(null);
@@ -537,6 +603,15 @@ const Home = ({
     : globalRestTime;
 
   const contentVisible = detailPhase === 'open' || detailPhase === 'entering';
+
+  // Pagination computations (clamp page at render time so UI never shows empty)
+  const activeExercises = isEditing ? editExercises : (detailWorkout?.exercises || []);
+  const effectivePerPage = (!isEditing || perPage === Infinity) ? activeExercises.length : perPage;
+  const totalPages = effectivePerPage > 0 ? Math.max(1, Math.ceil(activeExercises.length / effectivePerPage)) : 1;
+  const safePage = Math.min(currentPage, Math.max(0, totalPages - 1));
+  const pageOffset = safePage * effectivePerPage;
+  const pageExercises = activeExercises.slice(pageOffset, pageOffset + effectivePerPage);
+  pageOffsetRef.current = pageOffset;
 
   return (
     <div className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''}`}>
@@ -645,13 +720,15 @@ const Home = ({
               })}
               {provided.placeholder}
 
-              <div ref={addBtnRef} className="workout-card-add" onClick={handleAddWorkout}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/>
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                <span>New Workout</span>
-              </div>
+              {user && (
+                <div ref={addBtnRef} className="workout-card-add" onClick={handleAddWorkout}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  <span>New Workout</span>
+                </div>
+              )}
             </div>
           )}
         </Droppable>
@@ -729,22 +806,24 @@ const Home = ({
                   )}
                 </div>
                 <div className="home-detail-header-actions">
-                  <button
-                    className="home-detail-edit-btn"
-                    onClick={handleEditToggle}
-                    disabled={isEditing && (!editTitle.trim() || (isNewWorkout && editExercises.length === 0))}
-                  >
-                    {isEditing ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                        <path d="m15 5 4 4"/>
-                      </svg>
-                    )}
-                  </button>
+                  {user && (
+                    <button
+                      className="home-detail-edit-btn"
+                      onClick={handleEditToggle}
+                      disabled={isEditing && (!editTitle.trim() || (isNewWorkout && editExercises.length === 0))}
+                    >
+                      {isEditing ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                          <path d="m15 5 4 4"/>
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   <button className="home-detail-close-btn" onClick={() => { if (isEditing) { if (isNewWorkout) { closeDetail(); } else { handleSave(); setIsEditing(false); setIsEditingTitle(false); setShowAddPopup(false); setSelectedExerciseIndex(null); } } else { closeDetail(); } }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"/>
@@ -787,60 +866,99 @@ const Home = ({
               {/* Exercise list */}
               {isEditing ? (
                 <div className="home-detail-exercises editing">
-                  {editExercises.map((exercise, index) => (
-                      <div
-                        key={`ex-${index}`}
-                        ref={(el) => { exerciseRowRefs.current[index] = el; }}
-                        className={`home-detail-exercise-row${index === justAddedIndex ? ' exercise-just-added' : ''}`}
-                        onTouchStart={(e) => handleExerciseDragStart(index, e)}
-                        onMouseDown={(e) => handleExerciseDragStart(index, e)}
-                      >
-                        <span className="home-detail-exercise-num">{index + 1}</span>
+                  {pageExercises.map((exercise, localIndex) => {
+                      const actualIndex = pageOffset + localIndex;
+                      return (
                         <div
-                          className={`home-detail-exercise${selectedExerciseIndex === index ? ' selected' : ''}`}
-                          onClick={() => {
-                            setEditingExerciseIndex(index);
-                            setNewExerciseName(exercise);
-                            setShowAddPopup(true);
-                          }}
+                          key={`ex-${actualIndex}`}
+                          ref={(el) => { exerciseRowRefs.current[localIndex] = el; }}
+                          className={`home-detail-exercise-row${actualIndex === justAddedIndex ? ' exercise-just-added' : ''}`}
+                          onTouchStart={(e) => handleExerciseDragStart(localIndex, e, pageOffset)}
+                          onMouseDown={(e) => handleExerciseDragStart(localIndex, e, pageOffset)}
                         >
-                          <span className="home-detail-exercise-name">{exercise}</span>
-                          <button
-                            className="home-detail-duplicate-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const insertAt = index + 1;
-                              setEditExercises(prev => [...prev.slice(0, insertAt), exercise, ...prev.slice(insertAt)]);
-                              setJustAddedIndex(insertAt);
-                              setTimeout(() => setJustAddedIndex(null), 350);
+                          <span className="home-detail-exercise-num">{actualIndex + 1}</span>
+                          <div
+                            className={`home-detail-exercise${selectedExerciseIndex === actualIndex ? ' selected' : ''}`}
+                            onClick={() => {
+                              setEditingExerciseIndex(actualIndex);
+                              setNewExerciseName(exercise);
+                              setShowAddPopup(true);
                             }}
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                            </svg>
-                          </button>
-                          <button
-                            className="home-detail-delete-btn"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteExercise(index); }}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <line x1="18" y1="6" x2="6" y2="18"/>
-                              <line x1="6" y1="6" x2="18" y2="18"/>
-                            </svg>
-                          </button>
+                            <span className="home-detail-exercise-name">{exercise}</span>
+                            <button
+                              className="home-detail-duplicate-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const insertAt = actualIndex + 1;
+                                setEditExercises(prev => [...prev.slice(0, insertAt), exercise, ...prev.slice(insertAt)]);
+                                setJustAddedIndex(insertAt);
+                                setTimeout(() => setJustAddedIndex(null), 350);
+                              }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                              </svg>
+                            </button>
+                            <button
+                              className="home-detail-delete-btn"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteExercise(actualIndex); }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                  ))}
+                      );
+                  })}
                 </div>
               ) : (
                 <div className="home-detail-exercises">
-                  {detailWorkout.exercises.map((exercise, index) => (
-                    <div key={`${exercise}-${index}`} className="home-detail-exercise">
-                      <span className="home-detail-exercise-num">{index + 1}</span>
-                      <span className="home-detail-exercise-name">{exercise}</span>
-                    </div>
-                  ))}
+                  {pageExercises.map((exercise, localIndex) => {
+                    const actualIndex = pageOffset + localIndex;
+                    return (
+                      <div key={`${exercise}-${actualIndex}`} className="home-detail-exercise">
+                        <span className="home-detail-exercise-num">{actualIndex + 1}</span>
+                        <span className="home-detail-exercise-name">{exercise}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="home-detail-pagination">
+                  <button
+                    className="home-detail-pagination-arrow"
+                    onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                    disabled={safePage === 0}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                  </button>
+                  <div className="home-detail-pagination-dots">
+                    {Array.from({ length: totalPages }, (_, i) => (
+                      <div
+                        key={i}
+                        className={`home-detail-pagination-dot${i === safePage ? ' active' : ''}`}
+                        onClick={() => setCurrentPage(i)}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    className="home-detail-pagination-arrow"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={safePage === totalPages - 1}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </button>
                 </div>
               )}
 

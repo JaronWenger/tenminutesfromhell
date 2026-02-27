@@ -27,7 +27,8 @@
   opacity: 0;
   animation: ringFadeIn 0.5s ease forwards, ringDrawIn 0.8s ease-in-out forwards;
   transform: rotate(-90deg);
-  transform-origin: 150px 150px;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 @keyframes ringFadeIn {
