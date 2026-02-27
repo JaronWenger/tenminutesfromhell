@@ -57,7 +57,7 @@ const Timer = ({
   // Minimum 0.9s wait (75% of circle draw) before revealing
   useEffect(() => {
     if (!initialLoad) return;
-    const timer = setTimeout(() => setMinTimePassed(true), 900);
+    const timer = setTimeout(() => setMinTimePassed(true), 600);
     return () => clearTimeout(timer);
   }, [initialLoad]);
 

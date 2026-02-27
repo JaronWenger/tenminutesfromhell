@@ -25,7 +25,7 @@
   stroke-dasharray: 753.98;
   stroke-dashoffset: 753.98;
   opacity: 0;
-  animation: ringFadeIn 0.8s ease forwards, ringDrawIn 1.2s ease-in-out forwards;
+  animation: ringFadeIn 0.5s ease forwards, ringDrawIn 0.8s ease-in-out forwards;
   transform: rotate(-90deg);
   transform-origin: 150px 150px;
 }

@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
-import ReactDOM from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import './Home.css';
 import Sparks from '../assets/SPARKS.gif';
@@ -23,7 +22,8 @@ const Home = ({
   globalRestTime = 15,
   onDetailSave,
   onStartWorkout,
-  defaultWorkoutNames = []
+  defaultWorkoutNames = [],
+  onVisibilityToggle
 }) => {
   const { user } = useAuth();
   const [swipingIndex, setSwipingIndex] = useState(null);
@@ -41,9 +41,34 @@ const Home = ({
   const [editTitle, setEditTitle] = useState('');
   const [editRestTime, setEditRestTime] = useState(null);
   const [showAddPopup, setShowAddPopup] = useState(false);
+  const [popupClosing, setPopupClosing] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
+  const [justAddedIndex, setJustAddedIndex] = useState(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [selectedExerciseIndex, setSelectedExerciseIndex] = useState(null);
+  const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
 
+  // Native exercise drag reorder (all visuals via direct DOM, no React re-renders during drag)
+  const exerciseDragRef = useRef({ active: false, fromIndex: null, toIndex: null, rowHeight: 0 });
+  const exerciseRowRefs = useRef([]);
+  const dragJustEndedRef = useRef(false);
+
+  // Clear drag inline styles after React re-renders (before browser paint) to avoid flash
+  useLayoutEffect(() => {
+    if (!dragJustEndedRef.current) return;
+    dragJustEndedRef.current = false;
+    exerciseRowRefs.current.forEach((row) => {
+      if (!row) return;
+      const card = row.querySelector('.home-detail-exercise');
+      if (!card) return;
+      card.style.transform = '';
+      card.style.transition = '';
+      card.style.zIndex = '';
+      card.style.position = '';
+    });
+  }, [editExercises]);
+
+  const addBtnRef = useRef(null);
   const cardRefs = useRef({});
   const panelRef = useRef(null);
   const touchStartX = useRef(0);
@@ -77,7 +102,13 @@ const Home = ({
 
   // FLIP: after panel mounts at final position, snap to card rect then animate to final
   useLayoutEffect(() => {
-    if (detailPhase !== 'entering' || !panelRef.current || !detailRect) return;
+    if (detailPhase !== 'entering' || !panelRef.current) return;
+
+    // No source card (e.g. new workout) — skip FLIP, just open
+    if (!detailRect) {
+      setDetailPhase('open');
+      return;
+    }
 
     const panel = panelRef.current;
     const panelRect = panel.getBoundingClientRect();
@@ -133,9 +164,10 @@ const Home = ({
 
     setDetailPhase('leaving');
 
-    // Recapture card rect (may have scrolled)
-    const cardEl = cardRefs.current[detailWorkout.name];
-    const targetRect = cardEl ? cardEl.getBoundingClientRect() : detailRect;
+    // Recapture card rect (may have scrolled); for new workouts, animate back to add button
+    const cardEl = detailWorkout.name ? cardRefs.current[detailWorkout.name] : null;
+    const addEl = addBtnRef.current;
+    const targetRect = cardEl ? cardEl.getBoundingClientRect() : (addEl ? addEl.getBoundingClientRect() : detailRect);
 
     if (!targetRect) {
       // Fallback: simple fade out
@@ -185,7 +217,16 @@ const Home = ({
   };
 
   const handleAddWorkout = () => {
-    onArrowClick('timer', 'New Workout');
+    const newWorkout = { name: '', type: 'timer', exercises: [], isNew: true };
+    const rect = addBtnRef.current ? addBtnRef.current.getBoundingClientRect() : null;
+    setDetailWorkout(newWorkout);
+    setDetailRect(rect);
+    setDetailPhase('entering');
+    setIsEditing(true);
+    setIsEditingTitle(true);
+    setEditExercises([]);
+    setEditTitle('');
+    setEditRestTime(null);
   };
 
   // ── react-beautiful-dnd ──
@@ -207,14 +248,142 @@ const Home = ({
     onReorder(reordered);
   };
 
-  const onExerciseDragEnd = (result) => {
-    if (!result.destination) return;
-    if (result.source.index === result.destination.index) return;
-    const next = [...editExercises];
-    const [moved] = next.splice(result.source.index, 1);
-    next.splice(result.destination.index, 0, moved);
-    setEditExercises(next);
-  };
+  // Native touch/pointer drag for exercise reorder (100% DOM manipulation, zero React re-renders during drag)
+  const handleExerciseDragStart = useCallback((index, e) => {
+    if (e.target.closest('.home-detail-delete-btn')) return;
+
+    const startY = e.touches ? e.touches[0].clientY : e.clientY;
+    let isDragging = false;
+    const draggedRow = exerciseRowRefs.current[index];
+    const draggedCard = draggedRow?.querySelector('.home-detail-exercise');
+    const rowH = draggedRow ? draggedRow.getBoundingClientRect().height : 40;
+
+    // Capture original midpoints before any transforms are applied
+    const originalMids = exerciseRowRefs.current.map((el) => {
+      if (!el) return 0;
+      const rect = el.getBoundingClientRect();
+      return rect.top + rect.height / 2;
+    });
+
+    exerciseDragRef.current = { active: false, fromIndex: index, toIndex: index, rowHeight: rowH };
+
+    // Shift non-dragged exercise cards via direct DOM manipulation (numbers stay static)
+    const applyShifts = (fromIdx, toIdx) => {
+      exerciseRowRefs.current.forEach((row, i) => {
+        if (!row || i === fromIdx) return;
+        const card = row.querySelector('.home-detail-exercise');
+        if (!card) return;
+        let shift = 0;
+        if (fromIdx !== toIdx) {
+          if (fromIdx < toIdx && i > fromIdx && i <= toIdx) shift = -rowH;
+          else if (fromIdx > toIdx && i >= toIdx && i < fromIdx) shift = rowH;
+        }
+        card.style.transform = `translateY(${shift}px)`;
+        card.style.transition = 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)';
+      });
+    };
+
+    const handleMove = (ev) => {
+      const y = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      const deltaY = Math.abs(y - startY);
+
+      if (!isDragging && deltaY > 8) {
+        isDragging = true;
+        exerciseDragRef.current.active = true;
+        if (draggedCard) {
+          draggedCard.classList.add('exercise-dragging-card');
+          draggedCard.style.zIndex = '10';
+          draggedCard.style.position = 'relative';
+        }
+        if (navigator.vibrate) navigator.vibrate(30);
+      }
+
+      if (isDragging) {
+        if (ev.cancelable) ev.preventDefault();
+        // Move dragged card via DOM (follows finger), number stays put
+        if (draggedCard) {
+          draggedCard.style.transform = `translateY(${y - startY}px) scale(1.03)`;
+        }
+        // Use original (pre-transform) midpoints for closest-target detection
+        let closest = index;
+        let closestDist = Infinity;
+        originalMids.forEach((mid, i) => {
+          const dist = Math.abs(y - mid);
+          if (dist < closestDist) { closestDist = dist; closest = i; }
+        });
+        if (closest !== exerciseDragRef.current.toIndex) {
+          exerciseDragRef.current.toIndex = closest;
+          applyShifts(index, closest);
+        }
+      }
+    };
+
+    const handleEnd = () => {
+      // Remove the lifted look from the dragged card
+      if (draggedCard) draggedCard.classList.remove('exercise-dragging-card');
+
+      if (isDragging) {
+        const { fromIndex, toIndex } = exerciseDragRef.current;
+        if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
+          // Reorder happened — keep inline styles so items stay in place visually.
+          // useLayoutEffect will clear them after React re-renders (before paint).
+          dragJustEndedRef.current = true;
+          setEditExercises(prev => {
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            return next;
+          });
+          setSelectedExerciseIndex(prev => {
+            if (prev === null) return null;
+            if (prev === fromIndex) return toIndex;
+            if (fromIndex < prev && toIndex >= prev) return prev - 1;
+            if (fromIndex > prev && toIndex <= prev) return prev + 1;
+            return prev;
+          });
+        } else {
+          // No reorder (dropped in same spot) — clear card styles immediately
+          exerciseRowRefs.current.forEach((row) => {
+            if (!row) return;
+            const card = row.querySelector('.home-detail-exercise');
+            if (!card) return;
+            card.style.transform = '';
+            card.style.transition = '';
+            card.style.zIndex = '';
+            card.style.position = '';
+          });
+        }
+      }
+      exerciseDragRef.current = { active: false, fromIndex: null, toIndex: null, rowHeight: 0 };
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleEnd);
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+    };
+
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+  }, []);
+
+  // Dismiss swipe when tapping outside
+  useEffect(() => {
+    if (swipingIndex === null) return;
+    const handleOutsideTap = (e) => {
+      const wrapper = cardRefs.current[timerWorkoutData[swipingIndex]?.name];
+      if (wrapper && !wrapper.contains(e.target)) {
+        setSwipingIndex(null);
+        setSwipeOffset(0);
+      }
+    };
+    document.addEventListener('touchstart', handleOutsideTap);
+    document.addEventListener('mousedown', handleOutsideTap);
+    return () => {
+      document.removeEventListener('touchstart', handleOutsideTap);
+      document.removeEventListener('mousedown', handleOutsideTap);
+    };
+  }, [swipingIndex, timerWorkoutData]);
 
   // ── Swipe-to-delete touch handlers ──
   const handleTouchStart = (index, e) => {
@@ -260,14 +429,18 @@ const Home = ({
     onDeleteWorkout(workoutName);
   };
 
+  const isNewWorkout = detailWorkout?.isNew;
+
   // ── Editing handlers ──
   const handleEditToggle = () => {
     if (isEditing) {
+      if (!editTitle.trim() || (isNewWorkout && editExercises.length === 0)) return;
       handleSave();
     }
     setIsEditing(!isEditing);
     setIsEditingTitle(false);
     setShowAddPopup(false);
+    setSelectedExerciseIndex(null);
   };
 
   const handleSave = () => {
@@ -282,20 +455,55 @@ const Home = ({
   };
 
   const handleDeleteExercise = (index) => {
-    setEditExercises(prev => prev.filter((_, i) => i !== index));
+    const row = exerciseRowRefs.current[index];
+    if (row) {
+      row.classList.add('exercise-removing');
+      setTimeout(() => {
+        setEditExercises(prev => prev.filter((_, i) => i !== index));
+        if (selectedExerciseIndex === index) setSelectedExerciseIndex(null);
+        else if (selectedExerciseIndex !== null && index < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
+      }, 250);
+    } else {
+      setEditExercises(prev => prev.filter((_, i) => i !== index));
+      if (selectedExerciseIndex === index) setSelectedExerciseIndex(null);
+      else if (selectedExerciseIndex !== null && index < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
+    }
   };
+
+  const closeAddPopup = useCallback(() => {
+    if (popupClosing) return;
+    setPopupClosing(true);
+    setTimeout(() => {
+      setShowAddPopup(false);
+      setPopupClosing(false);
+      setNewExerciseName('');
+      setEditingExerciseIndex(null);
+    }, 200);
+  }, [popupClosing]);
 
   const handleAddExercise = () => {
     if (newExerciseName.trim()) {
-      setEditExercises(prev => [...prev, newExerciseName.trim()]);
+      if (editingExerciseIndex !== null) {
+        setEditExercises(prev => prev.map((ex, i) => i === editingExerciseIndex ? newExerciseName.trim() : ex));
+      } else {
+        const newIndex = editExercises.length;
+        setEditExercises(prev => [...prev, newExerciseName.trim()]);
+        setJustAddedIndex(newIndex);
+        setTimeout(() => setJustAddedIndex(null), 350);
+      }
       setNewExerciseName('');
-      setShowAddPopup(false);
+      setEditingExerciseIndex(null);
+      setPopupClosing(true);
+      setTimeout(() => {
+        setShowAddPopup(false);
+        setPopupClosing(false);
+      }, 200);
     }
   };
 
   const handleAddKeyDown = (e) => {
     if (e.key === 'Enter') handleAddExercise();
-    else if (e.key === 'Escape') { setShowAddPopup(false); setNewExerciseName(''); }
+    else if (e.key === 'Escape') closeAddPopup();
   };
 
   const handleRestTimeChange = (delta) => {
@@ -310,6 +518,7 @@ const Home = ({
     if (!isEditingTitle) return;
     const handleClickOutside = (e) => {
       if (titleInputRef.current && !titleInputRef.current.contains(e.target)) {
+        if (!editTitle.trim()) return;
         setIsEditingTitle(false);
       }
     };
@@ -351,7 +560,7 @@ const Home = ({
       </div>
 
       <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <Droppable droppableId="home-workouts" direction="vertical">
+        <Droppable droppableId="home-workouts" direction="vertical" isDropDisabled={!!detailWorkout}>
           {(provided) => (
             <div
               {...provided.droppableProps}
@@ -420,7 +629,13 @@ const Home = ({
                             className="workout-card-delete"
                             onClick={() => handleDelete(workout.name)}
                           >
-                            Delete
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                              <path d="M10 11v6"/>
+                              <path d="M14 11v6"/>
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                            </svg>
                           </div>
                         )}
                       </div>
@@ -430,7 +645,7 @@ const Home = ({
               })}
               {provided.placeholder}
 
-              <div className="workout-card-add" onClick={handleAddWorkout}>
+              <div ref={addBtnRef} className="workout-card-add" onClick={handleAddWorkout}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"/>
                   <line x1="5" y1="12" x2="19" y2="12"/>
@@ -469,26 +684,56 @@ const Home = ({
                     </div>
                   )}
                 </div>
-                {isEditing && isEditingTitle ? (
-                  <input
-                    ref={titleInputRef}
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingTitle(false); }}
-                    className="home-detail-name-input"
-                    autoFocus
-                  />
-                ) : (
-                  <h2
-                    className="home-detail-name"
-                    onClick={() => { if (isEditing) setIsEditingTitle(true); }}
-                  >
-                    {isEditing ? editTitle : detailWorkout.name}
-                  </h2>
-                )}
+                <div className="home-detail-title-group">
+                  {isEditing && isEditingTitle ? (
+                    <input
+                      ref={titleInputRef}
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingTitle(false); }}
+                      className="home-detail-name-input"
+                      autoFocus
+                    />
+                  ) : (
+                    <h2
+                      className="home-detail-name"
+                      onClick={() => { if (isEditing) setIsEditingTitle(true); }}
+                    >
+                      {isEditing ? editTitle : detailWorkout.name}
+                    </h2>
+                  )}
+                  {user && !isDefaultWorkout && !(isEditing && isEditingTitle) && (
+                    <button
+                      className="home-detail-visibility-btn"
+                      onClick={() => {
+                        const newVal = !detailWorkout.isPublic;
+                        onVisibilityToggle(detailWorkout.name, newVal);
+                        setDetailWorkout(prev => ({ ...prev, isPublic: newVal }));
+                      }}
+                    >
+                      <span className={`home-detail-visibility-icon ${detailWorkout.isPublic ? 'hidden' : ''}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                      </span>
+                      <span className={`home-detail-visibility-icon ${detailWorkout.isPublic ? '' : 'hidden'}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="2" y1="12" x2="22" y2="12"/>
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/>
+                        </svg>
+                      </span>
+                    </button>
+                  )}
+                </div>
                 <div className="home-detail-header-actions">
-                  <button className="home-detail-edit-btn" onClick={handleEditToggle}>
+                  <button
+                    className="home-detail-edit-btn"
+                    onClick={handleEditToggle}
+                    disabled={isEditing && (!editTitle.trim() || (isNewWorkout && editExercises.length === 0))}
+                  >
                     {isEditing ? (
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12"/>
@@ -500,7 +745,7 @@ const Home = ({
                       </svg>
                     )}
                   </button>
-                  <button className="home-detail-close-btn" onClick={closeDetail}>
+                  <button className="home-detail-close-btn" onClick={() => { if (isEditing) { if (isNewWorkout) { closeDetail(); } else { handleSave(); setIsEditing(false); setIsEditingTitle(false); setShowAddPopup(false); setSelectedExerciseIndex(null); } } else { closeDetail(); } }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"/>
                       <line x1="6" y1="6" x2="18" y2="18"/>
@@ -509,9 +754,19 @@ const Home = ({
                 </div>
               </div>
 
-              {/* Rest time */}
-              <div className="home-detail-rest">
-                {isEditing ? (
+              {/* Stats + Rest time — fixed height, crossfade between view/edit */}
+              <div className="home-detail-meta">
+                <div className={`home-detail-meta-view ${isEditing ? 'hidden' : ''}`}>
+                  <div className="home-detail-stats">
+                    <span>{formatTime((detailWorkout.exercises.length * 60) + prepTime)}</span>
+                    <span className="home-detail-stats-dot">&middot;</span>
+                    <span>{detailWorkout.exercises.length} exercises</span>
+                  </div>
+                  <span className="home-detail-rest-display">
+                    {displayRestTime}s rest between exercises
+                  </span>
+                </div>
+                <div className={`home-detail-meta-edit ${isEditing ? '' : 'hidden'}`}>
                   <div className="home-detail-rest-stepper">
                     <span className="home-detail-rest-label">Rest</span>
                     <button
@@ -526,58 +781,58 @@ const Home = ({
                       disabled={(editRestTime ?? globalRestTime) >= 30}
                     >+</button>
                   </div>
-                ) : (
-                  <span className="home-detail-rest-display">
-                    {displayRestTime}s rest between exercises
-                  </span>
-                )}
+                </div>
               </div>
 
               {/* Exercise list */}
               {isEditing ? (
-                <DragDropContext onDragEnd={onExerciseDragEnd}>
-                <Droppable droppableId="detail-exercises" direction="vertical">
-                  {(droppableProvided) => (
-                    <div
-                      {...droppableProvided.droppableProps}
-                      ref={droppableProvided.innerRef}
-                      className="home-detail-exercises"
-                    >
-                      {editExercises.map((exercise, index) => (
-                        <Draggable key={`ex-${index}`} draggableId={`ex-${index}`} index={index}>
-                          {(draggableProvided, snapshot) => {
-                            const child = (
-                              <div
-                                ref={draggableProvided.innerRef}
-                                {...draggableProvided.draggableProps}
-                                {...draggableProvided.dragHandleProps}
-                                className="home-detail-exercise"
-                                style={draggableProvided.draggableProps.style}
-                              >
-                                <span className="home-detail-exercise-num">{index + 1}</span>
-                                <span className="home-detail-exercise-name">{exercise}</span>
-                                <button
-                                  className="home-detail-delete-btn"
-                                  onClick={() => handleDeleteExercise(index)}
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                    <line x1="18" y1="6" x2="6" y2="18"/>
-                                    <line x1="6" y1="6" x2="18" y2="18"/>
-                                  </svg>
-                                </button>
-                              </div>
-                            );
-                            return snapshot.isDragging
-                              ? ReactDOM.createPortal(child, document.body)
-                              : child;
+                <div className="home-detail-exercises editing">
+                  {editExercises.map((exercise, index) => (
+                      <div
+                        key={`ex-${index}`}
+                        ref={(el) => { exerciseRowRefs.current[index] = el; }}
+                        className={`home-detail-exercise-row${index === justAddedIndex ? ' exercise-just-added' : ''}`}
+                        onTouchStart={(e) => handleExerciseDragStart(index, e)}
+                        onMouseDown={(e) => handleExerciseDragStart(index, e)}
+                      >
+                        <span className="home-detail-exercise-num">{index + 1}</span>
+                        <div
+                          className={`home-detail-exercise${selectedExerciseIndex === index ? ' selected' : ''}`}
+                          onClick={() => {
+                            setEditingExerciseIndex(index);
+                            setNewExerciseName(exercise);
+                            setShowAddPopup(true);
                           }}
-                        </Draggable>
-                      ))}
-                      {droppableProvided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-                </DragDropContext>
+                        >
+                          <span className="home-detail-exercise-name">{exercise}</span>
+                          <button
+                            className="home-detail-duplicate-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const insertAt = index + 1;
+                              setEditExercises(prev => [...prev.slice(0, insertAt), exercise, ...prev.slice(insertAt)]);
+                              setJustAddedIndex(insertAt);
+                              setTimeout(() => setJustAddedIndex(null), 350);
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                          </button>
+                          <button
+                            className="home-detail-delete-btn"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteExercise(index); }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <line x1="18" y1="6" x2="6" y2="18"/>
+                              <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                  ))}
+                </div>
               ) : (
                 <div className="home-detail-exercises">
                   {detailWorkout.exercises.map((exercise, index) => (
@@ -594,6 +849,12 @@ const Home = ({
                 className="home-detail-start-btn"
                 onClick={() => {
                   if (isEditing) {
+                    if (isNewWorkout && !editTitle.trim()) {
+                      setEditTitle('My Workout');
+                      setIsEditingTitle(false);
+                    }
+                    setEditingExerciseIndex(null);
+                    setNewExerciseName('');
                     setShowAddPopup(true);
                   } else {
                     onStartWorkout(detailWorkout.name);
@@ -608,10 +869,10 @@ const Home = ({
 
           {/* Add Exercise Popup */}
           {showAddPopup && (
-            <div className="home-detail-add-popup">
-              <div className="home-detail-popup-overlay" onClick={() => { setShowAddPopup(false); setNewExerciseName(''); }} />
+            <div className={`home-detail-add-popup ${popupClosing ? 'closing' : ''}`}>
+              <div className="home-detail-popup-overlay" onClick={closeAddPopup} />
               <div className="home-detail-popup-content">
-                <h3>Add Exercise</h3>
+                <h3>{editingExerciseIndex !== null ? 'Edit Exercise' : 'Add Exercise'}</h3>
                 <input
                   type="text"
                   placeholder="Exercise name..."
@@ -622,8 +883,8 @@ const Home = ({
                   className="home-detail-popup-input"
                 />
                 <div className="home-detail-popup-actions">
-                  <button className="home-detail-popup-cancel" onClick={() => { setShowAddPopup(false); setNewExerciseName(''); }}>Cancel</button>
-                  <button className="home-detail-popup-confirm" onClick={handleAddExercise}>Add</button>
+                  <button className="home-detail-popup-cancel" onClick={closeAddPopup}>Cancel</button>
+                  <button className="home-detail-popup-confirm" onClick={handleAddExercise}>{editingExerciseIndex !== null ? 'Save' : 'Add'}</button>
                 </div>
               </div>
             </div>

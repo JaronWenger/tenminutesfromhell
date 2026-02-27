@@ -229,19 +229,23 @@
   top: 0;
   bottom: 0;
   width: 80px;
-  background: #ff3b30;
-  color: white;
+  background: rgba(255, 59, 48, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: rgba(255, 59, 48, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  border-radius: 0 14px 14px 0;
+  border-radius: 14px;
+  letter-spacing: 0.3px;
 }
 
 .workout-card-delete:active {
-  background: #d63029;
+  background: rgba(255, 59, 48, 0.25);
+  color: rgba(255, 59, 48, 1);
 }
 
 /* ── Add Workout ── */
@@ -345,12 +349,20 @@
   opacity: 1;
 }
 
+.home-detail-content::-webkit-scrollbar {
+  display: none;
+}
+
+.home-detail-content {
+  scrollbar-width: none;
+}
+
 /* ── Header (single row: icon + title + actions) ── */
 .home-detail-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .home-detail-creator {
@@ -385,6 +397,42 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* ── Visibility Toggle (lock/globe) ── */
+.home-detail-visibility-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.home-detail-visibility-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.home-detail-visibility-icon {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s ease;
+}
+
+.home-detail-visibility-icon.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .home-detail-header-actions {
   display: flex;
   align-items: center;
@@ -413,6 +461,20 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
+.home-detail-edit-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+/* ── Title group (name + visibility icon, takes flex space) ── */
+.home-detail-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
 /* ── Name (inline in header row) ── */
 .home-detail-name {
   font-size: 1.2rem;
@@ -420,7 +482,6 @@
   color: #ffffff;
   margin: 0;
   letter-spacing: 0.3px;
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -446,13 +507,44 @@
   border-color: rgba(255, 59, 48, 0.4);
 }
 
-/* ── Rest Time ── */
-.home-detail-rest {
-  margin-bottom: 10px;
-  min-height: 30px;
+/* ── Stats + Rest Meta (fixed height, crossfade) ── */
+.home-detail-meta {
+  position: relative;
+  height: 40px;
+  margin-bottom: 4px;
+}
+
+.home-detail-meta-view,
+.home-detail-meta-edit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: opacity 0.2s ease;
+}
+
+.home-detail-meta-view.hidden,
+.home-detail-meta-edit.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.home-detail-stats {
   display: flex;
   align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 1px;
 }
+
+.home-detail-stats-dot {
+  opacity: 0.4;
+}
+
+/* ── Rest Time ── */
 
 .home-detail-rest-display {
   font-size: 0.78rem;
@@ -518,9 +610,10 @@
 .home-detail-exercise {
   display: flex;
   align-items: center;
-  padding: 7px 8px;
-  min-height: 40px;
+  padding: 4px 8px;
+  min-height: 32px;
   box-sizing: border-box;
+  border: 1px solid transparent;
   border-radius: 10px;
   transition: background 0.15s ease;
 }
@@ -544,11 +637,108 @@
   white-space: nowrap;
 }
 
+/* ── Edit Mode Exercise Outlines ── */
+.home-detail-exercise-row {
+  display: flex;
+  align-items: center;
+}
+
+.home-detail-exercise-row .home-detail-exercise-num {
+  flex-shrink: 0;
+}
+
+.home-detail-exercises.editing .home-detail-exercise {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: grab;
+  flex: 1;
+  min-width: 0;
+}
+
+.home-detail-exercises.editing .home-detail-exercise:active {
+  cursor: grabbing;
+}
+
+.home-detail-exercises.editing .home-detail-exercise.selected {
+  background: rgba(255, 59, 48, 0.1);
+  border-color: rgba(255, 59, 48, 0.3);
+}
+
+.home-detail-exercises.editing .home-detail-exercise.dragging {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 59, 48, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ── New exercise expand-in ── */
+.exercise-just-added {
+  animation: exercise-expand-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  overflow: hidden;
+}
+
+@keyframes exercise-expand-in {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 50px;
+  }
+}
+
+/* ── Exercise collapse-out on delete ── */
+.exercise-removing {
+  animation: exercise-collapse-out 0.25s cubic-bezier(0.2, 0, 0.6, 1) forwards;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@keyframes exercise-collapse-out {
+  from {
+    opacity: 1;
+    max-height: 50px;
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+  }
+}
+
+/* ── Native drag reorder feedback ── */
+.home-detail-exercise.exercise-dragging-card {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 59, 48, 0.4);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Exercise Duplicate Button ── */
+.home-detail-duplicate-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.home-detail-duplicate-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+}
+
 /* ── Exercise Delete Button ── */
 .home-detail-delete-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
   border: none;
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 59, 48, 0.5);
@@ -603,42 +793,78 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: popup-fade-in 0.2s ease forwards;
+}
+
+.home-detail-add-popup.closing {
+  animation: popup-fade-out 0.2s ease forwards;
+}
+
+.home-detail-add-popup .home-detail-popup-content {
+  animation: popup-scale-in 0.2s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.home-detail-add-popup.closing .home-detail-popup-content {
+  animation: popup-scale-out 0.2s ease forwards;
+}
+
+@keyframes popup-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popup-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes popup-scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes popup-scale-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.92); }
 }
 
 .home-detail-popup-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .home-detail-popup-content {
   position: relative;
   z-index: 1;
-  background: rgba(38, 38, 40, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 20px;
+  background: rgba(20, 20, 22, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 22px 20px;
   width: 280px;
 }
 
 .home-detail-popup-content h3 {
-  margin: 0 0 14px 0;
-  font-size: 1rem;
+  margin: 0 0 16px 0;
+  font-size: 0.95rem;
   font-weight: 600;
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.3px;
 }
 
 .home-detail-popup-input {
   width: 100%;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   color: #ffffff;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   outline: none;
   box-sizing: border-box;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .home-detail-popup-input:focus {
@@ -653,31 +879,35 @@
 
 .home-detail-popup-cancel,
 .home-detail-popup-confirm {
-  padding: 8px 18px;
-  border-radius: 10px;
+  padding: 9px 20px;
+  border-radius: 40px;
   border: none;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .home-detail-popup-cancel {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .home-detail-popup-cancel:active {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .home-detail-popup-confirm {
-  background: #ff3b30;
-  color: #ffffff;
+  background: rgba(30, 10, 10, 0.85);
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  color: #e74c3c;
+  box-shadow: 0 0 20px rgba(231, 76, 60, 0.1);
 }
 
 .home-detail-popup-confirm:active {
-  background: #d63029;
+  transform: scale(0.97);
+  border-color: rgba(231, 76, 60, 0.7);
 }
 
 /* ── Responsive ── */

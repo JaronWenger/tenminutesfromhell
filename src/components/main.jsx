@@ -659,32 +659,60 @@ const Main = () => {
     }
   };
 
-  const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime) => {
-    const finalName = newTitle || workoutName;
-
-    // Optimistic local update
+  const handleVisibilityToggle = useCallback((workoutName, isPublic) => {
     setTimerWorkoutData(prev =>
       prev.map(w =>
-        w.name === workoutName
-          ? { ...w, name: finalName, exercises, restTime: newRestTime ?? null }
-          : w
+        w.name === workoutName ? { ...w, isPublic } : w
       )
     );
+    if (user) {
+      const workout = timerWorkoutData.find(w => w.name === workoutName);
+      if (workout) {
+        const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
+        const isDefault = defaultNames.includes(workoutName);
+        saveUserWorkout(user.uid, {
+          name: workoutName,
+          type: 'timer',
+          exercises: workout.exercises,
+          isDefault,
+          defaultName: isDefault ? workoutName : null,
+          restTime: workout.restTime ?? null,
+          isPublic
+        }).catch(err => console.error('Failed to save visibility:', err));
+      }
+    }
+  }, [user, timerWorkoutData]);
 
-    // Update selected workout name if it was renamed
-    if (newTitle && newTitle !== workoutName && timerSelectedWorkout === workoutName) {
+  const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime) => {
+    const finalName = newTitle || workoutName;
+    const isNew = !workoutName;
+
+    // Optimistic local update
+    if (isNew && finalName) {
+      setTimerWorkoutData(prev => [...prev, { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null }]);
       setTimerSelectedWorkout(finalName);
+    } else {
+      setTimerWorkoutData(prev =>
+        prev.map(w =>
+          w.name === workoutName
+            ? { ...w, name: finalName, exercises, restTime: newRestTime ?? null }
+            : w
+        )
+      );
+      if (newTitle && newTitle !== workoutName && timerSelectedWorkout === workoutName) {
+        setTimerSelectedWorkout(finalName);
+      }
     }
 
     // Persist to Firestore when logged in
-    if (user) {
+    if (user && finalName) {
       const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
       const isDefault = defaultNames.includes(workoutName);
       saveUserWorkout(user.uid, {
         name: finalName,
         type: 'timer',
         exercises,
-        isDefault,
+        isDefault: isNew ? false : isDefault,
         defaultName: isDefault && newTitle ? workoutName : null,
         restTime: newRestTime ?? null
       }).catch(err => console.error('Failed to save workout:', err));
@@ -913,6 +941,7 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+            onVisibilityToggle={handleVisibilityToggle}
           />
         );
       case 'stats':
@@ -942,6 +971,7 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+            onVisibilityToggle={handleVisibilityToggle}
           />
         );
     }

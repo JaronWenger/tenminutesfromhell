@@ -39,6 +39,7 @@ export const saveUserWorkout = async (userId, workout) => {
     isDefault: workout.isDefault || false,
     defaultName: workout.defaultName || null,
     restTime: workout.restTime ?? null,
+    isPublic: workout.isPublic ?? false,
     updatedAt: serverTimestamp()
   };
 
