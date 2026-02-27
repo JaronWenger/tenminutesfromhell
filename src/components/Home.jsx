@@ -6,6 +6,8 @@ import AuthButton from './AuthButton';
 import { useAuth } from '../contexts/AuthContext';
 
 
+const PRESET_TAGS = ['Full Body', 'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Arms', 'Core', 'Legs', 'Quads', 'Hamstrings', 'Glutes', 'Calves'];
+
 const Home = ({
   timerWorkoutData,
   timerSelectedWorkout,
@@ -40,6 +42,9 @@ const Home = ({
   const [editExercises, setEditExercises] = useState([]);
   const [editTitle, setEditTitle] = useState('');
   const [editRestTime, setEditRestTime] = useState(null);
+  const [editTags, setEditTags] = useState([]);
+  const [showTagPopup, setShowTagPopup] = useState(false);
+  const [tagPopupClosing, setTagPopupClosing] = useState(false);
   const [showAddPopup, setShowAddPopup] = useState(false);
   const [popupClosing, setPopupClosing] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
@@ -103,6 +108,7 @@ const Home = ({
     setEditExercises([...workout.exercises]);
     setEditTitle(workout.name);
     setEditRestTime(workout.restTime ?? null);
+    setEditTags(workout.tags || (workout.tag ? [workout.tag] : []));
   }, []);
 
   // FLIP: after panel mounts at final position, snap to card rect then animate to final
@@ -276,6 +282,7 @@ const Home = ({
     setEditExercises([]);
     setEditTitle('');
     setEditRestTime(null);
+    setEditTags([]);
   };
 
   // ── react-beautiful-dnd ──
@@ -507,12 +514,13 @@ const Home = ({
 
   const handleSave = () => {
     if (!detailWorkout) return;
-    onDetailSave(detailWorkout.name, editExercises, editTitle, editRestTime);
+    onDetailSave(detailWorkout.name, editExercises, editTitle, editRestTime, editTags);
     setDetailWorkout(prev => ({
       ...prev,
       name: editTitle,
       exercises: [...editExercises],
-      restTime: editRestTime
+      restTime: editRestTime,
+      tags: [...editTags]
     }));
   };
 
@@ -685,7 +693,12 @@ const Home = ({
                           onTouchEnd={() => handleTouchEnd()}
                         >
                           <div className="workout-card-left">
-                            <span className="workout-card-name">{workout.name}</span>
+                            <div className="workout-card-name-row">
+                              <span className="workout-card-name">{workout.name}</span>
+                              {(workout.tags || (workout.tag ? [workout.tag] : [])).map(t => (
+                                <span key={t} className="workout-card-tag">{t.toUpperCase()}</span>
+                              ))}
+                            </div>
                             <div className="workout-card-detail">
                               <span className="workout-card-time">{formatTime(totalSeconds)}</span>
                               <span className="workout-card-dot">&middot;</span>
@@ -746,7 +759,7 @@ const Home = ({
           >
             {/* Content fades in after expand, fades out before collapse */}
             <div className={`home-detail-content ${contentVisible ? 'visible' : ''}`}>
-              {/* Title row: icon + name + edit/close */}
+              {/* Header: icon + (title / tags) + actions */}
               <div className="home-detail-header">
                 <div className="home-detail-creator">
                   {isDefaultWorkout ? (
@@ -761,7 +774,7 @@ const Home = ({
                     </div>
                   )}
                 </div>
-                <div className="home-detail-title-group">
+                <div className={`home-detail-title-group ${(isEditing || (detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : [])).length > 0) ? 'has-tags' : ''}`}>
                   {isEditing && isEditingTitle ? (
                     <input
                       ref={titleInputRef}
@@ -780,30 +793,38 @@ const Home = ({
                       {isEditing ? editTitle : detailWorkout.name}
                     </h2>
                   )}
-                  {user && !isDefaultWorkout && !(isEditing && isEditingTitle) && (
-                    <button
-                      className="home-detail-visibility-btn"
-                      onClick={() => {
-                        const newVal = !detailWorkout.isPublic;
-                        onVisibilityToggle(detailWorkout.name, newVal);
-                        setDetailWorkout(prev => ({ ...prev, isPublic: newVal }));
-                      }}
-                    >
-                      <span className={`home-detail-visibility-icon ${detailWorkout.isPublic ? 'hidden' : ''}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                      </span>
-                      <span className={`home-detail-visibility-icon ${detailWorkout.isPublic ? '' : 'hidden'}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"/>
-                          <line x1="2" y1="12" x2="22" y2="12"/>
-                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/>
-                        </svg>
-                      </span>
-                    </button>
-                  )}
+                  {/* Tags at bottom of title group */}
+                  {(() => {
+                    const viewTags = detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : []);
+                    const showTags = isEditing || viewTags.length > 0;
+                    return showTags ? (
+                      <div className="home-detail-tags-row">
+                        {isEditing ? (
+                          <>
+                            {editTags.map(t => (
+                              <span
+                                key={t}
+                                className="home-detail-tag-pill editable"
+                                onClick={() => setEditTags(prev => prev.filter(x => x !== t))}
+                              >
+                                {t.toUpperCase()} &times;
+                              </span>
+                            ))}
+                            <span
+                              className="home-detail-tag-pill editable empty"
+                              onClick={() => setShowTagPopup(true)}
+                            >
+                              + Tag
+                            </span>
+                          </>
+                        ) : (
+                          viewTags.map(t => (
+                            <span key={t} className="home-detail-tag-pill">{t.toUpperCase()}</span>
+                          ))
+                        )}
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
                 <div className="home-detail-header-actions">
                   {user && (
@@ -833,17 +854,43 @@ const Home = ({
                 </div>
               </div>
 
-              {/* Stats + Rest time — fixed height, crossfade between view/edit */}
+              {/* Stats + Rest time — crossfade between view/edit */}
               <div className="home-detail-meta">
                 <div className={`home-detail-meta-view ${isEditing ? 'hidden' : ''}`}>
-                  <div className="home-detail-stats">
-                    <span>{formatTime((detailWorkout.exercises.length * 60) + prepTime)}</span>
-                    <span className="home-detail-stats-dot">&middot;</span>
-                    <span>{detailWorkout.exercises.length} exercises</span>
+                  <div className="home-detail-meta-view-left">
+                    <div className="home-detail-stats">
+                      <span>{formatTime((detailWorkout.exercises.length * 60) + prepTime)}</span>
+                      <span className="home-detail-stats-dot">&middot;</span>
+                      <span>{detailWorkout.exercises.length} exercises</span>
+                    </div>
+                    <span className="home-detail-rest-display">
+                      {displayRestTime}s rest between exercises
+                    </span>
                   </div>
-                  <span className="home-detail-rest-display">
-                    {displayRestTime}s rest between exercises
-                  </span>
+                  {user && !isDefaultWorkout && (
+                    <button
+                      className="home-detail-visibility-btn"
+                      onClick={() => {
+                        const newVal = !detailWorkout.isPublic;
+                        onVisibilityToggle(detailWorkout.name, newVal);
+                        setDetailWorkout(prev => ({ ...prev, isPublic: newVal }));
+                      }}
+                    >
+                      <span className={`home-detail-visibility-icon ${detailWorkout.isPublic ? 'hidden' : ''}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                      </span>
+                      <span className={`home-detail-visibility-icon ${detailWorkout.isPublic ? '' : 'hidden'}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="2" y1="12" x2="22" y2="12"/>
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/>
+                        </svg>
+                      </span>
+                    </button>
+                  )}
                 </div>
                 <div className={`home-detail-meta-edit ${isEditing ? '' : 'hidden'}`}>
                   <div className="home-detail-rest-stepper">
@@ -1003,6 +1050,35 @@ const Home = ({
                 <div className="home-detail-popup-actions">
                   <button className="home-detail-popup-cancel" onClick={closeAddPopup}>Cancel</button>
                   <button className="home-detail-popup-confirm" onClick={handleAddExercise}>{editingExerciseIndex !== null ? 'Save' : 'Add'}</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tag Picker Popup */}
+          {showTagPopup && (
+            <div className={`home-detail-add-popup ${tagPopupClosing ? 'closing' : ''}`}>
+              <div className="home-detail-popup-overlay" onClick={() => {
+                setTagPopupClosing(true);
+                setTimeout(() => { setShowTagPopup(false); setTagPopupClosing(false); }, 200);
+              }} />
+              <div className="home-detail-tag-popup-content">
+                <div className="home-detail-tag-picker">
+                  {PRESET_TAGS.map(tag => (
+                    <button
+                      key={tag}
+                      className={`home-detail-tag-option ${editTags.includes(tag) ? 'active' : ''}`}
+                      onClick={() => {
+                        setEditTags(prev =>
+                          prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                        );
+                        setTagPopupClosing(true);
+                        setTimeout(() => { setShowTagPopup(false); setTagPopupClosing(false); }, 200);
+                      }}
+                    >
+                      {tag.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>

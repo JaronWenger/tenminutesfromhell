@@ -40,6 +40,7 @@ export const saveUserWorkout = async (userId, workout) => {
     defaultName: workout.defaultName || null,
     restTime: workout.restTime ?? null,
     isPublic: workout.isPublic ?? false,
+    tags: workout.tags || null,
     updatedAt: serverTimestamp()
   };
 

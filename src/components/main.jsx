@@ -683,19 +683,20 @@ const Main = () => {
     }
   }, [user, timerWorkoutData]);
 
-  const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime) => {
+  const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime, tags) => {
     const finalName = newTitle || workoutName;
     const isNew = !workoutName;
+    const safeTags = tags && tags.length > 0 ? tags : null;
 
     // Optimistic local update
     if (isNew && finalName) {
-      setTimerWorkoutData(prev => [...prev, { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null }]);
+      setTimerWorkoutData(prev => [...prev, { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags }]);
       setTimerSelectedWorkout(finalName);
     } else {
       setTimerWorkoutData(prev =>
         prev.map(w =>
           w.name === workoutName
-            ? { ...w, name: finalName, exercises, restTime: newRestTime ?? null }
+            ? { ...w, name: finalName, exercises, restTime: newRestTime ?? null, tags: safeTags }
             : w
         )
       );
@@ -714,7 +715,8 @@ const Main = () => {
         exercises,
         isDefault: isNew ? false : isDefault,
         defaultName: isDefault && newTitle ? workoutName : null,
-        restTime: newRestTime ?? null
+        restTime: newRestTime ?? null,
+        tags: safeTags
       }).catch(err => console.error('Failed to save workout:', err));
     }
   }, [user, timerSelectedWorkout]);
