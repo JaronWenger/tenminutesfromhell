@@ -966,7 +966,7 @@ const Home = ({
   crossPageDragRef.current = { perPage: effectivePerPage, totalPages, currentPage: safePage, exerciseCount: activeExercises.length };
 
   return (
-    <div className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''}`}>
+    <div className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''} ${isDragging ? 'home-reordering' : ''}`}>
       <div className="home-sparks-bg">
         <img src={Sparks} alt="" className="home-sparks-img" />
       </div>

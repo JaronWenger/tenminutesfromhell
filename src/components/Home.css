@@ -246,7 +246,11 @@
 
 /* ── Reordering Mode ── */
 .home-workout-list.reordering {
-  overflow: hidden;
+  overflow: visible;
+}
+
+.home-container.home-reordering {
+  overflow: visible;
 }
 
 /* ── Dragging State ── */

@@ -580,7 +580,7 @@
 
 /* Standalone PWA */
 .standalone-pwa .tab-bar {
-  padding: 4px 0 env(safe-area-inset-bottom, 8px) 0;
+  padding: 4px 0 4px 0;
 }
 
 .standalone-pwa .tab-content {
