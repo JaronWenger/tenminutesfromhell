@@ -1138,7 +1138,7 @@ const Home = ({
                       type="text"
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingTitle(false); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { setIsEditingTitle(false); e.target.blur(); } }}
                       className="home-detail-name-input"
                       autoFocus
                     />
@@ -1422,7 +1422,7 @@ const Home = ({
                   </button>
                   <button
                     className="home-detail-save-circle"
-                    onClick={handleEditToggle}
+                    onClick={() => { if (isEditingTitle) { setIsEditingTitle(false); } else { handleEditToggle(); } }}
                     disabled={!editTitle.trim() || (isNewWorkout && editExercises.length === 0)}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
