@@ -12,6 +12,8 @@
   margin: 0;
   border-radius: 0;
   box-sizing: border-box;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* Selected Workout Title */

@@ -42,6 +42,8 @@
   position: relative;
   z-index: 2;
   flex-shrink: 0;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 .home-header-title {

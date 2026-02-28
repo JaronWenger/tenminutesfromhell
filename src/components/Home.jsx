@@ -992,7 +992,7 @@ const Home = ({
             <div
               {...provided.droppableProps}
               ref={(el) => { provided.innerRef(el); workoutListRef(el); }}
-              className="home-workout-list"
+              className={`home-workout-list ${isDragging ? 'reordering' : ''}`}
             >
               {timerWorkoutData.map((workout, index) => {
                 const totalSeconds = (workout.exercises.length * 60) + prepTime;
