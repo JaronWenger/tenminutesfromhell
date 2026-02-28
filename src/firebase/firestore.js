@@ -24,9 +24,11 @@ export const saveUserWorkout = async (userId, workout) => {
   const workoutsRef = collection(db, 'users', userId, 'customWorkouts');
 
   // Check if this workout already exists (by name or defaultName)
+  // Skip deletion markers so forks don't collide with soft-deleted defaults
   const snapshot = await getDocs(workoutsRef);
   const existing = snapshot.docs.find(d => {
     const data = d.data();
+    if (data.deleted) return false;
     return data.name === workout.name ||
       (workout.defaultName && data.defaultName === workout.defaultName) ||
       (data.defaultName === workout.name);
@@ -37,6 +39,7 @@ export const saveUserWorkout = async (userId, workout) => {
     type: workout.type,
     exercises: workout.exercises,
     isDefault: workout.isDefault || false,
+    isCustom: workout.isCustom || false,
     defaultName: workout.defaultName || null,
     restTime: workout.restTime ?? null,
     isPublic: workout.isPublic ?? false,

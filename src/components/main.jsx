@@ -249,6 +249,12 @@ const Main = () => {
     const defaultNames = [...timerDefaults, ...stopwatchDefaults].map(d => d.name);
     customWorkouts.forEach(c => {
       if (c.deleted) return;
+      // Forked workouts (isCustom) are always treated as custom, even if name matches a default
+      if (c.isCustom) {
+        if (c.type === 'timer') timerResult.push(c);
+        else stopwatchResult.push(c);
+        return;
+      }
       const isOverride = defaultNames.includes(c.name) || defaultNames.includes(c.defaultName);
       if (!isOverride) {
         if (c.type === 'timer') timerResult.push(c);
