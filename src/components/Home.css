@@ -119,7 +119,6 @@
   position: relative;
   z-index: 2;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   overscroll-behavior: contain;
 }
