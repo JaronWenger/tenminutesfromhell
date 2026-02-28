@@ -115,7 +115,9 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 0 0 120px 0;
+  padding: 0 16px 120px 16px;
+  margin-left: -16px;
+  margin-right: -16px;
   position: relative;
   z-index: 2;
   overflow-y: auto;
@@ -1518,6 +1520,13 @@
     padding: 11px 12px;
   }
 
+  .home-workout-list {
+    margin-left: -14px;
+    margin-right: -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
   .home-detail-overlay {
     padding: calc(80px + env(safe-area-inset-top, 0px)) 14px 90px;
   }
@@ -1534,6 +1543,8 @@
 
 .standalone-pwa .home-workout-list {
   padding-bottom: 85px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 @media (orientation: landscape) and (hover: none) {
