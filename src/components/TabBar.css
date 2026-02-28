@@ -581,7 +581,12 @@
 /* Standalone PWA — tighter spacing */
 @media all and (display-mode: standalone) {
   .tab-bar {
-    padding: 2px 0 env(safe-area-inset-bottom, 4px) 0;
+    padding: 0 0 env(safe-area-inset-bottom, 0px) 0;
+  }
+
+  .tab-item {
+    min-height: 44px;
+    padding: 4px 2px;
   }
 
   .tab-content {
