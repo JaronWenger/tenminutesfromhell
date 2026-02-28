@@ -26,7 +26,8 @@ const Home = ({
   onStartWorkout,
   defaultWorkoutNames = [],
   onVisibilityToggle,
-  requestCloseDetail = false
+  requestCloseDetail = false,
+  showCardPhotos = true
 }) => {
   const { user } = useAuth();
   const [swipingIndex, setSwipingIndex] = useState(null);
@@ -1026,6 +1027,19 @@ const Home = ({
                           onTouchStart={(e) => handleSwipeStart(index, e)}
                           onTouchEnd={() => handleSwipeEnd()}
                         >
+                          {showCardPhotos && (
+                            defaultWorkoutNames.includes(workout.name) ? (
+                              <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="workout-card-avatar" />
+                            ) : user?.photoURL ? (
+                              <img src={user.photoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="workout-card-avatar workout-card-avatar-fallback">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                                </svg>
+                              </div>
+                            )
+                          )}
                           <div className="workout-card-left">
                             <div className="workout-card-name-row">
                               <span className="workout-card-name">{workout.name}</span>

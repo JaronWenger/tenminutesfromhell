@@ -179,6 +179,24 @@
   overflow: hidden;
 }
 
+.workout-card-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  margin-right: 10px;
+}
+
+.workout-card-avatar-fallback {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .workout-card-name {
   font-size: 0.95rem;
   font-weight: 600;

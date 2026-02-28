@@ -8,7 +8,7 @@ const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
 const OTHER_COLORS = ['#ff9500', '#34c759', '#af52de', '#ff2d55', '#5ac8fa', '#30b0c7', '#ffffff'];
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, activeColor, restColor, onColorChange }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
@@ -207,6 +207,19 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             </svg>
             <span className="sidemenu-item-label">Stay active last minute</span>
             <div className={`sidemenu-toggle ${activeLastMinute === true ? 'on' : ''}`}>
+              <div className="sidemenu-toggle-knob" />
+            </div>
+          </div>
+
+          <div className="sidemenu-divider" />
+
+          <div className="sidemenu-item" onClick={onToggleShowCardPhotos}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span className="sidemenu-item-label">Show profile on cards</span>
+            <div className={`sidemenu-toggle ${showCardPhotos === true ? 'on' : ''}`}>
               <div className="sidemenu-toggle-knob" />
             </div>
           </div>

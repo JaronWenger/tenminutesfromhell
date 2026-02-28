@@ -55,6 +55,7 @@ export const getAllPreferences = async (userId) => {
       restTime: 15,
       activeLastMinute: true,
       selectedWorkout: null,
+      showCardPhotos: true,
     };
   }
   const data = snap.data();
@@ -68,6 +69,7 @@ export const getAllPreferences = async (userId) => {
     restTime: data.restTime ?? 15,
     activeLastMinute: data.activeLastMinute ?? true,
     selectedWorkout: data.selectedWorkout || null,
+    showCardPhotos: data.showCardPhotos ?? true,
   };
 };
 
@@ -123,6 +125,13 @@ export const setPrepTimePreference = async (userId, value) => {
 export const setRestTimePreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     restTime: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setShowCardPhotosPreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    showCardPhotos: value,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };

@@ -13,7 +13,7 @@ import SharePrompt from './SharePrompt';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -122,6 +122,7 @@ const Main = () => {
   const [activeColor, setActiveColor] = useState('#ff3b30');
   const [restColor, setRestColor] = useState('#007aff');
   const [sidePlankAlertEnabled, setSidePlankAlertEnabled] = useState(true);
+  const [showCardPhotos, setShowCardPhotos] = useState(true);
 
   // Load user workouts and history from Firestore when user logs in
   useEffect(() => {
@@ -134,6 +135,7 @@ const Main = () => {
       setActiveColor('#ff3b30');
       setRestColor('#007aff');
       setSidePlankAlertEnabled(true);
+      setShowCardPhotos(true);
       setPrepTime(15);
       setRestTime(15);
       setActiveLastMinute(true);
@@ -198,6 +200,7 @@ const Main = () => {
         if (prefs.activeColor) setActiveColor(prefs.activeColor);
         if (prefs.restColor) setRestColor(prefs.restColor);
         setSidePlankAlertEnabled(prefs.sidePlankAlert);
+        setShowCardPhotos(prefs.showCardPhotos);
         setPrepTime(prefs.prepTime);
         setRestTime(prefs.restTime);
         setActiveLastMinute(prefs.activeLastMinute);
@@ -295,6 +298,14 @@ const Main = () => {
       setSidePlankAlertPreference(user.uid, newValue).catch(err => console.error('Failed to save side plank alert:', err));
     }
   }, [user, sidePlankAlertEnabled]);
+
+  const handleToggleShowCardPhotos = useCallback(async () => {
+    const newValue = !showCardPhotos;
+    setShowCardPhotos(newValue);
+    if (user) {
+      setShowCardPhotosPreference(user.uid, newValue).catch(err => console.error('Failed to save show card photos:', err));
+    }
+  }, [user, showCardPhotos]);
 
   const handlePrepTimeChange = useCallback(async (newValue) => {
     setPrepTime(newValue);
@@ -946,6 +957,7 @@ const Main = () => {
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
             onVisibilityToggle={handleVisibilityToggle}
             requestCloseDetail={homeDetailCloseRequested}
+            showCardPhotos={showCardPhotos}
           />
         );
       case 'stats':
@@ -977,6 +989,7 @@ const Main = () => {
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
             onVisibilityToggle={handleVisibilityToggle}
             requestCloseDetail={homeDetailCloseRequested}
+            showCardPhotos={showCardPhotos}
           />
         );
     }
@@ -1054,6 +1067,8 @@ const Main = () => {
         activeColor={activeColor}
         restColor={restColor}
         onColorChange={handleColorChange}
+        showCardPhotos={showCardPhotos}
+        onToggleShowCardPhotos={handleToggleShowCardPhotos}
       />
       <LoginModal
         isOpen={showLoginModal}
