@@ -103,7 +103,9 @@ const Ring = ({
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
           transform="rotate(-90 150 150)"
-          style={{ filter: `drop-shadow(0 0 12px ${hexToRgba(getProgressColor(), 0.4)})` }}
+          style={{ filter: getProgressColor() === '#ffffff'
+            ? `drop-shadow(0 0 6px ${hexToRgba(getProgressColor(), 0.3)}) drop-shadow(0 0 14px ${hexToRgba(getProgressColor(), 0.15)})`
+            : `drop-shadow(0 0 8px ${hexToRgba(getProgressColor(), 0.7)}) drop-shadow(0 0 20px ${hexToRgba(getProgressColor(), 0.5)}) drop-shadow(0 0 40px ${hexToRgba(getProgressColor(), 0.25)})` }}
         />
       </svg>
 
@@ -129,34 +131,30 @@ const Ring = ({
         </div>
       )}
 
-      {!isRunning && !(drawIn && drawInPhase === 'title') && (
+      {!(drawIn && drawInPhase === 'title') && (
         <button
-          className={`play-btn ${drawIn && (drawInPhase === 'fadeout' || drawInPhase === 'time') ? 'draw-in-time' : ''}`}
+          className={`play-btn ${isRunning ? 'hidden' : ''} ${drawIn && (drawInPhase === 'fadeout' || drawInPhase === 'time') ? 'draw-in-time' : ''}`}
           onClick={onStart}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="white" style={{ marginLeft: '-1px' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '1px', filter: 'drop-shadow(0 0 4px currentColor)' }}>
             <path d="M7.5 4.5c0-1.08 1.22-1.71 2.1-1.08l10.2 7.5c.76.56.76 1.6 0 2.16l-10.2 7.5c-.88.63-2.1 0-2.1-1.08V4.5z"/>
           </svg>
         </button>
       )}
-      
-      {!isRunning && timeLeft < targetTime && (
-        <button className="reset-btn" onClick={onReset}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="1 4 1 10 7 10"/>
-            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-          </svg>
-        </button>
-      )}
-      
-      {isRunning && (
-        <button className="pause-btn" onClick={onStop}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
-            <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
-          </svg>
-        </button>
-      )}
+
+      <button className={`reset-btn ${!isRunning && timeLeft < targetTime ? '' : 'hidden'}`} onClick={onReset}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+      </button>
+
+      <button className={`pause-btn ${isRunning ? '' : 'hidden'}`} onClick={onStop}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
+          <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
+        </svg>
+      </button>
     </div>
   );
 };
