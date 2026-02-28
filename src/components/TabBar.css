@@ -578,16 +578,14 @@
 }
 
 
-/* Standalone PWA — iOS already reserves safe area, don't double-count */
-@media all and (display-mode: standalone) {
-  .tab-bar {
-    padding: 6px 0 34px 0;
-    bottom: -34px;
-  }
+/* Standalone PWA — iOS already reserves safe area, push tab bar down */
+.standalone-pwa .tab-bar {
+  padding: 6px 0 34px 0;
+  bottom: -34px;
+}
 
-  .tab-content {
-    padding-bottom: 70px;
-  }
+.standalone-pwa .tab-content {
+  padding-bottom: 70px;
 }
 
 /* Hide tab bar in landscape mode - only on phones */

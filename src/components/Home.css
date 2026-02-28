@@ -1526,14 +1526,12 @@
 }
 
 /* ── Standalone PWA — reclaim wasted space ── */
-@media all and (display-mode: standalone) {
-  .home-header {
-    padding: 10px 4px 14px;
-  }
+.standalone-pwa .home-header {
+  padding: 10px 4px 14px;
+}
 
-  .home-workout-list {
-    padding-bottom: 85px;
-  }
+.standalone-pwa .home-workout-list {
+  padding-bottom: 85px;
 }
 
 @media (orientation: landscape) and (hover: none) {
