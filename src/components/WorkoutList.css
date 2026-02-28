@@ -18,6 +18,7 @@
   scroll-behavior: smooth;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  overscroll-behavior: contain;
 }
 
 .workout-list::-webkit-scrollbar {

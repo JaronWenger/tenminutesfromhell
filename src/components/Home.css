@@ -121,6 +121,7 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  overscroll-behavior: contain;
 }
 
 .home-workout-list::-webkit-scrollbar {
@@ -247,10 +248,6 @@
 }
 
 /* ── Reordering Mode ── */
-.home-workout-list.reordering {
-  overflow: visible;
-}
-
 .home-container.home-reordering {
   overflow: visible;
 }
