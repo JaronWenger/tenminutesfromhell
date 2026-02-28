@@ -32,6 +32,7 @@ const Home = ({
   const [swipingIndex, setSwipingIndex] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
   const [cardMenuIndex, setCardMenuIndex] = useState(null);
 
   // Detail overlay state
@@ -429,8 +430,18 @@ const Home = ({
   // ── react-beautiful-dnd ──
   const onDragStart = () => {
     setIsDragging(true);
+    isDraggingRef.current = true;
+    // Kill any in-progress swipe
+    const card = swipeCardElRef.current;
+    const wrapper = swipeWrapperElRef.current;
+    if (card) { card.style.transform = ''; card.style.transition = ''; }
+    if (wrapper) { wrapper.classList.remove('swipe-left', 'swipe-right', 'swipe-full'); }
+    swipeTouchIndexRef.current = null;
+    swipeCardElRef.current = null;
+    swipeWrapperElRef.current = null;
     swipeOffsetRef.current = 0;
     swipingIndexRef.current = null;
+    isSwiping.current = false;
     setSwipingIndex(null);
     setSwipeOffset(0);
     if (navigator.vibrate) navigator.vibrate(30);
@@ -438,6 +449,7 @@ const Home = ({
 
   const onDragEnd = (result) => {
     setIsDragging(false);
+    isDraggingRef.current = false;
     if (!result.destination) return;
     if (result.source.index === result.destination.index) return;
 
@@ -677,7 +689,7 @@ const Home = ({
     if (!wrapper) return;
     const card = wrapper.querySelector('.workout-card');
     if (card) { card.style.transform = ''; card.style.transition = ''; }
-    wrapper.classList.remove('swipe-left', 'swipe-right');
+    wrapper.classList.remove('swipe-left', 'swipe-right', 'swipe-full');
   }, []);
 
   const resetSwipe = useCallback(() => {
@@ -747,7 +759,7 @@ const Home = ({
 
   // Attached via ref with { passive: false } so we can preventDefault to block scroll
   const handleSwipeMoveNonPassive = useCallback((e) => {
-    if (!e.touches || swipeTouchIndexRef.current === null) return;
+    if (!e.touches || swipeTouchIndexRef.current === null || isDraggingRef.current) return;
     const clientX = e.touches[0].clientX;
     const clientY = e.touches[0].clientY;
     const deltaX = clientX - touchStartX.current;
@@ -773,46 +785,31 @@ const Home = ({
     if (wrapper) {
       wrapper.classList.toggle('swipe-left', clamped < 0);
       wrapper.classList.toggle('swipe-right', clamped > 0);
+      wrapper.classList.toggle('swipe-full', Math.abs(clamped) >= 80);
     }
   }, []);
 
   const handleSwipeEnd = () => {
     if (isDragging) return;
-    const index = swipeTouchIndexRef.current;
     swipeTouchIndexRef.current = null;
     swipeDirectionLocked.current = null;
-    const offset = swipeOffsetRef.current;
     const card = swipeCardElRef.current;
     const wrapper = swipeWrapperElRef.current;
 
-    let finalOffset;
-    if (offset < -40) finalOffset = -80;
-    else if (offset > 40) finalOffset = 80;
-    else finalOffset = 0;
-
-    // Animate snap
+    // Always snap back to normal
     if (card) {
       card.style.transition = 'transform 0.25s ease';
-      card.style.transform = `translateX(${finalOffset}px)`;
+      card.style.transform = 'translateX(0px)';
     }
+    setTimeout(() => {
+      if (card) { card.style.transform = ''; card.style.transition = ''; }
+      if (wrapper) { wrapper.classList.remove('swipe-left', 'swipe-right', 'swipe-full'); }
+    }, 260);
 
-    if (finalOffset === 0) {
-      // Clean up after snap animation
-      setTimeout(() => {
-        if (card) { card.style.transform = ''; card.style.transition = ''; }
-        if (wrapper) { wrapper.classList.remove('swipe-left', 'swipe-right'); }
-      }, 260);
-      swipeOffsetRef.current = 0;
-      swipingIndexRef.current = null;
-      setSwipingIndex(null);
-      setSwipeOffset(0);
-    } else {
-      swipeOffsetRef.current = finalOffset;
-      swipingIndexRef.current = index;
-      setSwipingIndex(index);
-      setSwipeOffset(finalOffset);
-    }
-
+    swipeOffsetRef.current = 0;
+    swipingIndexRef.current = null;
+    setSwipingIndex(null);
+    setSwipeOffset(0);
     swipeCardElRef.current = null;
     swipeWrapperElRef.current = null;
     setTimeout(() => { isSwiping.current = false; }, 50);

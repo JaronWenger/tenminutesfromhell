@@ -371,13 +371,19 @@
   z-index: 0;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
 .workout-card-wrapper.swipe-left .workout-card-action-right,
 .workout-card-wrapper.swipe-right .workout-card-action-left {
   opacity: 1;
   pointer-events: auto;
+}
+
+.workout-card-wrapper.swipe-full .workout-card-action-right,
+.workout-card-wrapper.swipe-full .workout-card-action-left {
+  color: #ff3b30;
+  background: rgba(255, 59, 48, 0.15);
 }
 
 .workout-card-action-left {
@@ -436,7 +442,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 80px 16px 90px;
+  padding: calc(80px + env(safe-area-inset-top, 0px)) 16px 90px;
   box-sizing: border-box;
   animation: home-detail-fade-in 0.28s ease forwards;
 }
@@ -1493,7 +1499,7 @@
   }
 
   .home-detail-overlay {
-    padding: 80px 14px 90px;
+    padding: calc(80px + env(safe-area-inset-top, 0px)) 14px 90px;
   }
 
   .home-detail-panel {
