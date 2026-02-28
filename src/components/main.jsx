@@ -714,21 +714,21 @@ const Main = () => {
     // Fork: remove original default, append forked copy
     if (!isOwned && !isNew) {
       const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true };
-      setTimerWorkoutData(prev => {
-        const without = prev.filter(w => w.name !== workoutName);
-        return [...without, forked];
-      });
+      setTimerWorkoutData(prev =>
+        prev.map(w => w.name === workoutName ? forked : w)
+      );
       setTimerSelectedWorkout(finalName);
       if (user && finalName) {
-        // Soft-delete the original default in Firestore
+        // Soft-delete the original default first, then save the fork
+        // Must be sequential to avoid race where delete overwrites the fork doc
         const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
-        if (defaultNames.includes(workoutName)) {
-          deleteUserWorkout(user.uid, workoutName, true)
-            .catch(err => console.error('Failed to delete original default:', err));
-        }
-        // Save the forked workout
-        saveUserWorkout(user.uid, { ...forked, isDefault: false, defaultName: null })
-          .catch(err => console.error('Failed to save forked workout:', err));
+        const persist = async () => {
+          if (defaultNames.includes(workoutName)) {
+            await deleteUserWorkout(user.uid, workoutName, true);
+          }
+          await saveUserWorkout(user.uid, { ...forked, isDefault: false, defaultName: null });
+        };
+        persist().catch(err => console.error('Failed to persist forked workout:', err));
       }
       return;
     }

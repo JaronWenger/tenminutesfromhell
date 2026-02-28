@@ -78,8 +78,10 @@ export const deleteUserWorkout = async (userId, workoutName, isDefault) => {
   const snapshot = await getDocs(workoutsRef);
 
   // Find existing doc by name or defaultName
+  // Skip custom (forked) workouts so deleting a default doesn't wipe a user's fork
   const existing = snapshot.docs.find(d => {
     const data = d.data();
+    if (data.isCustom) return false;
     return data.name === workoutName || data.defaultName === workoutName;
   });
 
