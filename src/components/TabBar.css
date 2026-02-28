@@ -578,6 +578,13 @@
 }
 
 
+/* Standalone PWA — less content padding needed */
+@media all and (display-mode: standalone) {
+  .tab-content {
+    padding-bottom: 70px;
+  }
+}
+
 /* Hide tab bar in landscape mode - only on phones */
 @media (orientation: landscape) and (max-height: 500px) {
   .tab-bar {
