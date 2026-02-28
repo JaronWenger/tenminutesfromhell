@@ -4,7 +4,7 @@
 .home-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: calc(100vh - env(safe-area-inset-top, 0px));
   width: 100%;
   max-width: 500px;
   margin: 0 auto;
