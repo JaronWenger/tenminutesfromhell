@@ -4,7 +4,8 @@
 .home-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   width: 100%;
   max-width: 500px;
   margin: 0 auto;
@@ -12,6 +13,7 @@
   padding: 0 16px;
   box-sizing: border-box;
   position: relative;
+  overflow: hidden;
 }
 
 /* ── Sparks Background ── */
@@ -116,6 +118,11 @@
   z-index: 2;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.home-workout-list::-webkit-scrollbar {
+  display: none;
 }
 
 /* ── Card Wrapper (swipe + drag) ── */
@@ -629,6 +636,10 @@
   white-space: nowrap;
   line-height: 1.2;
   transition: margin 0.2s ease;
+}
+
+.home-detail-name.clickable {
+  cursor: pointer;
 }
 
 .home-detail-title-group.has-tags .home-detail-name {
@@ -1488,6 +1499,7 @@
 
 @media (orientation: landscape) and (hover: none) {
   .home-container {
-    min-height: auto;
+    height: 100vh;
+    height: 100dvh;
   }
 }

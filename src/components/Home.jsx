@@ -1144,8 +1144,8 @@ const Home = ({
                     />
                   ) : (
                     <h2
-                      className="home-detail-name"
-                      onClick={() => { if (isEditing) setIsEditingTitle(true); }}
+                      className={`home-detail-name ${!isEditing ? 'clickable' : ''}`}
+                      onClick={() => { if (isEditing) setIsEditingTitle(true); else closeDetail(); }}
                     >
                       {isEditing ? editTitle : detailWorkout.name}
                     </h2>
@@ -1431,15 +1431,18 @@ const Home = ({
                   </button>
                 </div>
               ) : (
-                <button
-                  className="home-detail-start-btn"
-                  onClick={() => {
-                    onStartWorkout(detailWorkout.name);
-                    closeDetail();
-                  }}
-                >
-                  Start Workout
-                </button>
+                <div className="home-detail-bottom-row" onClick={closeDetail}>
+                  <button
+                    className="home-detail-start-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStartWorkout(detailWorkout.name);
+                      closeDetail();
+                    }}
+                  >
+                    Start Workout
+                  </button>
+                </div>
               )}
             </div>
           </div>
