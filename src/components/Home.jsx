@@ -709,15 +709,22 @@ const Home = ({
   }, [cardMenuIndex]);
 
   // ── Swipe touch handlers (mobile only) ──
+  // We track which card index started the touch so the non-passive touchmove can reference it
+  const swipeTouchIndexRef = useRef(null);
+
   const handleSwipeStart = (index, e) => {
     if (isDragging || !e.touches) return;
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     isSwiping.current = false;
+    swipeTouchIndexRef.current = index;
   };
 
-  const handleSwipeMove = (index, e) => {
-    if (isDragging || !e.touches) return;
+  // Attached via ref with { passive: false } so we can preventDefault to block scroll
+  const handleSwipeMoveNonPassive = useCallback((e) => {
+    if (!e.touches) return;
+    const index = swipeTouchIndexRef.current;
+    if (index === null) return;
     const clientX = e.touches[0].clientX;
     const clientY = e.touches[0].clientY;
     const deltaX = clientX - touchStartX.current;
@@ -726,6 +733,7 @@ const Home = ({
     if (Math.abs(deltaY) > Math.abs(deltaX) && !isSwiping.current) return;
 
     if (Math.abs(deltaX) > 10) {
+      e.preventDefault(); // Block vertical scroll once horizontal swipe is detected
       isSwiping.current = true;
       const clamped = Math.max(-80, Math.min(80, deltaX));
       swipeOffsetRef.current = clamped;
@@ -738,10 +746,11 @@ const Home = ({
       setSwipeOffset(0);
       setSwipingIndex(null);
     }
-  };
+  }, []);
 
   const handleSwipeEnd = () => {
     if (isDragging) return;
+    swipeTouchIndexRef.current = null;
     const offset = swipeOffsetRef.current;
     if (offset < -40) {
       swipeOffsetRef.current = -80;
@@ -757,6 +766,15 @@ const Home = ({
     }
     setTimeout(() => { isSwiping.current = false; }, 50);
   };
+
+  // Attach non-passive touchmove to the workout list so horizontal swipes beat scroll
+  const workoutListRef = useRef(null);
+  useEffect(() => {
+    const el = workoutListRef.current;
+    if (!el) return;
+    el.addEventListener('touchmove', handleSwipeMoveNonPassive, { passive: false });
+    return () => el.removeEventListener('touchmove', handleSwipeMoveNonPassive);
+  }, [handleSwipeMoveNonPassive]);
 
   const handleDelete = (workoutName) => {
     swipeOffsetRef.current = 0;
@@ -866,6 +884,8 @@ const Home = ({
     if (!isEditingTitle) return;
     const handleClickOutside = (e) => {
       if (titleInputRef.current && !titleInputRef.current.contains(e.target)) {
+        // Don't dismiss if tapping a check/save button — let its onClick handle it
+        if (e.target.closest('.home-detail-edit-btn') || e.target.closest('.home-detail-save-circle') || e.target.closest('.home-detail-start-btn')) return;
         if (!editTitle.trim()) return;
         setIsEditingTitle(false);
       }
@@ -922,7 +942,7 @@ const Home = ({
           {(provided) => (
             <div
               {...provided.droppableProps}
-              ref={provided.innerRef}
+              ref={(el) => { provided.innerRef(el); workoutListRef.current = el; }}
               className="home-workout-list"
             >
               {timerWorkoutData.map((workout, index) => {
@@ -966,7 +986,6 @@ const Home = ({
                           }
                           onClick={() => handleRowClick(workout)}
                           onTouchStart={(e) => handleSwipeStart(index, e)}
-                          onTouchMove={(e) => handleSwipeMove(index, e)}
                           onTouchEnd={() => handleSwipeEnd()}
                         >
                           <div className="workout-card-left">
@@ -1144,8 +1163,8 @@ const Home = ({
                     />
                   ) : (
                     <h2
-                      className={`home-detail-name ${!isEditing ? 'clickable' : ''}`}
-                      onClick={() => { if (isEditing) setIsEditingTitle(true); else closeDetail(); }}
+                      className="home-detail-name"
+                      onClick={() => { if (isEditing) setIsEditingTitle(true); }}
                     >
                       {isEditing ? editTitle : detailWorkout.name}
                     </h2>
@@ -1179,8 +1198,8 @@ const Home = ({
                   {user && (
                     <button
                       className="home-detail-edit-btn"
-                      onClick={handleEditToggle}
-                      disabled={isEditing && (!editTitle.trim() || (isNewWorkout && editExercises.length === 0))}
+                      onClick={() => { if (isEditingTitle) { setIsEditingTitle(false); } else { handleEditToggle(); } }}
+                      disabled={isEditing && !isEditingTitle && (!editTitle.trim() || (isNewWorkout && editExercises.length === 0))}
                     >
                       {isEditing ? (
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1411,8 +1430,8 @@ const Home = ({
                     onClick={() => {
                       if (isNewWorkout && !editTitle.trim()) {
                         setEditTitle('My Workout');
-                        setIsEditingTitle(false);
                       }
+                      setIsEditingTitle(false);
                       setEditingExerciseIndex(null);
                       setNewExerciseName('');
                       setShowAddPopup(true);
