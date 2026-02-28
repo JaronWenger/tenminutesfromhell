@@ -119,8 +119,9 @@
 }
 
 .workout-item.upcoming {
-  opacity: 0.75;
+  opacity: 0.85;
   transform: translateY(0);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .workout-number {
@@ -171,7 +172,12 @@
 }
 
 .workout-item.upcoming .workout-text {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.workout-item.upcoming .workout-number {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Selectable workout items when paused */
