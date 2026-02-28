@@ -578,10 +578,9 @@
 }
 
 
-/* Standalone PWA — iOS already reserves safe area, push tab bar down */
+/* Standalone PWA */
 .standalone-pwa .tab-bar {
-  padding: 6px 0 34px 0;
-  bottom: -34px;
+  padding: 4px 0 env(safe-area-inset-bottom, 8px) 0;
 }
 
 .standalone-pwa .tab-content {
