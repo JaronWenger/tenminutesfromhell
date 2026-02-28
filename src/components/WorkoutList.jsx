@@ -30,7 +30,7 @@ const WorkoutList = ({
         const isUpcoming = index > workoutIndex || (index === workoutIndex && !isRunning && timeLeft > 0);
         const currentSeconds = timeLeft % 60;
         const isWarning = isActive && currentSeconds >= 1 && currentSeconds <= restTime && timeLeft > 60;
-        
+
         return (
           <div
             key={index}

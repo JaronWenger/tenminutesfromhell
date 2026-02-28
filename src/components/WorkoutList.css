@@ -185,10 +185,6 @@
   outline: none;
 }
 
-.workout-item.selectable:focus {
-  outline: none;
-}
-
 /* Disable all interactions when timer is running - ONLY for WorkoutList */
 .workout-list .workout-item:not(.selectable) {
   pointer-events: none !important;
