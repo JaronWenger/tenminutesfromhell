@@ -2,7 +2,7 @@
 .edit-page-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100%;
   background: #000000;
   color: white;
   padding: 20px;
