@@ -32,6 +32,7 @@ const Home = ({
   const [swipingIndex, setSwipingIndex] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [cardMenuIndex, setCardMenuIndex] = useState(null);
 
   // Detail overlay state
   const [detailWorkout, setDetailWorkout] = useState(null);
@@ -168,6 +169,8 @@ const Home = ({
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isSwiping = useRef(false);
+  const swipeOffsetRef = useRef(0);
+  const swipingIndexRef = useRef(null);
   const titleInputRef = useRef(null);
 
   const formatTime = (totalSeconds) => {
@@ -254,8 +257,8 @@ const Home = ({
     if (detailPhase !== 'open' || !isEditing || viewMetrics || !panelRef.current) return;
     const panel = panelRef.current;
     const exercisesEl = panel.querySelector('.home-detail-exercises');
-    const exercisesH = exercisesEl ? exercisesEl.offsetHeight : 0;
-    const overhead = panel.offsetHeight - exercisesH;
+    const exercisesH = exercisesEl ? exercisesEl.getBoundingClientRect().height : 0;
+    const overhead = panel.getBoundingClientRect().height - exercisesH;
     const firstExercise = panel.querySelector('.home-detail-exercise');
     const rowH = firstExercise ? firstExercise.getBoundingClientRect().height : 32;
     const overlayEl = panel.parentElement;
@@ -426,6 +429,8 @@ const Home = ({
   // ── react-beautiful-dnd ──
   const onDragStart = () => {
     setIsDragging(true);
+    swipeOffsetRef.current = 0;
+    swipingIndexRef.current = null;
     setSwipingIndex(null);
     setSwipeOffset(0);
     if (navigator.vibrate) navigator.vibrate(30);
@@ -673,6 +678,8 @@ const Home = ({
     const handleOutsideTap = (e) => {
       const wrapper = cardRefs.current[timerWorkoutData[swipingIndex]?.name];
       if (wrapper && !wrapper.contains(e.target)) {
+        swipeOffsetRef.current = 0;
+        swipingIndexRef.current = null;
         setSwipingIndex(null);
         setSwipeOffset(0);
       }
@@ -685,38 +692,66 @@ const Home = ({
     };
   }, [swipingIndex, timerWorkoutData]);
 
-  // ── Swipe-to-delete touch handlers ──
-  const handleTouchStart = (index, e) => {
-    if (isDragging) return;
-    const touch = e.touches[0];
-    touchStartX.current = touch.clientX;
-    touchStartY.current = touch.clientY;
+  // Dismiss card menu when clicking outside
+  useEffect(() => {
+    if (cardMenuIndex === null) return;
+    const handleClick = (e) => {
+      if (!e.target.closest('.workout-card-menu-popup') && !e.target.closest('.workout-card-menu-btn')) {
+        setCardMenuIndex(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('touchstart', handleClick);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick);
+    };
+  }, [cardMenuIndex]);
+
+  // ── Swipe touch handlers (mobile only) ──
+  const handleSwipeStart = (index, e) => {
+    if (isDragging || !e.touches) return;
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
     isSwiping.current = false;
   };
 
-  const handleTouchMove = (index, e) => {
-    if (isDragging) return;
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - touchStartX.current;
-    const deltaY = touch.clientY - touchStartY.current;
+  const handleSwipeMove = (index, e) => {
+    if (isDragging || !e.touches) return;
+    const clientX = e.touches[0].clientX;
+    const clientY = e.touches[0].clientY;
+    const deltaX = clientX - touchStartX.current;
+    const deltaY = clientY - touchStartY.current;
 
     if (Math.abs(deltaY) > Math.abs(deltaX) && !isSwiping.current) return;
 
-    if (deltaX < -10) {
+    if (Math.abs(deltaX) > 10) {
       isSwiping.current = true;
+      const clamped = Math.max(-80, Math.min(80, deltaX));
+      swipeOffsetRef.current = clamped;
+      swipingIndexRef.current = index;
       setSwipingIndex(index);
-      setSwipeOffset(Math.max(deltaX, -80));
-    } else if (swipingIndex === index) {
+      setSwipeOffset(clamped);
+    } else if (swipingIndexRef.current === index) {
+      swipeOffsetRef.current = 0;
+      swipingIndexRef.current = null;
       setSwipeOffset(0);
       setSwipingIndex(null);
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleSwipeEnd = () => {
     if (isDragging) return;
-    if (swipeOffset < -40) {
+    const offset = swipeOffsetRef.current;
+    if (offset < -40) {
+      swipeOffsetRef.current = -80;
       setSwipeOffset(-80);
+    } else if (offset > 40) {
+      swipeOffsetRef.current = 80;
+      setSwipeOffset(80);
     } else {
+      swipeOffsetRef.current = 0;
+      swipingIndexRef.current = null;
       setSwipeOffset(0);
       setSwipingIndex(null);
     }
@@ -724,6 +759,8 @@ const Home = ({
   };
 
   const handleDelete = (workoutName) => {
+    swipeOffsetRef.current = 0;
+    swipingIndexRef.current = null;
     setSwipingIndex(null);
     setSwipeOffset(0);
     onDeleteWorkout(workoutName);
@@ -741,8 +778,8 @@ const Home = ({
       const panel = panelRef.current;
       if (panel) {
         const exercisesEl = panel.querySelector('.home-detail-exercises');
-        const exercisesH = exercisesEl ? exercisesEl.offsetHeight : 0;
-        const overhead = panel.offsetHeight - exercisesH;
+        const exercisesH = exercisesEl ? exercisesEl.getBoundingClientRect().height : 0;
+        const overhead = panel.getBoundingClientRect().height - exercisesH;
         const firstExercise = panel.querySelector('.home-detail-exercise');
         const rowH = firstExercise ? firstExercise.getBoundingClientRect().height : 32;
         const overlayEl = panel.parentElement;
@@ -892,7 +929,7 @@ const Home = ({
                 const totalSeconds = (workout.exercises.length * 60) + prepTime;
                 const completions = getCompletionCount(workout.name);
                 const isSelected = timerSelectedWorkout === workout.name;
-                const isSwipeOpen = swipingIndex === index;
+                const isSwipeActive = swipingIndex === index;
 
                 return (
                   <Draggable
@@ -908,7 +945,7 @@ const Home = ({
                         }}
                         {...provided.draggableProps}
                         {...provided.dragHandleProps}
-                        className={`workout-card-wrapper ${isSwipeOpen ? 'swipe-open' : ''}`}
+                        className={`workout-card-wrapper ${isSwipeActive ? 'swipe-active' : ''}`}
                         style={{
                           ...provided.draggableProps.style,
                           marginBottom: '9px',
@@ -918,17 +955,19 @@ const Home = ({
                         <div
                           className={`workout-card ${isSelected ? 'selected' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
                           style={
-                            !snapshot.isDragging && isSwipeOpen
+                            !snapshot.isDragging && isSwipeActive
                               ? {
                                   transform: `translateX(${swipeOffset}px)`,
-                                  transition: isSwiping.current ? 'none' : 'transform 0.25s ease'
+                                  transition: isSwiping.current ? 'none' : 'transform 0.25s ease',
+                                  position: 'relative',
+                                  zIndex: 2
                                 }
                               : undefined
                           }
                           onClick={() => handleRowClick(workout)}
-                          onTouchStart={(e) => handleTouchStart(index, e)}
-                          onTouchMove={(e) => handleTouchMove(index, e)}
-                          onTouchEnd={() => handleTouchEnd()}
+                          onTouchStart={(e) => handleSwipeStart(index, e)}
+                          onTouchMove={(e) => handleSwipeMove(index, e)}
+                          onTouchEnd={() => handleSwipeEnd()}
                         >
                           <div className="workout-card-left">
                             <div className="workout-card-name-row">
@@ -949,18 +988,97 @@ const Home = ({
                               )}
                             </div>
                           </div>
-                        </div>
-                        {isSwipeOpen && (
-                          <div
-                            className="workout-card-delete"
-                            onClick={() => handleDelete(workout.name)}
+                          {/* Mobile start button */}
+                          <button
+                            className="workout-card-start-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onStartWorkout(workout.name);
+                            }}
                           >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="9 18 15 12 9 6"/>
+                            </svg>
+                          </button>
+                          {/* Desktop 3-dot menu */}
+                          <button
+                            className="workout-card-menu-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCardMenuIndex(cardMenuIndex === index ? null : index);
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="12" cy="5" r="2"/>
+                              <circle cx="12" cy="12" r="2"/>
+                              <circle cx="12" cy="19" r="2"/>
+                            </svg>
+                          </button>
+                        </div>
+                        {/* Desktop menu popup */}
+                        {cardMenuIndex === index && (
+                          <div className="workout-card-menu-popup">
+                            <button
+                              className="workout-card-menu-item"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCardMenuIndex(null);
+                              }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                                <polyline points="16 6 12 2 8 6"/>
+                                <line x1="12" y1="2" x2="12" y2="15"/>
+                              </svg>
+                              Share
+                            </button>
+                            <button
+                              className="workout-card-menu-item"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCardMenuIndex(null);
+                              }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                <line x1="3" y1="10" x2="21" y2="10"/>
+                              </svg>
+                              Schedule
+                            </button>
+                            <button
+                              className="workout-card-menu-item"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCardMenuIndex(null);
+                                onStartWorkout(workout.name);
+                              }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                              </svg>
+                              Start
+                            </button>
+                          </div>
+                        )}
+                        {/* Mobile swipe actions */}
+                        {isSwipeActive && swipeOffset > 0 && (
+                          <div className="workout-card-action workout-card-action-left">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6"/>
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                              <path d="M10 11v6"/>
-                              <path d="M14 11v6"/>
-                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                              <line x1="16" y1="2" x2="16" y2="6"/>
+                              <line x1="8" y1="2" x2="8" y2="6"/>
+                              <line x1="3" y1="10" x2="21" y2="10"/>
+                            </svg>
+                          </div>
+                        )}
+                        {isSwipeActive && swipeOffset < 0 && (
+                          <div className="workout-card-action workout-card-action-right">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                              <polyline points="16 6 12 2 8 6"/>
+                              <line x1="12" y1="2" x2="12" y2="15"/>
                             </svg>
                           </div>
                         )}
@@ -1013,7 +1131,7 @@ const Home = ({
                     </div>
                   )}
                 </div>
-                <div className={`home-detail-title-group ${(isEditing || (detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : [])).length > 0) ? 'has-tags' : ''}`}>
+                <div className={`home-detail-title-group ${(isEditing ? editTags.length > 0 : (detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : [])).length > 0) ? 'has-tags' : ''}`}>
                   {isEditing && isEditingTitle ? (
                     <input
                       ref={titleInputRef}
@@ -1035,27 +1153,19 @@ const Home = ({
                   {/* Tags at bottom of title group */}
                   {(() => {
                     const viewTags = detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : []);
-                    const showTags = isEditing || viewTags.length > 0;
+                    const showTags = (isEditing && !isEditingTitle) || viewTags.length > 0;
                     return showTags ? (
                       <div className="home-detail-tags-row">
                         {isEditing ? (
-                          <>
-                            {editTags.map(t => (
-                              <span
-                                key={t}
-                                className="home-detail-tag-pill editable"
-                                onClick={() => setEditTags(prev => prev.filter(x => x !== t))}
-                              >
-                                {t.toUpperCase()} &times;
-                              </span>
-                            ))}
+                          editTags.map(t => (
                             <span
-                              className="home-detail-tag-pill editable empty"
-                              onClick={() => setShowTagPopup(true)}
+                              key={t}
+                              className="home-detail-tag-pill editable"
+                              onClick={() => setEditTags(prev => prev.filter(x => x !== t))}
                             >
-                              + Tag
+                              {t.toUpperCase()} &times;
                             </span>
-                          </>
+                          ))
                         ) : (
                           viewTags.map(t => (
                             <span key={t} className="home-detail-tag-pill">{t.toUpperCase()}</span>
@@ -1132,6 +1242,12 @@ const Home = ({
                   )}
                 </div>
                 <div className={`home-detail-meta-edit ${isEditing ? '' : 'hidden'}`}>
+                  <span
+                    className="home-detail-add-tag-btn"
+                    onClick={() => setShowTagPopup(true)}
+                  >
+                    + Tag
+                  </span>
                   <div className="home-detail-rest-stepper">
                     <span className="home-detail-rest-label">Rest</span>
                     <button

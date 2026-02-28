@@ -125,7 +125,7 @@
   margin-bottom: 28px;
 }
 
-.workout-card-wrapper.swipe-open {
+.workout-card-wrapper.swipe-active {
   overflow: hidden;
 }
 
@@ -172,6 +172,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .workout-card-name {
@@ -179,8 +180,7 @@
   font-weight: 600;
   color: #ffffff;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
   letter-spacing: 0.2px;
 }
 
@@ -242,30 +242,135 @@
   z-index: 10;
 }
 
-/* ── Swipe Delete ── */
-.workout-card-delete {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 80px;
-  background: rgba(255, 59, 48, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  color: rgba(255, 59, 48, 0.8);
+/* ── Mobile Start Arrow Button ── */
+.workout-card-start-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.82rem;
-  font-weight: 600;
   cursor: pointer;
-  border-radius: 14px;
-  letter-spacing: 0.3px;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.workout-card-delete:active {
-  background: rgba(255, 59, 48, 0.25);
-  color: rgba(255, 59, 48, 1);
+.workout-card-start-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .workout-card-start-btn {
+    display: none;
+  }
+}
+
+/* ── Desktop 3-dot Menu ── */
+.workout-card-menu-btn {
+  display: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.3);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .workout-card-menu-btn {
+    display: flex;
+  }
+
+  .workout-card:hover .workout-card-menu-btn {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .workout-card-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* Hide swipe actions on desktop */
+  .workout-card-action {
+    display: none !important;
+  }
+}
+
+.workout-card-menu-popup {
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  margin-top: 4px;
+  z-index: 20;
+  background: rgba(20, 20, 22, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 4px;
+  min-width: 130px;
+  animation: popup-scale-in 0.15s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  transform-origin: top right;
+}
+
+.workout-card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.12s ease, color 0.12s ease;
+  white-space: nowrap;
+}
+
+.workout-card-menu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.workout-card-menu-item:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Swipe Actions ── */
+.workout-card-action {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 14px;
+}
+
+.workout-card-action-left {
+  left: 0;
+}
+
+.workout-card-action-right {
+  right: 0;
 }
 
 /* ── Add Workout ── */
@@ -620,6 +725,27 @@
   justify-content: space-between;
 }
 
+.home-detail-meta-edit {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-detail-add-tag-btn {
+  padding: 6px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.home-detail-add-tag-btn:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .home-detail-meta-view-left {
   display: flex;
   flex-direction: column;
@@ -702,28 +828,33 @@
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  padding: 10px;
+  padding: 10px 14px;
+  overflow: hidden;
+  display: flex;
 }
 
 /* ── Tag Picker (popup) ── */
 .home-detail-tag-picker {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: clamp(2px, 0.5vh, 4px);
   align-items: center;
 }
 
 .home-detail-tag-option {
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: clamp(3px, 0.7vh, 6px) 16px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   letter-spacing: 0.4px;
+  width: 100%;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .home-detail-tag-option:active {
