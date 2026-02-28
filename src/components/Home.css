@@ -841,6 +841,7 @@
   animation: exercise-collapse-out 0.25s cubic-bezier(0.2, 0, 0.6, 1) forwards;
   overflow: hidden;
   pointer-events: none;
+  min-height: 0 !important;
 }
 
 @keyframes exercise-collapse-out {
@@ -990,6 +991,191 @@
   transform: scale(0.97);
   border-color: rgba(231, 76, 60, 0.7);
   box-shadow: 0 0 40px rgba(231, 76, 60, 0.25), 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Bottom row (Add Exercise + Save circle) ── */
+.home-detail-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.home-detail-bottom-row .home-detail-start-btn {
+  margin: 0 auto;
+}
+
+.home-detail-bottom-row .home-detail-undo-redo,
+.home-detail-bottom-row .home-detail-delete-workout-btn {
+  position: absolute;
+  left: 0;
+}
+
+.home-detail-bottom-row .home-detail-undo-redo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-detail-delete-workout-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.home-detail-delete-workout-btn:active {
+  transform: scale(0.93);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Delete Confirmation Popup ── */
+.home-detail-delete-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: home-detail-fade-in 0.2s ease forwards;
+}
+
+.home-detail-delete-confirm.closing {
+  animation: home-detail-fade-out 0.15s ease forwards;
+}
+
+.home-detail-delete-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.home-detail-delete-confirm-box {
+  position: relative;
+  background: rgba(22, 22, 22, 0.92);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 28px 24px 20px;
+  width: 280px;
+  text-align: center;
+}
+
+.home-detail-delete-confirm-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 6px;
+}
+
+.home-detail-delete-confirm-msg {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 0 24px;
+}
+
+.home-detail-delete-confirm-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.home-detail-delete-confirm-cancel,
+.home-detail-delete-confirm-delete {
+  flex: 1;
+  padding: 14px 0;
+  border-radius: 14px;
+  border: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.home-detail-delete-confirm-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.home-detail-delete-confirm-delete {
+  background: rgba(30, 10, 10, 0.85);
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  color: #e74c3c;
+  box-shadow: 0 0 20px rgba(231, 76, 60, 0.1), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.home-detail-delete-confirm-cancel:active,
+.home-detail-delete-confirm-delete:active {
+  transform: scale(0.96);
+}
+
+.home-detail-undo-btn,
+.home-detail-redo-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.home-detail-undo-btn:active:not(:disabled),
+.home-detail-redo-btn:active:not(:disabled) {
+  transform: scale(0.9);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.home-detail-undo-btn:disabled,
+.home-detail-redo-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.home-detail-bottom-row .home-detail-save-circle {
+  position: absolute;
+  right: 0;
+}
+
+.home-detail-save-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.home-detail-save-circle:active {
+  transform: scale(0.93);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.home-detail-save-circle:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* ── Add Exercise Popup ── */

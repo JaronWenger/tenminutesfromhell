@@ -118,6 +118,7 @@ const Main = () => {
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
+  const [homeDetailCloseRequested, setHomeDetailCloseRequested] = useState(false);
   const [activeColor, setActiveColor] = useState('#ff3b30');
   const [restColor, setRestColor] = useState('#007aff');
   const [sidePlankAlertEnabled, setSidePlankAlertEnabled] = useState(true);
@@ -944,6 +945,7 @@ const Main = () => {
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
             onVisibilityToggle={handleVisibilityToggle}
+            requestCloseDetail={homeDetailCloseRequested}
           />
         );
       case 'stats':
@@ -974,6 +976,7 @@ const Main = () => {
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
             onVisibilityToggle={handleVisibilityToggle}
+            requestCloseDetail={homeDetailCloseRequested}
           />
         );
     }
@@ -1010,6 +1013,7 @@ const Main = () => {
           initialLoad={initialLoad}
           workoutReady={workoutReady}
           onInitialLoadDone={() => setInitialLoad(false)}
+          isVisible={activeTab === 'timer' && !currentEditPage}
         />
       </div>
       {renderContent()}
@@ -1017,6 +1021,10 @@ const Main = () => {
         <TabBar
           activeTab={activeTab}
           onTabChange={(tab) => {
+            if (tab === 'home' && activeTab === 'home') {
+              setHomeDetailCloseRequested(true);
+              setTimeout(() => setHomeDetailCloseRequested(false), 50);
+            }
             setActiveTab(tab);
             if (showFeedPage) setFeedCloseRequested(true);
             if (showSideMenu) setSideMenuCloseRequested(true);

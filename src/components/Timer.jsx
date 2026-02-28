@@ -20,7 +20,8 @@ const Timer = ({
   activeLastMinute = true,
   initialLoad = false,
   workoutReady = true,
-  onInitialLoadDone
+  onInitialLoadDone,
+  isVisible = true
 }) => {
   // Default workouts if none provided
   const defaultWorkouts = [
@@ -47,8 +48,9 @@ const Timer = ({
   const [isRunning, setIsRunning] = useState(propIsRunning !== undefined ? propIsRunning : false);
   const [targetTime, setTargetTime] = useState(propTargetTime !== undefined ? propTargetTime : calculateTotalTime());
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(propSelectedWorkoutIndex !== undefined ? propSelectedWorkoutIndex : 0);
-  const [showSparks, setShowSparks] = useState(false);
+  const [showSparks, setShowSparks] = useState(initialLoad);
   const [sparksClosing, setSparksClosing] = useState(false);
+  const introSparksRef = useRef(initialLoad);
   const [animatedIn, setAnimatedIn] = useState(!initialLoad);
   const [showWorkoutContent, setShowWorkoutContent] = useState(!initialLoad);
   const [revealTime, setRevealTime] = useState(!initialLoad);
@@ -80,6 +82,18 @@ const Timer = ({
       return () => clearTimeout(timer);
     }
   }, [showWorkoutContent, animatedIn, workoutList.length, onInitialLoadDone]);
+
+  // Fade out intro sparks when user hits play or navigates away
+  useEffect(() => {
+    if (introSparksRef.current && (isRunning || !isVisible)) {
+      introSparksRef.current = false;
+      setSparksClosing(true);
+      setTimeout(() => {
+        setShowSparks(false);
+        setSparksClosing(false);
+      }, 600);
+    }
+  }, [isRunning, isVisible]);
 
   // Show sparks when workout completes
   useEffect(() => {

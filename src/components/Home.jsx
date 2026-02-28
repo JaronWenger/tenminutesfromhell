@@ -25,7 +25,8 @@ const Home = ({
   onDetailSave,
   onStartWorkout,
   defaultWorkoutNames = [],
-  onVisibilityToggle
+  onVisibilityToggle,
+  requestCloseDetail = false
 }) => {
   const { user } = useAuth();
   const [swipingIndex, setSwipingIndex] = useState(null);
@@ -40,6 +41,11 @@ const Home = ({
 
   // Editing state
   const [editExercises, setEditExercises] = useState([]);
+  const editHistoryRef = useRef([]);
+  const editFutureRef = useRef([]);
+  const isUndoRedoRef = useRef(false);
+  const prevExercisesRef = useRef(null);
+  const [, forceHistoryUpdate] = useState(0);
   const [editTitle, setEditTitle] = useState('');
   const [editRestTime, setEditRestTime] = useState(null);
   const [editTags, setEditTags] = useState([]);
@@ -52,15 +58,35 @@ const Home = ({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [selectedExerciseIndex, setSelectedExerciseIndex] = useState(null);
   const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmClosing, setDeleteConfirmClosing] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
-  const [perPage, setPerPage] = useState(Infinity);
+  const [viewMetrics, setViewMetrics] = useState(null); // { overhead, rowH, maxPanelH, paginationH }
+
+  // Predict what the view-mode panel height would be for the current exercise count.
+  // As exercises are added/removed in edit mode, the panel grows/shrinks to match view mode.
+  // Only when exercises exceed max panel capacity does pagination kick in.
+  const predictedPanelH = viewMetrics && isEditing
+    ? Math.min(viewMetrics.overhead + editExercises.length * viewMetrics.rowH, viewMetrics.maxPanelH)
+    : null;
+  const perPage = (() => {
+    if (!viewMetrics || !isEditing || predictedPanelH === null) return Infinity;
+    const { overhead, rowH, paginationH } = viewMetrics;
+    const exerciseArea = predictedPanelH - overhead;
+    if (editExercises.length * rowH <= exerciseArea) return Infinity;
+    return Math.max(3, Math.floor((exerciseArea - paginationH) / rowH));
+  })();
 
   // Native exercise drag reorder (all visuals via direct DOM, no React re-renders during drag)
   const exerciseDragRef = useRef({ active: false, fromIndex: null, toIndex: null, rowHeight: 0 });
   const exerciseRowRefs = useRef([]);
   const pageOffsetRef = useRef(0);
-  const rowHeightRef = useRef(34);
   const dragJustEndedRef = useRef(false);
+  const suppressExerciseClickRef = useRef(false);
+  const edgeHoverTimerRef = useRef(null);
+  const crossPageDragRef = useRef({ perPage: Infinity, totalPages: 1, currentPage: 0, exerciseCount: 0 });
+  const dragMutableRef = useRef(null); // mutable drag state accessible across cross-page transitions
+  const crossPagePendingRef = useRef(null); // signals DOM recapture needed after cross-page move
 
   // Clear drag inline styles after React re-renders (before browser paint) to avoid flash
   useLayoutEffect(() => {
@@ -76,6 +102,65 @@ const Home = ({
       card.style.position = '';
     });
   }, [editExercises]);
+
+  // After cross-page drag transition: recapture DOM state so drag continues on the new page
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (!crossPagePendingRef.current) return;
+    const { newLocalIndex, lastY } = crossPagePendingRef.current;
+    crossPagePendingRef.current = null;
+
+    const dm = dragMutableRef.current;
+    if (!dm || !dm.isDragging) return;
+
+    // Truncate refs to current page size to avoid stale elements from previous page
+    const cpd = crossPageDragRef.current;
+    const pageSize = Math.min(cpd.perPage, cpd.exerciseCount - cpd.currentPage * cpd.perPage);
+    exerciseRowRefs.current.length = pageSize;
+
+    // Recapture midpoints from new page's DOM elements
+    dm.originalMids = exerciseRowRefs.current.map(el => {
+      if (!el) return 0;
+      const rect = el.getBoundingClientRect();
+      return rect.top + rect.height / 2;
+    });
+
+    // Recapture container bounds
+    const container = exerciseRowRefs.current[0]?.parentElement;
+    if (container) {
+      const cr = container.getBoundingClientRect();
+      dm.containerTop = cr.top;
+      dm.containerBottom = cr.bottom;
+    }
+
+    dm.fromLocalIndex = newLocalIndex;
+    dm.offset = pageOffsetRef.current;
+    dm.edgeDirection = null;
+
+    // Get new dragged card element on the target page
+    const newRow = exerciseRowRefs.current[newLocalIndex];
+    dm.draggedCard = newRow?.querySelector('.home-detail-exercise');
+
+    if (dm.draggedCard) {
+      // Set startY to the card's natural center so translateY moves it to the finger
+      const cardRect = dm.draggedCard.getBoundingClientRect();
+      dm.startY = cardRect.top + cardRect.height / 2;
+
+      dm.draggedCard.classList.add('exercise-dragging-card');
+      dm.draggedCard.style.zIndex = '10';
+      dm.draggedCard.style.position = 'relative';
+      // Immediately position the card at the finger
+      dm.draggedCard.style.transform = `translateY(${lastY - dm.startY}px) scale(1.03)`;
+    }
+
+    // Reset drag tracking for the new page
+    exerciseDragRef.current = {
+      active: true,
+      fromIndex: newLocalIndex,
+      toIndex: newLocalIndex,
+      rowHeight: dm.rowH,
+    };
+  }, [editExercises, currentPage]);
 
   const addBtnRef = useRef(null);
   const cardRefs = useRef({});
@@ -162,40 +247,86 @@ const Home = ({
     return () => clearTimeout(timer);
   }, [detailPhase, detailRect]);
 
-  // Measure max available space for exercises and calculate perPage
+  // Measure view metrics for new workouts (no view mode to measure from).
+  // Runs before paint so the user never sees the un-sized panel.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (detailPhase !== 'open' || !isEditing || viewMetrics || !panelRef.current) return;
+    const panel = panelRef.current;
+    const exercisesEl = panel.querySelector('.home-detail-exercises');
+    const exercisesH = exercisesEl ? exercisesEl.offsetHeight : 0;
+    const overhead = panel.offsetHeight - exercisesH;
+    const firstExercise = panel.querySelector('.home-detail-exercise');
+    const rowH = firstExercise ? firstExercise.getBoundingClientRect().height : 32;
+    const overlayEl = panel.parentElement;
+    const overlayCS = getComputedStyle(overlayEl);
+    const maxPanelH = overlayEl.clientHeight
+      - parseFloat(overlayCS.paddingTop)
+      - parseFloat(overlayCS.paddingBottom);
+    setViewMetrics({ overhead, rowH, maxPanelH, paginationH: 38 });
+  }, [detailPhase, isEditing, viewMetrics]);
+
+  // Update maxPanelH on window resize while in edit mode
   useEffect(() => {
-    if (detailPhase !== 'open' || !panelRef.current) return;
-    const measure = () => {
+    if (!isEditing || !viewMetrics) return;
+    const handleResize = () => {
       const panel = panelRef.current;
       if (!panel) return;
-      const style = getComputedStyle(panel);
-      const paddingV = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      const header = panel.querySelector('.home-detail-header');
-      const meta = panel.querySelector('.home-detail-meta');
-      const btn = panel.querySelector('.home-detail-start-btn');
-      // Measure actual row height from first exercise, fallback to 34px
-      const firstRow = panel.querySelector('.home-detail-exercise');
-      const rowH = firstRow ? firstRow.getBoundingClientRect().height : 34;
-      rowHeightRef.current = rowH;
-      const fixedH = (header?.offsetHeight || 0) + 2
-        + (meta?.offsetHeight || 0) + 4
-        + (btn?.offsetHeight || 0) + 16; // exercises margin
-      const maxPanelH = window.innerHeight - 80 - 90;
-      const availableNoPag = maxPanelH - paddingV - fixedH;
-      const fitWithout = Math.max(3, Math.floor(availableNoPag / rowH));
-      const exercises = isEditing ? editExercises : (detailWorkout?.exercises || []);
-      if (exercises.length <= fitWithout) {
-        setPerPage(fitWithout);
-      } else {
-        // Need pagination — reserve 36px for the pagination bar
-        const availableWithPag = availableNoPag - 36;
-        setPerPage(Math.max(3, Math.floor(availableWithPag / rowH)));
-      }
+      const overlayEl = panel.parentElement;
+      if (!overlayEl) return;
+      const overlayCS = getComputedStyle(overlayEl);
+      const maxPanelH = overlayEl.clientHeight
+        - parseFloat(overlayCS.paddingTop)
+        - parseFloat(overlayCS.paddingBottom);
+      setViewMetrics(prev => prev ? { ...prev, maxPanelH } : null);
     };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [detailPhase, isEditing, editExercises, detailWorkout]);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isEditing, viewMetrics]);
+
+  // Clear viewMetrics when exiting edit mode
+  useEffect(() => {
+    if (!isEditing) setViewMetrics(null);
+  }, [isEditing]);
+
+  // Undo/redo history tracking for exercise edits
+  useEffect(() => {
+    if (!isEditing) {
+      editHistoryRef.current = [];
+      editFutureRef.current = [];
+      prevExercisesRef.current = null;
+      return;
+    }
+    if (isUndoRedoRef.current) {
+      isUndoRedoRef.current = false;
+      prevExercisesRef.current = editExercises;
+      return;
+    }
+    if (prevExercisesRef.current !== null) {
+      editHistoryRef.current.push(prevExercisesRef.current);
+      editFutureRef.current = [];
+      forceHistoryUpdate(c => c + 1);
+    }
+    prevExercisesRef.current = editExercises;
+  }, [editExercises, isEditing]);
+
+  const handleUndo = useCallback(() => {
+    if (editHistoryRef.current.length === 0) return;
+    isUndoRedoRef.current = true;
+    editFutureRef.current.push(editExercises);
+    const prev = editHistoryRef.current.pop();
+    setEditExercises(prev);
+    forceHistoryUpdate(c => c + 1);
+  }, [editExercises]);
+
+  const handleRedo = useCallback(() => {
+    if (editFutureRef.current.length === 0) return;
+    isUndoRedoRef.current = true;
+    editHistoryRef.current.push(editExercises);
+    const next = editFutureRef.current.pop();
+    setEditExercises(next);
+    forceHistoryUpdate(c => c + 1);
+  }, [editExercises]);
 
   // Clamp currentPage when exercise count or perPage changes
   useEffect(() => {
@@ -264,6 +395,13 @@ const Home = ({
     }, 230);
   }, [detailPhase, detailWorkout, detailRect]);
 
+  // Allow parent to close the detail overlay (e.g. tab bar tap)
+  useEffect(() => {
+    if (requestCloseDetail && detailWorkout) {
+      closeDetail();
+    }
+  }, [requestCloseDetail]);
+
   const handleRowClick = (workout) => {
     if (isSwiping.current || isDragging) return;
     onWorkoutSelect('timer', workout.name);
@@ -305,25 +443,47 @@ const Home = ({
   };
 
   // Native touch/pointer drag for exercise reorder (100% DOM manipulation, zero React re-renders during drag)
+  // Uses dragMutableRef so state survives cross-page transitions while the drag continues.
   const handleExerciseDragStart = useCallback((index, e, offset = 0) => {
     if (e.target.closest('.home-detail-delete-btn')) return;
 
     const startY = e.touches ? e.touches[0].clientY : e.clientY;
-    let isDragging = false;
     const draggedRow = exerciseRowRefs.current[index];
     const draggedCard = draggedRow?.querySelector('.home-detail-exercise');
     const rowH = draggedRow ? draggedRow.getBoundingClientRect().height : 40;
 
-    // Capture original midpoints before any transforms are applied
     const originalMids = exerciseRowRefs.current.map((el) => {
       if (!el) return 0;
       const rect = el.getBoundingClientRect();
       return rect.top + rect.height / 2;
     });
 
+    const exerciseContainer = draggedRow?.parentElement;
+    let containerTop = 0;
+    let containerBottom = 0;
+    if (exerciseContainer) {
+      const cr = exerciseContainer.getBoundingClientRect();
+      containerTop = cr.top;
+      containerBottom = cr.bottom;
+    }
+
+    // Mutable drag state — updated by useLayoutEffect on cross-page transitions
+    const dm = {
+      isDragging: false,
+      startY,
+      fromLocalIndex: index,
+      draggedCard,
+      originalMids,
+      containerTop,
+      containerBottom,
+      rowH,
+      offset,
+      edgeDirection: null,
+      lastY: startY,
+    };
+    dragMutableRef.current = dm;
     exerciseDragRef.current = { active: false, fromIndex: index, toIndex: index, rowHeight: rowH };
 
-    // Shift non-dragged exercise cards via direct DOM manipulation (numbers stay static)
     const applyShifts = (fromIdx, toIdx) => {
       exerciseRowRefs.current.forEach((row, i) => {
         if (!row || i === fromIdx) return;
@@ -331,61 +491,143 @@ const Home = ({
         if (!card) return;
         let shift = 0;
         if (fromIdx !== toIdx) {
-          if (fromIdx < toIdx && i > fromIdx && i <= toIdx) shift = -rowH;
-          else if (fromIdx > toIdx && i >= toIdx && i < fromIdx) shift = rowH;
+          if (fromIdx < toIdx && i > fromIdx && i <= toIdx) shift = -dm.rowH;
+          else if (fromIdx > toIdx && i >= toIdx && i < fromIdx) shift = dm.rowH;
         }
         card.style.transform = `translateY(${shift}px)`;
         card.style.transition = 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)';
       });
     };
 
+    const clearEdgeTimer = () => {
+      if (edgeHoverTimerRef.current) {
+        clearTimeout(edgeHoverTimerRef.current);
+        edgeHoverTimerRef.current = null;
+      }
+      dm.edgeDirection = null;
+    };
+
+    const performCrossPageDrag = (direction) => {
+      const { perPage, totalPages, currentPage } = crossPageDragRef.current;
+      if (totalPages <= 1) return;
+
+      const targetPage = direction === 'next' ? currentPage + 1 : currentPage - 1;
+      if (targetPage < 0 || targetPage >= totalPages) return;
+
+      const actualFrom = dm.offset + exerciseDragRef.current.fromIndex;
+      // Next → first slot of target page; Prev → last slot of target page
+      const insertAt = direction === 'next'
+        ? targetPage * perPage
+        : (targetPage + 1) * perPage - 1;
+      const newLocalIndex = direction === 'next' ? 0 : perPage - 1;
+
+      // Clean up current page's drag visuals
+      if (dm.draggedCard) {
+        dm.draggedCard.classList.remove('exercise-dragging-card');
+        dm.draggedCard.style.transform = '';
+        dm.draggedCard.style.transition = '';
+        dm.draggedCard.style.zIndex = '';
+        dm.draggedCard.style.position = '';
+      }
+      exerciseRowRefs.current.forEach((row) => {
+        if (!row) return;
+        const card = row.querySelector('.home-detail-exercise');
+        if (!card) return;
+        card.style.transform = '';
+        card.style.transition = '';
+        card.style.zIndex = '';
+        card.style.position = '';
+      });
+
+      // Signal useLayoutEffect to recapture DOM after re-render
+      crossPagePendingRef.current = { newLocalIndex, lastY: dm.lastY };
+
+      // Move the exercise and change page (batched re-render)
+      setEditExercises(prev => {
+        const next = [...prev];
+        const [moved] = next.splice(actualFrom, 1);
+        next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, moved);
+        return next;
+      });
+      setCurrentPage(targetPage);
+
+      if (navigator.vibrate) navigator.vibrate(20);
+      // Drag stays alive — listeners remain, useLayoutEffect will recapture DOM
+    };
+
     const handleMove = (ev) => {
       const y = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      const deltaY = Math.abs(y - startY);
+      dm.lastY = y;
+      const deltaY = Math.abs(y - dm.startY);
 
-      if (!isDragging && deltaY > 8) {
-        isDragging = true;
+      if (!dm.isDragging && deltaY > 8) {
+        dm.isDragging = true;
         exerciseDragRef.current.active = true;
-        if (draggedCard) {
-          draggedCard.classList.add('exercise-dragging-card');
-          draggedCard.style.zIndex = '10';
-          draggedCard.style.position = 'relative';
+        if (dm.draggedCard) {
+          dm.draggedCard.classList.add('exercise-dragging-card');
+          dm.draggedCard.style.zIndex = '10';
+          dm.draggedCard.style.position = 'relative';
         }
         if (navigator.vibrate) navigator.vibrate(30);
       }
 
-      if (isDragging) {
+      if (dm.isDragging) {
         if (ev.cancelable) ev.preventDefault();
-        // Move dragged card via DOM (follows finger), number stays put
-        if (draggedCard) {
-          draggedCard.style.transform = `translateY(${y - startY}px) scale(1.03)`;
+        if (dm.draggedCard) {
+          dm.draggedCard.style.transform = `translateY(${y - dm.startY}px) scale(1.03)`;
         }
-        // Use original (pre-transform) midpoints for closest-target detection
-        let closest = index;
+
+        let closest = dm.fromLocalIndex;
         let closestDist = Infinity;
-        originalMids.forEach((mid, i) => {
+        dm.originalMids.forEach((mid, i) => {
           const dist = Math.abs(y - mid);
           if (dist < closestDist) { closestDist = dist; closest = i; }
         });
         if (closest !== exerciseDragRef.current.toIndex) {
           exerciseDragRef.current.toIndex = closest;
-          applyShifts(index, closest);
+          applyShifts(dm.fromLocalIndex, closest);
+        }
+
+        // Cross-page edge detection (vertical: top/bottom of container, horizontal: screen edges)
+        const { totalPages, currentPage } = crossPageDragRef.current;
+        if (totalPages > 1) {
+          const x = ev.touches ? ev.touches[0].clientX : ev.clientX;
+          const edgeThreshold = dm.rowH * 0.75;
+          const screenEdge = 30; // px from screen edge for horizontal trigger
+          const nearTop = y < dm.containerTop + edgeThreshold && currentPage > 0;
+          const nearBottom = y > dm.containerBottom - edgeThreshold && currentPage < totalPages - 1;
+          const nearLeft = x < screenEdge && currentPage > 0;
+          const nearRight = x > window.innerWidth - screenEdge && currentPage < totalPages - 1;
+          const newDirection = (nearTop || nearLeft) ? 'prev' : (nearBottom || nearRight) ? 'next' : null;
+
+          if (newDirection !== dm.edgeDirection) {
+            clearEdgeTimer();
+            if (newDirection) {
+              dm.edgeDirection = newDirection;
+              edgeHoverTimerRef.current = setTimeout(() => {
+                performCrossPageDrag(newDirection);
+              }, 800);
+            }
+          }
         }
       }
     };
 
     const handleEnd = () => {
-      // Remove the lifted look from the dragged card
-      if (draggedCard) draggedCard.classList.remove('exercise-dragging-card');
+      clearEdgeTimer();
+      crossPagePendingRef.current = null;
 
-      if (isDragging) {
+      if (dm.draggedCard) dm.draggedCard.classList.remove('exercise-dragging-card');
+
+      if (dm.isDragging) {
+        suppressExerciseClickRef.current = true;
+        setTimeout(() => { suppressExerciseClickRef.current = false; }, 50);
+
         const { fromIndex, toIndex } = exerciseDragRef.current;
         if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
-          // Reorder happened — keep inline styles so items stay in place visually.
-          // useLayoutEffect will clear them after React re-renders (before paint).
           dragJustEndedRef.current = true;
-          const actualFrom = offset + fromIndex;
-          const actualTo = offset + toIndex;
+          const actualFrom = dm.offset + fromIndex;
+          const actualTo = dm.offset + toIndex;
           setEditExercises(prev => {
             const next = [...prev];
             const [moved] = next.splice(actualFrom, 1);
@@ -400,7 +642,6 @@ const Home = ({
             return prev;
           });
         } else {
-          // No reorder (dropped in same spot) — clear card styles immediately
           exerciseRowRefs.current.forEach((row) => {
             if (!row) return;
             const card = row.querySelector('.home-detail-exercise');
@@ -412,6 +653,7 @@ const Home = ({
           });
         }
       }
+      dragMutableRef.current = null;
       exerciseDragRef.current = { active: false, fromIndex: null, toIndex: null, rowHeight: 0 };
       window.removeEventListener('touchmove', handleMove);
       window.removeEventListener('touchend', handleEnd);
@@ -489,21 +731,27 @@ const Home = ({
 
   const isNewWorkout = detailWorkout?.isNew;
 
-  // Unlock panel height whenever we leave edit mode
-  useLayoutEffect(() => {
-    if (!isEditing && panelRef.current) {
-      panelRef.current.style.height = '';
-    }
-  }, [isEditing]);
-
   // ── Editing handlers ──
   const handleEditToggle = () => {
     if (isEditing) {
       if (!editTitle.trim() || (isNewWorkout && editExercises.length === 0)) return;
       handleSave();
     } else {
-      // Lock panel height before entering edit mode so pagination doesn't resize it
-      if (panelRef.current) panelRef.current.style.height = panelRef.current.offsetHeight + 'px';
+      // Measure view-mode metrics so edit mode can predict panel size
+      const panel = panelRef.current;
+      if (panel) {
+        const exercisesEl = panel.querySelector('.home-detail-exercises');
+        const exercisesH = exercisesEl ? exercisesEl.offsetHeight : 0;
+        const overhead = panel.offsetHeight - exercisesH;
+        const firstExercise = panel.querySelector('.home-detail-exercise');
+        const rowH = firstExercise ? firstExercise.getBoundingClientRect().height : 32;
+        const overlayEl = panel.parentElement;
+        const overlayCS = getComputedStyle(overlayEl);
+        const maxPanelH = overlayEl.clientHeight
+          - parseFloat(overlayCS.paddingTop)
+          - parseFloat(overlayCS.paddingBottom);
+        setViewMetrics({ overhead, rowH, maxPanelH, paginationH: 38 });
+      }
     }
     setIsEditing(!isEditing);
     setCurrentPage(0);
@@ -525,20 +773,9 @@ const Home = ({
   };
 
   const handleDeleteExercise = (actualIndex) => {
-    const localIndex = actualIndex - pageOffsetRef.current;
-    const row = exerciseRowRefs.current[localIndex];
-    if (row) {
-      row.classList.add('exercise-removing');
-      setTimeout(() => {
-        setEditExercises(prev => prev.filter((_, i) => i !== actualIndex));
-        if (selectedExerciseIndex === actualIndex) setSelectedExerciseIndex(null);
-        else if (selectedExerciseIndex !== null && actualIndex < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
-      }, 250);
-    } else {
-      setEditExercises(prev => prev.filter((_, i) => i !== actualIndex));
-      if (selectedExerciseIndex === actualIndex) setSelectedExerciseIndex(null);
-      else if (selectedExerciseIndex !== null && actualIndex < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
-    }
+    setEditExercises(prev => prev.filter((_, i) => i !== actualIndex));
+    if (selectedExerciseIndex === actualIndex) setSelectedExerciseIndex(null);
+    else if (selectedExerciseIndex !== null && actualIndex < selectedExerciseIndex) setSelectedExerciseIndex(selectedExerciseIndex - 1);
   };
 
   const closeAddPopup = useCallback(() => {
@@ -620,6 +857,7 @@ const Home = ({
   const pageOffset = safePage * effectivePerPage;
   const pageExercises = activeExercises.slice(pageOffset, pageOffset + effectivePerPage);
   pageOffsetRef.current = pageOffset;
+  crossPageDragRef.current = { perPage: effectivePerPage, totalPages, currentPage: safePage, exerciseCount: activeExercises.length };
 
   return (
     <div className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''}`}>
@@ -756,6 +994,7 @@ const Home = ({
           <div
             ref={panelRef}
             className="home-detail-panel"
+            style={predictedPanelH !== null ? { height: predictedPanelH } : undefined}
           >
             {/* Content fades in after expand, fades out before collapse */}
             <div className={`home-detail-content ${contentVisible ? 'visible' : ''}`}>
@@ -912,7 +1151,9 @@ const Home = ({
 
               {/* Exercise list */}
               {isEditing ? (
-                <div className="home-detail-exercises editing">
+                <div
+                  className="home-detail-exercises editing"
+                >
                   {pageExercises.map((exercise, localIndex) => {
                       const actualIndex = pageOffset + localIndex;
                       return (
@@ -927,6 +1168,7 @@ const Home = ({
                           <div
                             className={`home-detail-exercise${selectedExerciseIndex === actualIndex ? ' selected' : ''}`}
                             onClick={() => {
+                              if (suppressExerciseClickRef.current) return;
                               setEditingExerciseIndex(actualIndex);
                               setNewExerciseName(exercise);
                               setShowAddPopup(true);
@@ -1010,25 +1252,79 @@ const Home = ({
               )}
 
               {/* Bottom button */}
-              <button
-                className="home-detail-start-btn"
-                onClick={() => {
-                  if (isEditing) {
-                    if (isNewWorkout && !editTitle.trim()) {
-                      setEditTitle('My Workout');
-                      setIsEditingTitle(false);
-                    }
-                    setEditingExerciseIndex(null);
-                    setNewExerciseName('');
-                    setShowAddPopup(true);
-                  } else {
+              {isEditing ? (
+                <div className="home-detail-bottom-row">
+                  {editHistoryRef.current.length > 0 ? (
+                    <div className="home-detail-undo-redo">
+                      <button
+                        className="home-detail-undo-btn"
+                        onClick={handleUndo}
+                        disabled={editHistoryRef.current.length === 0}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="1 4 1 10 7 10"/>
+                          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                        </svg>
+                      </button>
+                      <button
+                        className="home-detail-redo-btn"
+                        onClick={handleRedo}
+                        disabled={editFutureRef.current.length === 0}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="23 4 23 10 17 10"/>
+                          <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ) : !isDefaultWorkout && !isNewWorkout ? (
+                    <button
+                      className="home-detail-delete-workout-btn"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  ) : (
+                    <div className="home-detail-undo-redo" />
+                  )}
+                  <button
+                    className="home-detail-start-btn"
+                    onClick={() => {
+                      if (isNewWorkout && !editTitle.trim()) {
+                        setEditTitle('My Workout');
+                        setIsEditingTitle(false);
+                      }
+                      setEditingExerciseIndex(null);
+                      setNewExerciseName('');
+                      setShowAddPopup(true);
+                    }}
+                  >
+                    Add Exercise
+                  </button>
+                  <button
+                    className="home-detail-save-circle"
+                    onClick={handleEditToggle}
+                    disabled={!editTitle.trim() || (isNewWorkout && editExercises.length === 0)}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="home-detail-start-btn"
+                  onClick={() => {
                     onStartWorkout(detailWorkout.name);
                     closeDetail();
-                  }
-                }}
-              >
-                {isEditing ? 'Add Exercise' : 'Start Workout'}
-              </button>
+                  }}
+                >
+                  Start Workout
+                </button>
+              )}
             </div>
           </div>
 
@@ -1079,6 +1375,45 @@ const Home = ({
                       {tag.toUpperCase()}
                     </button>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Workout Confirmation */}
+          {showDeleteConfirm && (
+            <div className={`home-detail-delete-confirm ${deleteConfirmClosing ? 'closing' : ''}`}>
+              <div
+                className="home-detail-delete-confirm-backdrop"
+                onClick={() => {
+                  setDeleteConfirmClosing(true);
+                  setTimeout(() => { setShowDeleteConfirm(false); setDeleteConfirmClosing(false); }, 150);
+                }}
+              />
+              <div className="home-detail-delete-confirm-box">
+                <p className="home-detail-delete-confirm-title">Delete Workout?</p>
+                <p className="home-detail-delete-confirm-msg">This can't be undone.</p>
+                <div className="home-detail-delete-confirm-actions">
+                  <button
+                    className="home-detail-delete-confirm-cancel"
+                    onClick={() => {
+                      setDeleteConfirmClosing(true);
+                      setTimeout(() => { setShowDeleteConfirm(false); setDeleteConfirmClosing(false); }, 150);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="home-detail-delete-confirm-delete"
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setDeleteConfirmClosing(false);
+                      onDeleteWorkout(detailWorkout.name);
+                      closeDetail();
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>
