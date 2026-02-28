@@ -578,10 +578,10 @@
 }
 
 
-/* Standalone PWA — tighter spacing */
+/* Standalone PWA — iOS already reserves safe area, don't double-count */
 @media all and (display-mode: standalone) {
   .tab-bar {
-    padding: 2px 0 env(safe-area-inset-bottom, 0px) 0;
+    padding: 6px 0 8px 0;
   }
 
   .tab-content {
