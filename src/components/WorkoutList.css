@@ -168,7 +168,6 @@
 
 /* Selectable workout items when paused */
 .workout-item.selectable {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -176,13 +175,6 @@
   -ms-user-select: none;
   user-select: none;
   outline: none;
-}
-
-@media (pointer: fine) {
-  .workout-item.selectable:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
-  }
 }
 
 .workout-item.selectable:focus {
