@@ -135,10 +135,6 @@
   margin-bottom: 28px;
 }
 
-.workout-card-wrapper.swipe-active {
-  overflow: hidden;
-}
-
 /* ── Workout Card ── */
 .workout-card {
   display: flex;
@@ -150,6 +146,7 @@
   border-radius: 14px;
   cursor: pointer;
   position: relative;
+  z-index: 1;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   transition: background 0.2s ease, border-color 0.2s ease;
@@ -314,6 +311,7 @@
   /* Hide swipe actions on desktop */
   .workout-card-action {
     display: none !important;
+    opacity: 0 !important;
   }
 }
 
@@ -373,6 +371,16 @@
   justify-content: center;
   cursor: pointer;
   border-radius: 14px;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.workout-card-wrapper.swipe-left .workout-card-action-right,
+.workout-card-wrapper.swipe-right .workout-card-action-left {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .workout-card-action-left {

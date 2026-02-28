@@ -672,16 +672,33 @@ const Home = ({
     window.addEventListener('mouseup', handleEnd);
   }, []);
 
+  // Helper to reset swipe DOM + state
+  const resetSwipeDom = useCallback((wrapper) => {
+    if (!wrapper) return;
+    const card = wrapper.querySelector('.workout-card');
+    if (card) { card.style.transform = ''; card.style.transition = ''; }
+    wrapper.classList.remove('swipe-left', 'swipe-right');
+  }, []);
+
+  const resetSwipe = useCallback(() => {
+    if (swipingIndexRef.current !== null) {
+      const workout = timerWorkoutData[swipingIndexRef.current];
+      const wrapper = workout ? cardRefs.current[workout.name] : null;
+      if (wrapper) resetSwipeDom(wrapper);
+    }
+    swipeOffsetRef.current = 0;
+    swipingIndexRef.current = null;
+    setSwipingIndex(null);
+    setSwipeOffset(0);
+  }, [timerWorkoutData, resetSwipeDom]);
+
   // Dismiss swipe when tapping outside
   useEffect(() => {
     if (swipingIndex === null) return;
     const handleOutsideTap = (e) => {
       const wrapper = cardRefs.current[timerWorkoutData[swipingIndex]?.name];
       if (wrapper && !wrapper.contains(e.target)) {
-        swipeOffsetRef.current = 0;
-        swipingIndexRef.current = null;
-        setSwipingIndex(null);
-        setSwipeOffset(0);
+        resetSwipe();
       }
     };
     document.addEventListener('touchstart', handleOutsideTap);
@@ -708,9 +725,11 @@ const Home = ({
     };
   }, [cardMenuIndex]);
 
-  // ── Swipe touch handlers (mobile only) ──
-  // We track which card index started the touch so the non-passive touchmove can reference it
+  // ── Swipe touch handlers (mobile only, DOM-driven during gesture) ──
   const swipeTouchIndexRef = useRef(null);
+  const swipeCardElRef = useRef(null);
+  const swipeWrapperElRef = useRef(null);
+  const swipeDirectionLocked = useRef(null); // 'horizontal' | 'vertical' | null
 
   const handleSwipeStart = (index, e) => {
     if (isDragging || !e.touches) return;
@@ -718,69 +737,101 @@ const Home = ({
     touchStartY.current = e.touches[0].clientY;
     isSwiping.current = false;
     swipeTouchIndexRef.current = index;
+    swipeDirectionLocked.current = null;
+    // Grab DOM elements for direct manipulation
+    const workout = timerWorkoutData[index];
+    const wrapper = workout ? cardRefs.current[workout.name] : null;
+    swipeWrapperElRef.current = wrapper;
+    swipeCardElRef.current = wrapper ? wrapper.querySelector('.workout-card') : null;
   };
 
   // Attached via ref with { passive: false } so we can preventDefault to block scroll
   const handleSwipeMoveNonPassive = useCallback((e) => {
-    if (!e.touches) return;
-    const index = swipeTouchIndexRef.current;
-    if (index === null) return;
+    if (!e.touches || swipeTouchIndexRef.current === null) return;
     const clientX = e.touches[0].clientX;
     const clientY = e.touches[0].clientY;
     const deltaX = clientX - touchStartX.current;
     const deltaY = clientY - touchStartY.current;
 
-    if (Math.abs(deltaY) > Math.abs(deltaX) && !isSwiping.current) return;
+    // Lock direction on first significant movement
+    if (!swipeDirectionLocked.current) {
+      if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return;
+      swipeDirectionLocked.current = Math.abs(deltaX) >= Math.abs(deltaY) ? 'horizontal' : 'vertical';
+    }
 
-    if (Math.abs(deltaX) > 10) {
-      e.preventDefault(); // Block vertical scroll once horizontal swipe is detected
-      isSwiping.current = true;
-      const clamped = Math.max(-80, Math.min(80, deltaX));
-      swipeOffsetRef.current = clamped;
-      swipingIndexRef.current = index;
-      setSwipingIndex(index);
-      setSwipeOffset(clamped);
-    } else if (swipingIndexRef.current === index) {
-      swipeOffsetRef.current = 0;
-      swipingIndexRef.current = null;
-      setSwipeOffset(0);
-      setSwipingIndex(null);
+    if (swipeDirectionLocked.current === 'vertical') return;
+
+    e.preventDefault(); // Block scroll for horizontal swipe
+    isSwiping.current = true;
+    const clamped = Math.max(-80, Math.min(80, deltaX));
+    swipeOffsetRef.current = clamped;
+
+    // Direct DOM: only transform + wrapper class
+    const card = swipeCardElRef.current;
+    const wrapper = swipeWrapperElRef.current;
+    if (card) card.style.transform = `translateX(${clamped}px)`;
+    if (wrapper) {
+      wrapper.classList.toggle('swipe-left', clamped < 0);
+      wrapper.classList.toggle('swipe-right', clamped > 0);
     }
   }, []);
 
   const handleSwipeEnd = () => {
     if (isDragging) return;
+    const index = swipeTouchIndexRef.current;
     swipeTouchIndexRef.current = null;
+    swipeDirectionLocked.current = null;
     const offset = swipeOffsetRef.current;
-    if (offset < -40) {
-      swipeOffsetRef.current = -80;
-      setSwipeOffset(-80);
-    } else if (offset > 40) {
-      swipeOffsetRef.current = 80;
-      setSwipeOffset(80);
-    } else {
+    const card = swipeCardElRef.current;
+    const wrapper = swipeWrapperElRef.current;
+
+    let finalOffset;
+    if (offset < -40) finalOffset = -80;
+    else if (offset > 40) finalOffset = 80;
+    else finalOffset = 0;
+
+    // Animate snap
+    if (card) {
+      card.style.transition = 'transform 0.25s ease';
+      card.style.transform = `translateX(${finalOffset}px)`;
+    }
+
+    if (finalOffset === 0) {
+      // Clean up after snap animation
+      setTimeout(() => {
+        if (card) { card.style.transform = ''; card.style.transition = ''; }
+        if (wrapper) { wrapper.classList.remove('swipe-left', 'swipe-right'); }
+      }, 260);
       swipeOffsetRef.current = 0;
       swipingIndexRef.current = null;
-      setSwipeOffset(0);
       setSwipingIndex(null);
+      setSwipeOffset(0);
+    } else {
+      swipeOffsetRef.current = finalOffset;
+      swipingIndexRef.current = index;
+      setSwipingIndex(index);
+      setSwipeOffset(finalOffset);
     }
+
+    swipeCardElRef.current = null;
+    swipeWrapperElRef.current = null;
     setTimeout(() => { isSwiping.current = false; }, 50);
   };
 
   // Attach non-passive touchmove to the workout list so horizontal swipes beat scroll
-  const workoutListRef = useRef(null);
-  useEffect(() => {
-    const el = workoutListRef.current;
-    if (!el) return;
-    el.addEventListener('touchmove', handleSwipeMoveNonPassive, { passive: false });
-    return () => el.removeEventListener('touchmove', handleSwipeMoveNonPassive);
+  const workoutListElRef = useRef(null);
+  const workoutListRef = useCallback((el) => {
+    if (workoutListElRef.current) {
+      workoutListElRef.current.removeEventListener('touchmove', handleSwipeMoveNonPassive);
+    }
+    workoutListElRef.current = el;
+    if (el) {
+      el.addEventListener('touchmove', handleSwipeMoveNonPassive, { passive: false });
+    }
   }, [handleSwipeMoveNonPassive]);
 
   const handleDelete = (workoutName) => {
-    swipeOffsetRef.current = 0;
-    swipingIndexRef.current = null;
-    setSwipingIndex(null);
-    setSwipeOffset(0);
+    resetSwipe();
     onDeleteWorkout(workoutName);
   };
 
@@ -942,7 +993,7 @@ const Home = ({
           {(provided) => (
             <div
               {...provided.droppableProps}
-              ref={(el) => { provided.innerRef(el); workoutListRef.current = el; }}
+              ref={(el) => { provided.innerRef(el); workoutListRef(el); }}
               className="home-workout-list"
             >
               {timerWorkoutData.map((workout, index) => {
@@ -965,7 +1016,7 @@ const Home = ({
                         }}
                         {...provided.draggableProps}
                         {...provided.dragHandleProps}
-                        className={`workout-card-wrapper ${isSwipeActive ? 'swipe-active' : ''}`}
+                        className="workout-card-wrapper"
                         style={{
                           ...provided.draggableProps.style,
                           marginBottom: '9px',
@@ -974,16 +1025,6 @@ const Home = ({
                       >
                         <div
                           className={`workout-card ${isSelected ? 'selected' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
-                          style={
-                            !snapshot.isDragging && isSwipeActive
-                              ? {
-                                  transform: `translateX(${swipeOffset}px)`,
-                                  transition: isSwiping.current ? 'none' : 'transform 0.25s ease',
-                                  position: 'relative',
-                                  zIndex: 2
-                                }
-                              : undefined
-                          }
                           onClick={() => handleRowClick(workout)}
                           onTouchStart={(e) => handleSwipeStart(index, e)}
                           onTouchEnd={() => handleSwipeEnd()}
@@ -1081,26 +1122,22 @@ const Home = ({
                             </button>
                           </div>
                         )}
-                        {/* Mobile swipe actions */}
-                        {isSwipeActive && swipeOffset > 0 && (
-                          <div className="workout-card-action workout-card-action-left">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                              <line x1="16" y1="2" x2="16" y2="6"/>
-                              <line x1="8" y1="2" x2="8" y2="6"/>
-                              <line x1="3" y1="10" x2="21" y2="10"/>
-                            </svg>
-                          </div>
-                        )}
-                        {isSwipeActive && swipeOffset < 0 && (
-                          <div className="workout-card-action workout-card-action-right">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                              <polyline points="16 6 12 2 8 6"/>
-                              <line x1="12" y1="2" x2="12" y2="15"/>
-                            </svg>
-                          </div>
-                        )}
+                        {/* Mobile swipe actions (hidden by CSS, shown via swipe-left/swipe-right class on wrapper) */}
+                        <div className="workout-card-action workout-card-action-left">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                          </svg>
+                        </div>
+                        <div className="workout-card-action workout-card-action-right">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                            <polyline points="16 6 12 2 8 6"/>
+                            <line x1="12" y1="2" x2="12" y2="15"/>
+                          </svg>
+                        </div>
                       </div>
                     )}
                   </Draggable>
