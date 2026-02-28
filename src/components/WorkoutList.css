@@ -179,13 +179,6 @@
 }
 
 @media (pointer: fine) {
-  .workout-item.selectable:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.4);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(255, 255, 255, 0.1);
-  }
-
   .workout-item.selectable:active {
     transform: translateY(0);
     box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
