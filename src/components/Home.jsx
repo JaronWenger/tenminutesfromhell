@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import './Home.css';
 import Sparks from '../assets/SPARKS.gif';
@@ -35,6 +35,7 @@ const Home = ({
   const [isDragging, setIsDragging] = useState(false);
   const isDraggingRef = useRef(false);
   const [cardMenuIndex, setCardMenuIndex] = useState(null);
+  const [activeFilter, setActiveFilter] = useState(null); // null | 'Recent' | tag string
 
   // Detail overlay state
   const [detailWorkout, setDetailWorkout] = useState(null);
@@ -181,10 +182,75 @@ const Home = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getCompletionCount = (workoutName) => {
+  const getCompletionCount = (workout) => {
     if (!workoutHistory || workoutHistory.length === 0) return 0;
-    return workoutHistory.filter(h => h.workoutName === workoutName).length;
+    return workoutHistory.filter(h =>
+      h.workoutId ? h.workoutId === workout.id : (!workout.id && h.workoutName === workout.name)
+    ).length;
   };
+
+  // Match history entry to workout: prefer ID, fall back to name only for legacy entries without IDs
+  const historyMatchesWorkout = (h, w) =>
+    h.workoutId ? h.workoutId === w.id : (!w.id && h.workoutName === w.name);
+
+  // ── Filter chips ──
+  const filterChips = useMemo(() => {
+    const chips = [];
+    // Only show "Recent" if history matches at least one workout still in the library
+    const hasRelevantHistory = workoutHistory && workoutHistory.some(h =>
+      timerWorkoutData.some(w => historyMatchesWorkout(h, w))
+    );
+    if (hasRelevantHistory) chips.push('Recent');
+    // Count workouts per tag, then sort by count descending
+    const tagCounts = {};
+    timerWorkoutData.forEach(w => {
+      const tags = w.tags || (w.tag ? [w.tag] : []);
+      tags.forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
+    });
+    Object.keys(tagCounts)
+      .sort((a, b) => tagCounts[b] - tagCounts[a])
+      .forEach(t => chips.push(t));
+    return chips;
+  }, [timerWorkoutData, workoutHistory]);
+
+  const displayedWorkouts = useMemo(() => {
+    if (activeFilter === null) return timerWorkoutData;
+    if (activeFilter === 'Recent') {
+      const completed = [];
+      const uncompleted = [];
+      timerWorkoutData.forEach(w => {
+        const matchingHistory = workoutHistory
+          ?.filter(h => historyMatchesWorkout(h, w))
+          .sort((a, b) => {
+            const ta = a.completedAt?.toDate ? a.completedAt.toDate() : new Date(a.completedAt);
+            const tb = b.completedAt?.toDate ? b.completedAt.toDate() : new Date(b.completedAt);
+            return tb - ta;
+          });
+        const lastEntry = matchingHistory?.[0];
+        if (lastEntry) {
+          completed.push({ workout: w, lastDate: lastEntry.completedAt?.toDate ? lastEntry.completedAt.toDate() : new Date(lastEntry.completedAt) });
+        } else {
+          uncompleted.push(w);
+        }
+      });
+      completed.sort((a, b) => b.lastDate - a.lastDate);
+      return [...completed.map(c => c.workout), ...uncompleted];
+    }
+    // Tag filter
+    return timerWorkoutData.filter(w => {
+      const tags = w.tags || (w.tag ? [w.tag] : []);
+      return tags.includes(activeFilter);
+    });
+  }, [activeFilter, timerWorkoutData, workoutHistory]);
+
+  const showFilterBar = user && filterChips.length > 0 && timerWorkoutData.length > 5;
+
+  // Reset filter if the active chip no longer exists
+  useEffect(() => {
+    if (activeFilter !== null && !filterChips.includes(activeFilter)) {
+      setActiveFilter(null);
+    }
+  }, [activeFilter, filterChips]);
 
   // ── Detail overlay ──
   const openDetail = useCallback((workout) => {
@@ -454,10 +520,24 @@ const Home = ({
     if (!result.destination) return;
     if (result.source.index === result.destination.index) return;
 
-    const reordered = Array.from(timerWorkoutData);
-    const [moved] = reordered.splice(result.source.index, 1);
-    reordered.splice(result.destination.index, 0, moved);
-    onReorder(reordered);
+    if (activeFilter === null || activeFilter === 'Recent') {
+      // No filter or Recent: reorder displayedWorkouts directly (same as master when null)
+      const reordered = Array.from(timerWorkoutData);
+      const [moved] = reordered.splice(result.source.index, 1);
+      reordered.splice(result.destination.index, 0, moved);
+      onReorder(reordered);
+    } else {
+      // Tag filter active: map filtered indices back to master array
+      const srcWorkout = displayedWorkouts[result.source.index];
+      const destWorkout = displayedWorkouts[result.destination.index];
+      const masterSrc = timerWorkoutData.indexOf(srcWorkout);
+      const masterDest = timerWorkoutData.indexOf(destWorkout);
+      if (masterSrc === -1 || masterDest === -1) return;
+      const reordered = Array.from(timerWorkoutData);
+      const [moved] = reordered.splice(masterSrc, 1);
+      reordered.splice(masterDest, 0, moved);
+      onReorder(reordered);
+    }
   };
 
   // Native touch/pointer drag for exercise reorder (100% DOM manipulation, zero React re-renders during drag)
@@ -695,7 +775,7 @@ const Home = ({
 
   const resetSwipe = useCallback(() => {
     if (swipingIndexRef.current !== null) {
-      const workout = timerWorkoutData[swipingIndexRef.current];
+      const workout = displayedWorkouts[swipingIndexRef.current];
       const wrapper = workout ? cardRefs.current[workout.name] : null;
       if (wrapper) resetSwipeDom(wrapper);
     }
@@ -703,13 +783,13 @@ const Home = ({
     swipingIndexRef.current = null;
     setSwipingIndex(null);
     setSwipeOffset(0);
-  }, [timerWorkoutData, resetSwipeDom]);
+  }, [displayedWorkouts, resetSwipeDom]);
 
   // Dismiss swipe when tapping outside
   useEffect(() => {
     if (swipingIndex === null) return;
     const handleOutsideTap = (e) => {
-      const wrapper = cardRefs.current[timerWorkoutData[swipingIndex]?.name];
+      const wrapper = cardRefs.current[displayedWorkouts[swipingIndex]?.name];
       if (wrapper && !wrapper.contains(e.target)) {
         resetSwipe();
       }
@@ -720,7 +800,7 @@ const Home = ({
       document.removeEventListener('touchstart', handleOutsideTap);
       document.removeEventListener('mousedown', handleOutsideTap);
     };
-  }, [swipingIndex, timerWorkoutData]);
+  }, [swipingIndex, displayedWorkouts]);
 
   // Dismiss card menu when clicking outside
   useEffect(() => {
@@ -745,14 +825,14 @@ const Home = ({
   const swipeDirectionLocked = useRef(null); // 'horizontal' | 'vertical' | null
 
   const handleSwipeStart = (index, e) => {
-    if (isDragging || !e.touches) return;
+    if (!user || isDragging || !e.touches) return;
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     isSwiping.current = false;
     swipeTouchIndexRef.current = index;
     swipeDirectionLocked.current = null;
     // Grab DOM elements for direct manipulation
-    const workout = timerWorkoutData[index];
+    const workout = displayedWorkouts[index];
     const wrapper = workout ? cardRefs.current[workout.name] : null;
     swipeWrapperElRef.current = wrapper;
     swipeCardElRef.current = wrapper ? wrapper.querySelector('.workout-card') : null;
@@ -818,13 +898,21 @@ const Home = ({
 
   // Attach non-passive touchmove to the workout list so horizontal swipes beat scroll
   const workoutListElRef = useRef(null);
+  const scrollHandlerRef = useRef(null);
   const workoutListRef = useCallback((el) => {
     if (workoutListElRef.current) {
       workoutListElRef.current.removeEventListener('touchmove', handleSwipeMoveNonPassive);
+      if (scrollHandlerRef.current) {
+        workoutListElRef.current.removeEventListener('scroll', scrollHandlerRef.current);
+      }
     }
     workoutListElRef.current = el;
     if (el) {
       el.addEventListener('touchmove', handleSwipeMoveNonPassive, { passive: false });
+      scrollHandlerRef.current = () => {
+        el.classList.toggle('scrolled', el.scrollTop > 0);
+      };
+      el.addEventListener('scroll', scrollHandlerRef.current, { passive: true });
     }
   }, [handleSwipeMoveNonPassive]);
 
@@ -866,14 +954,28 @@ const Home = ({
 
   const handleSave = () => {
     if (!detailWorkout) return;
-    onDetailSave(detailWorkout.name, editExercises, editTitle, editRestTime, editTags);
-    setDetailWorkout(prev => ({
-      ...prev,
-      name: editTitle,
-      exercises: [...editExercises],
-      restTime: editRestTime,
-      tags: [...editTags]
-    }));
+    const isOwned = detailWorkout.forked || !defaultWorkoutNames.includes(detailWorkout.name);
+    onDetailSave(detailWorkout.name, editExercises, editTitle, editRestTime, editTags, { isOwned });
+    if (!isOwned) {
+      // Fork: update detail overlay to show the new forked workout
+      setDetailWorkout(prev => ({
+        ...prev,
+        name: editTitle,
+        exercises: [...editExercises],
+        restTime: editRestTime,
+        tags: [...editTags],
+        id: undefined,
+        forked: true
+      }));
+    } else {
+      setDetailWorkout(prev => ({
+        ...prev,
+        name: editTitle,
+        exercises: [...editExercises],
+        restTime: editRestTime,
+        tags: [...editTags]
+      }));
+    }
   };
 
   const handleDeleteExercise = (actualIndex) => {
@@ -947,7 +1049,7 @@ const Home = ({
     };
   }, [isEditingTitle]);
 
-  const isDefaultWorkout = detailWorkout ? defaultWorkoutNames.includes(detailWorkout.name) : false;
+  const isDefaultWorkout = detailWorkout ? (!detailWorkout.forked && defaultWorkoutNames.includes(detailWorkout.name)) : false;
 
   const displayRestTime = detailWorkout
     ? (detailWorkout.restTime != null ? detailWorkout.restTime : globalRestTime)
@@ -986,17 +1088,31 @@ const Home = ({
         )}
       </div>
 
+      {showFilterBar && (
+        <div className={`home-filter-bar${detailWorkout && detailPhase !== 'leaving' ? ' home-filter-bar-hidden' : ''}`}>
+          {filterChips.map(chip => (
+            <button
+              key={chip}
+              className={`home-filter-chip${activeFilter === chip ? ' active' : ''}`}
+              onClick={() => setActiveFilter(prev => prev === chip ? null : chip)}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+      )}
+
       <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <Droppable droppableId="home-workouts" direction="vertical" isDropDisabled={!!detailWorkout}>
+        <Droppable droppableId="home-workouts" direction="vertical" isDropDisabled={!!detailWorkout || activeFilter === 'Recent'}>
           {(provided) => (
             <div
               {...provided.droppableProps}
               ref={(el) => { provided.innerRef(el); workoutListRef(el); }}
               className={`home-workout-list ${isDragging ? 'reordering' : ''}`}
             >
-              {timerWorkoutData.map((workout, index) => {
+              {displayedWorkouts.map((workout, index) => {
                 const totalSeconds = (workout.exercises.length * 60) + prepTime;
-                const completions = getCompletionCount(workout.name);
+                const completions = getCompletionCount(workout);
                 const isSelected = timerSelectedWorkout === workout.name;
                 const isSwipeActive = swipingIndex === index;
 
@@ -1028,7 +1144,7 @@ const Home = ({
                           onTouchEnd={() => handleSwipeEnd()}
                         >
                           {showCardPhotos && (
-                            defaultWorkoutNames.includes(workout.name) ? (
+                            !workout.isCustom && defaultWorkoutNames.includes(workout.name) ? (
                               <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="workout-card-avatar" />
                             ) : user?.photoURL ? (
                               <img src={user.photoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
@@ -1059,9 +1175,9 @@ const Home = ({
                               )}
                             </div>
                           </div>
-                          {/* Mobile start button */}
+                          {/* Start arrow (mobile always, desktop when logged out) */}
                           <button
-                            className="workout-card-start-btn"
+                            className={`workout-card-start-btn${!user ? ' always-visible' : ''}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               onStartWorkout(workout.name);
@@ -1071,20 +1187,22 @@ const Home = ({
                               <polyline points="9 18 15 12 9 6"/>
                             </svg>
                           </button>
-                          {/* Desktop 3-dot menu */}
-                          <button
-                            className="workout-card-menu-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCardMenuIndex(cardMenuIndex === index ? null : index);
-                            }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                              <circle cx="12" cy="5" r="2"/>
-                              <circle cx="12" cy="12" r="2"/>
-                              <circle cx="12" cy="19" r="2"/>
-                            </svg>
-                          </button>
+                          {/* Desktop 3-dot menu (logged in only) */}
+                          {user && (
+                            <button
+                              className="workout-card-menu-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCardMenuIndex(cardMenuIndex === index ? null : index);
+                              }}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="5" r="2"/>
+                                <circle cx="12" cy="12" r="2"/>
+                                <circle cx="12" cy="19" r="2"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                         {/* Desktop menu popup */}
                         {cardMenuIndex === index && (
@@ -1465,9 +1583,9 @@ const Home = ({
                       className="home-detail-delete-workout-btn"
                       onClick={() => setShowDeleteConfirm(true)}
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                       </svg>
                     </button>
                   ) : (

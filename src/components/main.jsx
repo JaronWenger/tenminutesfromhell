@@ -411,8 +411,10 @@ const Main = () => {
       // Record history and share
       if (user) {
         const exercises = getExerciseList(timerSelectedWorkout);
+        const selectedWorkoutObj = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
         const workoutData = {
           workoutName: timerSelectedWorkout,
+          workoutId: selectedWorkoutObj?.id || null,
           workoutType: 'timer',
           duration: timerState.targetTime,
           setCount: exercises.length,
@@ -526,8 +528,10 @@ const Main = () => {
     // Record history before resetting
     if (user && stopwatchState.time > 0) {
       const exercises = getExerciseList(stopwatchSelectedWorkout);
+      const selectedWorkoutObj = stopwatchWorkoutData.find(w => w.name === stopwatchSelectedWorkout);
       const workoutData = {
         workoutName: stopwatchSelectedWorkout,
+        workoutId: selectedWorkoutObj?.id || null,
         workoutType: 'stopwatch',
         duration: Math.round(stopwatchState.time / 1000),
         setCount: stopwatchState.laps.length,
@@ -695,10 +699,33 @@ const Main = () => {
     }
   }, [user, timerWorkoutData]);
 
-  const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime, tags) => {
+  const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime, tags, options = {}) => {
+    const { isOwned = true } = options;
     const finalName = newTitle || workoutName;
     const isNew = !workoutName;
     const safeTags = tags && tags.length > 0 ? tags : null;
+
+    // Fork: remove original default, append forked copy
+    if (!isOwned && !isNew) {
+      const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true };
+      setTimerWorkoutData(prev => {
+        const without = prev.filter(w => w.name !== workoutName);
+        return [...without, forked];
+      });
+      setTimerSelectedWorkout(finalName);
+      if (user && finalName) {
+        // Soft-delete the original default in Firestore
+        const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
+        if (defaultNames.includes(workoutName)) {
+          deleteUserWorkout(user.uid, workoutName, true)
+            .catch(err => console.error('Failed to delete original default:', err));
+        }
+        // Save the forked workout
+        saveUserWorkout(user.uid, { ...forked, isDefault: false, defaultName: null })
+          .catch(err => console.error('Failed to save forked workout:', err));
+      }
+      return;
+    }
 
     // Optimistic local update
     if (isNew && finalName) {

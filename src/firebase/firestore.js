@@ -106,7 +106,7 @@ export const deleteUserWorkout = async (userId, workoutName, isDefault) => {
 
 // Record a completed workout to history
 export const recordWorkoutHistory = async (userId, entry) => {
-  await addDoc(collection(db, 'users', userId, 'history'), {
+  const data = {
     workoutName: entry.workoutName,
     workoutType: entry.workoutType,
     date: serverTimestamp(),
@@ -114,5 +114,7 @@ export const recordWorkoutHistory = async (userId, entry) => {
     setCount: entry.setCount,
     exercises: entry.exercises,
     completedAt: serverTimestamp()
-  });
+  };
+  if (entry.workoutId) data.workoutId = entry.workoutId;
+  await addDoc(collection(db, 'users', userId, 'history'), data);
 };

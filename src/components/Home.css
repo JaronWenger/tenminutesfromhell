@@ -110,6 +110,53 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* ── Filter Bar ── */
+.home-filter-bar {
+  display: flex;
+  gap: 8px;
+  padding: 0 4px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+  z-index: 2;
+  touch-action: pan-x;
+  position: relative;
+  transition: opacity 0.3s ease;
+}
+
+.home-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.home-filter-bar-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.home-filter-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.home-filter-chip:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.home-filter-chip.active {
+  background: rgba(255, 59, 48, 0.12);
+  border-color: rgba(255, 59, 48, 0.35);
+  color: rgba(255, 59, 48, 0.9);
+}
+
 /* ── Workout List ── */
 .home-workout-list {
   flex: 1;
@@ -123,6 +170,14 @@
   overflow-y: auto;
   scrollbar-width: none;
   overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 0px);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 0px);
+  transition: -webkit-mask-image 0.3s ease, mask-image 0.3s ease;
+}
+
+.home-workout-list.scrolled {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10px);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10px);
 }
 
 .home-workout-list::-webkit-scrollbar {
@@ -293,6 +348,10 @@
 @media (hover: hover) and (pointer: fine) {
   .workout-card-start-btn {
     display: none;
+  }
+
+  .workout-card-start-btn.always-visible {
+    display: flex;
   }
 }
 
