@@ -526,58 +526,6 @@
   }
 }
 
-/* Landscape mode - only timer text for stopwatch (phones only) */
-@media (orientation: landscape) and (hover: none) {
-  .tab-bar.stopwatch-mode .stopwatch-controls {
-    display: none !important;
-  }
-  
-  .lap-progress-bar {
-    display: none !important;
-  }
-  
-  /* Hide everything except timer text */
-  .stopwatch-workout-section {
-    display: none !important;
-  }
-  
-  /* Keep only the timer display */
-  .stopwatch-display {
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    height: calc(100vh - env(safe-area-inset-top, 0px)) !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  
-  .time-display {
-    font-size: clamp(24px, 25vw, 120px) !important;
-    line-height: 0.9 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100vw !important;
-    text-align: center !important;
-    letter-spacing: clamp(-2px, -0.5vw, 0px) !important;
-    word-spacing: 0 !important;
-    position: fixed !important;
-    left: 50% !important;
-    top: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    z-index: 9999 !important;
-  }
-}
-
-/* Desktop landscape mode - prevent text overflow */
-@media (min-width: 830px) and (max-width: 1024px) {
-  .time-display {
-    font-size: 12vw !important;
-    letter-spacing: -1px !important;
-    overflow: hidden !important;
-  }
-}
-
-
 /* Standalone PWA */
 .standalone-pwa .tab-bar {
   padding: 4px 0 9px 0;
@@ -587,13 +535,13 @@
   padding-bottom: 70px;
 }
 
-/* Hide tab bar in landscape mode - only on phones */
+/* Hide tab bar in landscape - timer page only */
 @media (orientation: landscape) and (max-height: 500px) {
-  .tab-bar {
+  .tab-timer .tab-bar {
     display: none !important;
   }
-  
-  .tab-content {
+
+  .tab-content.tab-timer {
     padding-bottom: 0 !important;
   }
 }

@@ -1606,8 +1606,3 @@
   padding-right: 16px;
 }
 
-@media (orientation: landscape) and (hover: none) {
-  .home-container {
-    height: 100%;
-  }
-}

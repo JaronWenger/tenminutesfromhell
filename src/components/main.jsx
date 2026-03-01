@@ -1030,7 +1030,7 @@ const Main = () => {
 
   return (
     <main
-      className="tab-content"
+      className={`tab-content tab-${activeTab}`}
       style={{
         '--color-active': activeColor,
         '--color-active-rgb': hexToRgb(activeColor),
