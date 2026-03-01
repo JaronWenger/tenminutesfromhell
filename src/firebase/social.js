@@ -56,6 +56,7 @@ export const getAllPreferences = async (userId) => {
       activeLastMinute: true,
       selectedWorkout: null,
       showCardPhotos: true,
+      pinnedWorkouts: [],
     };
   }
   const data = snap.data();
@@ -70,6 +71,7 @@ export const getAllPreferences = async (userId) => {
     activeLastMinute: data.activeLastMinute ?? true,
     selectedWorkout: data.selectedWorkout || null,
     showCardPhotos: data.showCardPhotos ?? true,
+    pinnedWorkouts: data.pinnedWorkouts || [],
   };
 };
 
@@ -139,6 +141,13 @@ export const setShowCardPhotosPreference = async (userId, value) => {
 export const setActiveLastMinutePreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     activeLastMinute: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setPinnedWorkouts = async (userId, pinnedArray) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    pinnedWorkouts: pinnedArray,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };

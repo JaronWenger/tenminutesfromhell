@@ -13,7 +13,7 @@ import SharePrompt from './SharePrompt';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, getFollowing, getFollowers } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -123,6 +123,9 @@ const Main = () => {
   const [restColor, setRestColor] = useState('#007aff');
   const [sidePlankAlertEnabled, setSidePlankAlertEnabled] = useState(true);
   const [showCardPhotos, setShowCardPhotos] = useState(true);
+  const [pinnedWorkouts, setPinnedWorkoutsState] = useState([]);
+  const [followingIds, setFollowingIds] = useState([]);
+  const [followerIds, setFollowerIds] = useState([]);
 
   // Load user workouts and history from Firestore when user logs in
   useEffect(() => {
@@ -136,6 +139,9 @@ const Main = () => {
       setRestColor('#007aff');
       setSidePlankAlertEnabled(true);
       setShowCardPhotos(true);
+      setPinnedWorkoutsState([]);
+      setFollowingIds([]);
+      setFollowerIds([]);
       setPrepTime(15);
       setRestTime(15);
       setActiveLastMinute(true);
@@ -201,11 +207,21 @@ const Main = () => {
         if (prefs.restColor) setRestColor(prefs.restColor);
         setSidePlankAlertEnabled(prefs.sidePlankAlert);
         setShowCardPhotos(prefs.showCardPhotos);
+        setPinnedWorkoutsState(prefs.pinnedWorkouts || []);
         setPrepTime(prefs.prepTime);
         setRestTime(prefs.restTime);
         setActiveLastMinute(prefs.activeLastMinute);
         if (prefs.selectedWorkout) setTimerSelectedWorkout(prefs.selectedWorkout);
         setWorkoutReady(true);
+        // Load follow data in background (non-blocking)
+        Promise.all([getFollowing(user.uid), getFollowers(user.uid)])
+          .then(([following, followers]) => {
+            if (!cancelled) {
+              setFollowingIds(following);
+              setFollowerIds(followers);
+            }
+          })
+          .catch(err => console.error('Failed to load follow data:', err));
       } catch (err) {
         console.error('Failed to load settings:', err);
       }
@@ -304,6 +320,13 @@ const Main = () => {
       setSidePlankAlertPreference(user.uid, newValue).catch(err => console.error('Failed to save side plank alert:', err));
     }
   }, [user, sidePlankAlertEnabled]);
+
+  const handlePinnedWorkoutsChange = useCallback(async (newPinned) => {
+    setPinnedWorkoutsState(newPinned);
+    if (user) {
+      setPinnedWorkouts(user.uid, newPinned).catch(err => console.error('Failed to save pinned workouts:', err));
+    }
+  }, [user]);
 
   const handleToggleShowCardPhotos = useCallback(async () => {
     const newValue = !showCardPhotos;
@@ -681,30 +704,6 @@ const Main = () => {
     }
   };
 
-  const handleVisibilityToggle = useCallback((workoutName, isPublic) => {
-    setTimerWorkoutData(prev =>
-      prev.map(w =>
-        w.name === workoutName ? { ...w, isPublic } : w
-      )
-    );
-    if (user) {
-      const workout = timerWorkoutData.find(w => w.name === workoutName);
-      if (workout) {
-        const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
-        const isDefault = defaultNames.includes(workoutName);
-        saveUserWorkout(user.uid, {
-          name: workoutName,
-          type: 'timer',
-          exercises: workout.exercises,
-          isDefault,
-          defaultName: isDefault ? workoutName : null,
-          restTime: workout.restTime ?? null,
-          isPublic
-        }).catch(err => console.error('Failed to save visibility:', err));
-      }
-    }
-  }, [user, timerWorkoutData]);
-
   const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime, tags, options = {}) => {
     const { isOwned = true } = options;
     const finalName = newTitle || workoutName;
@@ -932,6 +931,16 @@ const Main = () => {
           history={workoutHistory}
           loading={historyLoading}
           onLoginClick={() => setShowLoginModal(true)}
+          timerWorkoutData={timerWorkoutData}
+          stopwatchWorkoutData={stopwatchWorkoutData}
+          prepTime={prepTime}
+          globalRestTime={restTime}
+          onStartWorkout={handleHomeStartWorkout}
+          defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+          followingIds={followingIds}
+          followerIds={followerIds}
+          pinnedWorkouts={pinnedWorkouts}
+          onPinnedWorkoutsChange={handlePinnedWorkoutsChange}
         />
       );
     }
@@ -988,7 +997,7 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
-            onVisibilityToggle={handleVisibilityToggle}
+  
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
           />
@@ -999,6 +1008,14 @@ const Main = () => {
             user={user}
             history={workoutHistory}
             loading={historyLoading}
+            timerWorkoutData={timerWorkoutData}
+            stopwatchWorkoutData={stopwatchWorkoutData}
+            prepTime={prepTime}
+            globalRestTime={restTime}
+            onStartWorkout={handleHomeStartWorkout}
+            defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+            pinnedWorkouts={pinnedWorkouts}
+            onPinnedWorkoutsChange={handlePinnedWorkoutsChange}
           />
         );
       default:
@@ -1020,7 +1037,7 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
-            onVisibilityToggle={handleVisibilityToggle}
+  
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
           />
