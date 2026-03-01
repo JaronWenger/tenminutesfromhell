@@ -48,6 +48,7 @@ const Timer = ({
   const [isRunning, setIsRunning] = useState(propIsRunning !== undefined ? propIsRunning : false);
   const [targetTime, setTargetTime] = useState(propTargetTime !== undefined ? propTargetTime : calculateTotalTime());
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(propSelectedWorkoutIndex !== undefined ? propSelectedWorkoutIndex : 0);
+  const [setCount, setSetCount] = useState(1);
   const [showSparks, setShowSparks] = useState(initialLoad);
   const [sparksClosing, setSparksClosing] = useState(false);
   const introSparksRef = useRef(initialLoad);
@@ -111,6 +112,11 @@ const Timer = ({
     if (propSelectedWorkoutIndex !== undefined) setSelectedWorkoutIndex(propSelectedWorkoutIndex);
   }, [propTimeLeft, propIsRunning, propTargetTime, propSelectedWorkoutIndex]);
 
+  // Reset set count when workout changes (targetTime changes from parent)
+  useEffect(() => {
+    setSetCount(1);
+  }, [propTargetTime]);
+
 
 
 
@@ -161,8 +167,23 @@ const Timer = ({
         setSparksClosing(false);
       }, 600);
     }
+    setSetCount(prev => prev + 1);
     setIsRunning(false);
     setTimeLeft(targetTime);
+    updateParentState({ isRunning: false, timeLeft: targetTime });
+  };
+
+  const handleNextSet = () => {
+    if (showSparks) {
+      setSparksClosing(true);
+      setTimeout(() => {
+        setShowSparks(false);
+        setSparksClosing(false);
+      }, 600);
+    }
+    setSetCount(prev => prev + 1);
+    setTimeLeft(targetTime);
+    setIsRunning(false);
     updateParentState({ isRunning: false, timeLeft: targetTime });
   };
 
@@ -214,6 +235,9 @@ const Timer = ({
         activeLastMinute={activeLastMinute}
         drawIn={initialLoad}
         revealTime={revealTime}
+        isCompleted={timeLeft === 0 && !isRunning && targetTime > 0}
+        setCount={setCount}
+        onNextSet={handleNextSet}
       />
 
       {showWorkoutContent && (

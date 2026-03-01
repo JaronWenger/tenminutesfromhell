@@ -260,3 +260,14 @@ button:focus {
 .timer-display.completed {
   animation: pulse 1s ease-in-out;
 }
+
+.set-number {
+  font-family: 'Times New Roman', 'Georgia', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: currentColor;
+  filter: drop-shadow(0 0 4px currentColor);
+  line-height: 1;
+  letter-spacing: 2px;
+  padding-left: 2px;
+}

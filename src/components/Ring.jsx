@@ -15,7 +15,10 @@ const Ring = ({
   restTime = 15,
   activeLastMinute = true,
   drawIn = false,
-  revealTime = false
+  revealTime = false,
+  isCompleted = false,
+  setCount = 1,
+  onNextSet
 }) => {
   const [drawInPhase, setDrawInPhase] = useState(drawIn ? 'title' : 'done');
   // Flicker: alternate between active/rest colors rapidly
@@ -134,11 +137,15 @@ const Ring = ({
       {!(drawIn && drawInPhase === 'title') && (
         <button
           className={`play-btn ${isRunning ? 'hidden' : ''} ${drawIn && (drawInPhase === 'fadeout' || drawInPhase === 'time') ? 'draw-in-time' : ''}`}
-          onClick={onStart}
+          onClick={isCompleted ? onNextSet : onStart}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '1px', filter: 'drop-shadow(0 0 4px currentColor)' }}>
-            <path d="M7.5 4.5c0-1.08 1.22-1.71 2.1-1.08l10.2 7.5c.76.56.76 1.6 0 2.16l-10.2 7.5c-.88.63-2.1 0-2.1-1.08V4.5z"/>
-          </svg>
+          {isCompleted ? (
+            <span className="set-number">{['I','II','III','IV','V','VI','VII','VIII','IX','X'][setCount] || setCount + 1}</span>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '1px', filter: 'drop-shadow(0 0 4px currentColor)' }}>
+              <path d="M7.5 4.5c0-1.08 1.22-1.71 2.1-1.08l10.2 7.5c.76.56.76 1.6 0 2.16l-10.2 7.5c-.88.63-2.1 0-2.1-1.08V4.5z"/>
+            </svg>
+          )}
         </button>
       )}
 
