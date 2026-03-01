@@ -27,7 +27,10 @@ const Home = ({
   defaultWorkoutNames = [],
   onVisibilityToggle,
   requestCloseDetail = false,
-  showCardPhotos = true
+  showCardPhotos = true,
+  onShareWorkout,
+  onScheduleWorkout,
+  weeklySchedule = {}
 }) => {
   const { user } = useAuth();
   const [swipingIndex, setSwipingIndex] = useState(null);
@@ -201,6 +204,9 @@ const Home = ({
       timerWorkoutData.some(w => historyMatchesWorkout(h, w))
     );
     if (hasRelevantHistory) chips.push('Recent');
+    // Show "Schedule" if any day has a workout assigned
+    const hasSchedule = weeklySchedule && Object.values(weeklySchedule).some(v => v != null);
+    if (hasSchedule) chips.push('Schedule');
     // Count workouts per tag, then sort by count descending
     const tagCounts = {};
     timerWorkoutData.forEach(w => {
@@ -211,13 +217,14 @@ const Home = ({
       .sort((a, b) => tagCounts[b] - tagCounts[a])
       .forEach(t => chips.push(t));
     return chips;
-  }, [timerWorkoutData, workoutHistory]);
+  }, [timerWorkoutData, workoutHistory, weeklySchedule]);
+
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   const displayedWorkouts = useMemo(() => {
     if (activeFilter === null) return timerWorkoutData;
     if (activeFilter === 'Recent') {
       const completed = [];
-      const uncompleted = [];
       timerWorkoutData.forEach(w => {
         const matchingHistory = workoutHistory
           ?.filter(h => historyMatchesWorkout(h, w))
@@ -229,21 +236,45 @@ const Home = ({
         const lastEntry = matchingHistory?.[0];
         if (lastEntry) {
           completed.push({ workout: w, lastDate: lastEntry.completedAt?.toDate ? lastEntry.completedAt.toDate() : new Date(lastEntry.completedAt) });
-        } else {
-          uncompleted.push(w);
         }
       });
       completed.sort((a, b) => b.lastDate - a.lastDate);
-      return [...completed.map(c => c.workout), ...uncompleted];
+      return completed.slice(0, 7).map(c => c.workout);
+    }
+    if (activeFilter === 'Schedule') {
+      const result = [];
+      for (let i = 0; i < 7; i++) {
+        const name = weeklySchedule[i];
+        if (!name) continue;
+        const workout = timerWorkoutData.find(w => w.name === name);
+        if (workout) result.push(workout);
+      }
+      return result;
     }
     // Tag filter
     return timerWorkoutData.filter(w => {
       const tags = w.tags || (w.tag ? [w.tag] : []);
       return tags.includes(activeFilter);
     });
-  }, [activeFilter, timerWorkoutData, workoutHistory]);
+  }, [activeFilter, timerWorkoutData, workoutHistory, weeklySchedule]);
 
-  const showFilterBar = user && filterChips.length > 0 && timerWorkoutData.length > 5;
+  // Map: index in displayedWorkouts → day header to show above it (Schedule filter only)
+  const scheduleHeaders = useMemo(() => {
+    if (activeFilter !== 'Schedule' || !weeklySchedule) return {};
+    const headers = {};
+    let idx = 0;
+    for (let i = 0; i < 7; i++) {
+      const name = weeklySchedule[i];
+      if (!name) continue;
+      const workout = timerWorkoutData.find(w => w.name === name);
+      if (!workout) continue;
+      headers[idx] = { dayName: DAY_NAMES[i], dayIndex: i };
+      idx++;
+    }
+    return headers;
+  }, [activeFilter, weeklySchedule, timerWorkoutData]);
+
+  const showFilterBar = user && filterChips.length > 0 && (timerWorkoutData.length > 5 || filterChips.includes('Schedule'));
 
   // Reset filter if the active chip no longer exists
   useEffect(() => {
@@ -468,8 +499,9 @@ const Home = ({
 
   // Allow parent to close the detail overlay (e.g. tab bar tap)
   useEffect(() => {
-    if (requestCloseDetail && detailWorkout) {
-      closeDetail();
+    if (requestCloseDetail) {
+      if (detailWorkout) closeDetail();
+      if (activeFilter !== null) setActiveFilter(null);
     }
   }, [requestCloseDetail]);
 
@@ -872,10 +904,24 @@ const Home = ({
 
   const handleSwipeEnd = () => {
     if (isDragging) return;
+    const endOffset = swipeOffsetRef.current;
+    const endIndex = swipeTouchIndexRef.current;
     swipeTouchIndexRef.current = null;
     swipeDirectionLocked.current = null;
     const card = swipeCardElRef.current;
     const wrapper = swipeWrapperElRef.current;
+
+    // Trigger share if fully swiped left (red state)
+    if (endOffset <= -80 && endIndex != null && onShareWorkout) {
+      const workout = displayedWorkouts[endIndex];
+      if (workout) onShareWorkout(workout);
+    }
+
+    // Trigger schedule if fully swiped right (blue state)
+    if (endOffset >= 80 && endIndex != null && onScheduleWorkout) {
+      const workout = displayedWorkouts[endIndex];
+      if (workout) onScheduleWorkout(workout);
+    }
 
     // Always snap back to normal
     if (card) {
@@ -965,7 +1011,10 @@ const Home = ({
         restTime: editRestTime,
         tags: [...editTags],
         id: undefined,
-        forked: true
+        forked: true,
+        creatorUid: null,
+        creatorName: null,
+        creatorPhotoURL: null
       }));
     } else {
       setDetailWorkout(prev => ({
@@ -973,7 +1022,10 @@ const Home = ({
         name: editTitle,
         exercises: [...editExercises],
         restTime: editRestTime,
-        tags: [...editTags]
+        tags: [...editTags],
+        creatorUid: null,
+        creatorName: null,
+        creatorPhotoURL: null
       }));
     }
   };
@@ -1103,7 +1155,7 @@ const Home = ({
       )}
 
       <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <Droppable droppableId="home-workouts" direction="vertical" isDropDisabled={!!detailWorkout || activeFilter === 'Recent'}>
+        <Droppable droppableId="home-workouts" direction="vertical" isDropDisabled={!!detailWorkout || activeFilter === 'Recent' || activeFilter === 'Schedule'}>
           {(provided) => (
             <div
               {...provided.droppableProps}
@@ -1115,11 +1167,19 @@ const Home = ({
                 const completions = getCompletionCount(workout);
                 const isSelected = timerSelectedWorkout === workout.name;
                 const isSwipeActive = swipingIndex === index;
+                const header = scheduleHeaders[index];
+                const draggableKey = header ? `${workout.name}-day${header.dayIndex}` : workout.name;
 
                 return (
+                  <React.Fragment key={draggableKey}>
+                    {header && (
+                      <div className={`home-schedule-day-header${header.dayIndex === new Date().getDay() ? ' today' : ''}`}>
+                        {header.dayName}{header.dayIndex === new Date().getDay() ? ' — Today' : ''}
+                      </div>
+                    )}
                   <Draggable
-                    key={workout.name}
-                    draggableId={workout.name}
+                    key={draggableKey}
+                    draggableId={draggableKey}
                     index={index}
                   >
                     {(provided, snapshot) => (
@@ -1146,6 +1206,8 @@ const Home = ({
                           {showCardPhotos && (
                             !workout.isCustom && defaultWorkoutNames.includes(workout.name) ? (
                               <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="workout-card-avatar" />
+                            ) : workout.creatorPhotoURL ? (
+                              <img src={workout.creatorPhotoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
                             ) : user?.photoURL ? (
                               <img src={user.photoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
                             ) : (
@@ -1212,6 +1274,7 @@ const Home = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setCardMenuIndex(null);
+                                if (onShareWorkout) onShareWorkout(workout);
                               }}
                             >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1226,6 +1289,7 @@ const Home = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setCardMenuIndex(null);
+                                if (onScheduleWorkout) onScheduleWorkout(workout);
                               }}
                             >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1270,6 +1334,7 @@ const Home = ({
                       </div>
                     )}
                   </Draggable>
+                  </React.Fragment>
                 );
               })}
               {provided.placeholder}
@@ -1306,6 +1371,8 @@ const Home = ({
                 <div className="home-detail-creator">
                   {isDefaultWorkout ? (
                     <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="home-detail-creator-icon home-detail-app-icon" />
+                  ) : detailWorkout.creatorPhotoURL ? (
+                    <img src={detailWorkout.creatorPhotoURL} alt="" className="home-detail-creator-icon" referrerPolicy="no-referrer" />
                   ) : user?.photoURL ? (
                     <img src={user.photoURL} alt="" className="home-detail-creator-icon" />
                   ) : (

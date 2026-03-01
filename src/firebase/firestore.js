@@ -44,6 +44,9 @@ export const saveUserWorkout = async (userId, workout) => {
     restTime: workout.restTime ?? null,
     isPublic: workout.isPublic ?? false,
     tags: workout.tags || null,
+    creatorUid: workout.creatorUid || null,
+    creatorName: workout.creatorName || null,
+    creatorPhotoURL: workout.creatorPhotoURL || null,
     updatedAt: serverTimestamp()
   };
 

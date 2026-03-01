@@ -1,55 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../firebase/auth';
-import { getFollowing, getFollowers, getUserProfiles } from '../firebase/social';
 import './SideMenu.css';
 
 const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
 const OTHER_COLORS = ['#ff9500', '#34c759', '#af52de', '#ff2d55', '#5ac8fa', '#30b0c7', '#ffffff'];
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
-  const [followingIds, setFollowingIds] = useState([]);
-  const [followerIds, setFollowerIds] = useState([]);
-  const [showList, setShowList] = useState(null); // null | 'following' | 'followers'
-  const [listProfiles, setListProfiles] = useState([]);
-  const [listLoading, setListLoading] = useState(false);
-  const listRequestRef = useRef(0);
-
-  // Load counts when menu opens
-  useEffect(() => {
-    if (isOpen && user) {
-      Promise.all([getFollowing(user.uid), getFollowers(user.uid)])
-        .then(([following, followers]) => {
-          setFollowingIds(following);
-          setFollowerIds(followers);
-        })
-        .catch(err => console.error('Failed to load follow counts:', err));
-    }
-  }, [isOpen, user]);
-
-  const handleShowList = useCallback(async (type) => {
-    if (showList === type) { setShowList(null); return; }
-    setShowList(type);
-    setListLoading(true);
-    const requestId = ++listRequestRef.current;
-    const ids = type === 'following' ? followingIds : followerIds;
-    try {
-      const profiles = await getUserProfiles(ids);
-      if (requestId === listRequestRef.current) {
-        setListProfiles(profiles);
-        setListLoading(false);
-      }
-    } catch (err) {
-      if (requestId === listRequestRef.current) {
-        setListProfiles([]);
-        setListLoading(false);
-      }
-    }
-  }, [showList, followingIds, followerIds]);
 
   // Allow parent to trigger animated close
   useEffect(() => {
@@ -60,7 +21,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
 
   const triggerClose = () => {
     setIsClosing(true);
-    setShowList(null);
     setTimeout(() => {
       setIsClosing(false);
       onClose();
@@ -86,7 +46,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     <div className={`sidemenu-overlay ${isClosing ? 'sidemenu-overlay-closing' : ''}`}>
       <div className={`sidemenu-panel ${isClosing ? 'sidemenu-panel-closing' : ''}`}>
         {/* Profile header */}
-        <div className="sidemenu-profile">
+        <div className="sidemenu-profile" onClick={() => onOpenProfile && onOpenProfile()} style={{ cursor: 'pointer' }}>
           <div className="sidemenu-avatar">
             {user.photoURL ? (
               <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />
@@ -102,20 +62,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
           </div>
         </div>
 
-        {/* Following / Followers */}
-        <div className="sidemenu-follow-row">
-          <button className={`sidemenu-follow-stat ${showList === 'following' ? 'active' : ''}`} onClick={() => handleShowList('following')}>
-            <span className="sidemenu-follow-count">{followingIds.length}</span>
-            <span className="sidemenu-follow-label">Following</span>
-          </button>
-          <button className={`sidemenu-follow-stat ${showList === 'followers' ? 'active' : ''}`} onClick={() => handleShowList('followers')}>
-            <span className="sidemenu-follow-count">{followerIds.length}</span>
-            <span className="sidemenu-follow-label">Followers</span>
-          </button>
-        </div>
-
-        {/* Settings (fade out when list is shown) */}
-        <div className={`sidemenu-items ${showList ? 'sidemenu-items-hidden' : ''}`}>
+        <div className="sidemenu-items">
           <div className="sidemenu-item" onClick={handleSignOut}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -247,33 +194,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
           </div>
         </div>
 
-        {/* Follow list (fade in when shown) */}
-        {showList && (
-          <div className="sidemenu-follow-list">
-            {listLoading ? (
-              <div className="sidemenu-follow-list-empty">Loading...</div>
-            ) : listProfiles.length === 0 ? (
-              <div className="sidemenu-follow-list-empty">
-                {showList === 'following' ? 'Not following anyone yet' : 'No followers yet'}
-              </div>
-            ) : (
-              listProfiles.map((p, i) => (
-                <div key={p.uid} className="sidemenu-follow-list-item" style={{ animationDelay: `${i * 40}ms` }}>
-                  <div className="sidemenu-follow-list-avatar">
-                    {p.photoURL ? (
-                      <img src={p.photoURL} alt="" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="sidemenu-follow-list-avatar-placeholder">
-                        {(p.displayName || '?')[0].toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <span className="sidemenu-follow-list-name">{p.displayName}</span>
-                </div>
-              ))
-            )}
-          </div>
-        )}
       </div>
 
       {/* Color picker popup — fixed center of screen */}

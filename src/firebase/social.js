@@ -57,6 +57,7 @@ export const getAllPreferences = async (userId) => {
       selectedWorkout: null,
       showCardPhotos: true,
       pinnedWorkouts: [],
+      weeklySchedule: { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
     };
   }
   const data = snap.data();
@@ -72,6 +73,7 @@ export const getAllPreferences = async (userId) => {
     selectedWorkout: data.selectedWorkout || null,
     showCardPhotos: data.showCardPhotos ?? true,
     pinnedWorkouts: data.pinnedWorkouts || [],
+    weeklySchedule: data.weeklySchedule || { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
   };
 };
 
@@ -141,6 +143,13 @@ export const setShowCardPhotosPreference = async (userId, value) => {
 export const setActiveLastMinutePreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     activeLastMinute: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setWeeklySchedule = async (userId, schedule) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    weeklySchedule: schedule,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };

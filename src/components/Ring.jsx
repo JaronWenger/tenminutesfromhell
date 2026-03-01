@@ -87,7 +87,7 @@ const Ring = ({
       <svg className="progress-ring" width="300" height="300">
         <circle
           className={`progress-ring-bg ${drawIn ? 'draw-in' : ''}`}
-          stroke="#2c2c2e"
+          stroke="rgba(44, 44, 46, 0.93)"
           strokeWidth="8"
           fill="transparent"
           r="120"

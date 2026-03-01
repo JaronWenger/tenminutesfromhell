@@ -13,7 +13,7 @@ import SharePrompt from './SharePrompt';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, getFollowing, getFollowers } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -119,6 +119,7 @@ const Main = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
   const [homeDetailCloseRequested, setHomeDetailCloseRequested] = useState(false);
+  const [openProfilePopup, setOpenProfilePopup] = useState(false);
   const [activeColor, setActiveColor] = useState('#ff3b30');
   const [restColor, setRestColor] = useState('#007aff');
   const [sidePlankAlertEnabled, setSidePlankAlertEnabled] = useState(true);
@@ -126,6 +127,93 @@ const Main = () => {
   const [pinnedWorkouts, setPinnedWorkoutsState] = useState([]);
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
+
+  // Send workout popup state (shared between Home + StatsPage)
+  const [sendWorkout, setSendWorkout] = useState(null);
+  const [sendWorkoutClosing, setSendWorkoutClosing] = useState(false);
+  const [sendWorkoutProfiles, setSendWorkoutProfiles] = useState([]);
+  const [sendWorkoutSearch, setSendWorkoutSearch] = useState('');
+  const [sentTo, setSentTo] = useState({});
+  const sendWorkoutPanelRef = useRef(null);
+
+  // Weekly schedule state
+  const [weeklySchedule, setWeeklyScheduleState] = useState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
+  const [scheduleWorkout, setScheduleWorkout] = useState(null);
+  const [scheduleClosing, setScheduleClosing] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState({});
+
+  const openSchedulePopup = useCallback((workout) => {
+    setScheduleClosing(false);
+    setScheduleDraft({ ...weeklySchedule });
+    setScheduleWorkout(workout);
+  }, [weeklySchedule]);
+
+  const closeSchedulePopup = useCallback(() => {
+    setScheduleClosing(true);
+    setTimeout(() => {
+      setScheduleWorkout(null);
+      setScheduleClosing(false);
+      setScheduleDraft({});
+    }, 200);
+  }, []);
+
+  const handleScheduleDaySelect = useCallback((dayIndex) => {
+    if (!scheduleWorkout) return;
+    setScheduleDraft(prev => {
+      const next = { ...prev };
+      if (next[dayIndex] === scheduleWorkout.name) {
+        next[dayIndex] = null;
+      } else {
+        next[dayIndex] = scheduleWorkout.name;
+      }
+      return next;
+    });
+  }, [scheduleWorkout]);
+
+  const handleScheduleSave = useCallback(() => {
+    if (!user) return;
+    setWeeklyScheduleState(scheduleDraft);
+    setWeeklySchedule(user.uid, scheduleDraft).catch(err => console.error('Failed to save schedule:', err));
+    closeSchedulePopup();
+  }, [user, scheduleDraft, closeSchedulePopup]);
+
+  const openSendWorkout = useCallback(async (workout) => {
+    setSendWorkoutClosing(false);
+    setSendWorkoutSearch('');
+    setSentTo({});
+    try {
+      const profiles = await getUserProfiles(followingIds);
+      setSendWorkout(workout);
+      setSendWorkoutProfiles(profiles);
+    } catch (err) {
+      console.error('Failed to load following profiles:', err);
+      setSendWorkout(workout);
+      setSendWorkoutProfiles([]);
+    }
+  }, [followingIds]);
+
+  const closeSendWorkout = useCallback(() => {
+    setSendWorkoutClosing(true);
+    setTimeout(() => {
+      setSendWorkout(null);
+      setSendWorkoutClosing(false);
+      setSendWorkoutProfiles([]);
+      setSendWorkoutSearch('');
+      setSentTo({});
+    }, 200);
+  }, []);
+
+  const handleSendToUser = useCallback((profile) => {
+    setSentTo(prev => {
+      const next = { ...prev };
+      if (next[profile.uid]) {
+        delete next[profile.uid];
+      } else {
+        next[profile.uid] = true;
+      }
+      return next;
+    });
+  }, []);
 
   // Load user workouts and history from Firestore when user logs in
   useEffect(() => {
@@ -146,6 +234,7 @@ const Main = () => {
       setRestTime(15);
       setActiveLastMinute(true);
       setTimerSelectedWorkout('The Devils 10');
+      setWeeklyScheduleState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
       return;
     }
 
@@ -211,7 +300,15 @@ const Main = () => {
         setPrepTime(prefs.prepTime);
         setRestTime(prefs.restTime);
         setActiveLastMinute(prefs.activeLastMinute);
-        if (prefs.selectedWorkout) setTimerSelectedWorkout(prefs.selectedWorkout);
+        if (prefs.weeklySchedule) setWeeklyScheduleState(prefs.weeklySchedule);
+        // Auto-select today's scheduled workout, or fall back to saved selection
+        const todayDay = new Date().getDay();
+        const scheduledName = prefs.weeklySchedule?.[todayDay];
+        if (scheduledName) {
+          setTimerSelectedWorkout(scheduledName);
+        } else if (prefs.selectedWorkout) {
+          setTimerSelectedWorkout(prefs.selectedWorkout);
+        }
         setWorkoutReady(true);
         // Load follow data in background (non-blocking)
         Promise.all([getFollowing(user.uid), getFollowers(user.uid)])
@@ -280,6 +377,33 @@ const Main = () => {
 
     return { timer: timerResult, stopwatch: stopwatchResult };
   };
+
+  // Refresh workouts from Firestore (called after taking a workout from another user)
+  const refreshWorkouts = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [custom, savedOrder] = await Promise.all([
+        getUserWorkouts(user.uid),
+        getWorkoutOrder(user.uid)
+      ]);
+      if (custom.length > 0) {
+        const merged = mergeWorkouts(custom);
+        let timer = merged.timer;
+        if (savedOrder && savedOrder.length > 0) {
+          const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
+          timer = [...timer].sort((a, b) => {
+            const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
+            const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
+            return ai - bi;
+          });
+        }
+        setTimerWorkoutData(timer);
+        setStopwatchWorkoutData(merged.stopwatch);
+      }
+    } catch (err) {
+      console.error('Failed to refresh workouts:', err);
+    }
+  }, [user]);
 
   // Share workout post helper
   const handleShareWorkout = useCallback(async (workoutData) => {
@@ -699,7 +823,10 @@ const Main = () => {
         type: workoutType,
         exercises: updatedExercises,
         isDefault,
-        defaultName: isDefault && newTitle ? workoutName : null
+        defaultName: isDefault && newTitle ? workoutName : null,
+        creatorUid: null,
+        creatorName: null,
+        creatorPhotoURL: null,
       }).catch(err => console.error('Failed to save workout:', err));
     }
   };
@@ -725,7 +852,7 @@ const Main = () => {
           if (defaultNames.includes(workoutName)) {
             await deleteUserWorkout(user.uid, workoutName, true);
           }
-          await saveUserWorkout(user.uid, { ...forked, isDefault: false, defaultName: null });
+          await saveUserWorkout(user.uid, { ...forked, isDefault: false, defaultName: null, creatorUid: null, creatorName: null, creatorPhotoURL: null });
         };
         persist().catch(err => console.error('Failed to persist forked workout:', err));
       }
@@ -740,7 +867,7 @@ const Main = () => {
       setTimerWorkoutData(prev =>
         prev.map(w =>
           w.name === workoutName
-            ? { ...w, name: finalName, exercises, restTime: newRestTime ?? null, tags: safeTags }
+            ? { ...w, name: finalName, exercises, restTime: newRestTime ?? null, tags: safeTags, creatorUid: null, creatorName: null, creatorPhotoURL: null }
             : w
         )
       );
@@ -760,7 +887,10 @@ const Main = () => {
         isDefault: isNew ? false : isDefault,
         defaultName: isDefault && newTitle ? workoutName : null,
         restTime: newRestTime ?? null,
-        tags: safeTags
+        tags: safeTags,
+        creatorUid: null,
+        creatorName: null,
+        creatorPhotoURL: null,
       }).catch(err => console.error('Failed to save workout:', err));
     }
   }, [user, timerSelectedWorkout]);
@@ -795,6 +925,19 @@ const Main = () => {
       }
       return remaining;
     });
+
+    // Remove from weekly schedule if scheduled
+    const hasScheduled = Object.values(weeklySchedule).some(v => v === workoutName);
+    if (hasScheduled) {
+      const cleaned = { ...weeklySchedule };
+      for (const day in cleaned) {
+        if (cleaned[day] === workoutName) cleaned[day] = null;
+      }
+      setWeeklyScheduleState(cleaned);
+      if (user) {
+        setWeeklySchedule(user.uid, cleaned).catch(err => console.error('Failed to clean schedule:', err));
+      }
+    }
 
     // Persist to Firestore
     if (user) {
@@ -941,6 +1084,10 @@ const Main = () => {
           followerIds={followerIds}
           pinnedWorkouts={pinnedWorkouts}
           onPinnedWorkoutsChange={handlePinnedWorkoutsChange}
+          onWorkoutAdded={refreshWorkouts}
+          onProfileClick={() => setShowSideMenu(true)}
+          openProfilePopup={openProfilePopup}
+          onProfilePopupOpened={() => setOpenProfilePopup(false)}
         />
       );
     }
@@ -997,9 +1144,12 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
-  
+
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
+            onShareWorkout={openSendWorkout}
+            onScheduleWorkout={openSchedulePopup}
+            weeklySchedule={weeklySchedule}
           />
         );
       case 'stats':
@@ -1016,6 +1166,11 @@ const Main = () => {
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
             pinnedWorkouts={pinnedWorkouts}
             onPinnedWorkoutsChange={handlePinnedWorkoutsChange}
+            onWorkoutAdded={refreshWorkouts}
+            onProfileClick={() => setShowSideMenu(true)}
+            openProfilePopup={openProfilePopup}
+            onProfilePopupOpened={() => setOpenProfilePopup(false)}
+            onShareWorkout={openSendWorkout}
           />
         );
       default:
@@ -1037,9 +1192,12 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
-  
+
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
+            onShareWorkout={openSendWorkout}
+            onScheduleWorkout={openSchedulePopup}
+            weeklySchedule={weeklySchedule}
           />
         );
     }
@@ -1119,6 +1277,11 @@ const Main = () => {
         onColorChange={handleColorChange}
         showCardPhotos={showCardPhotos}
         onToggleShowCardPhotos={handleToggleShowCardPhotos}
+        onOpenProfile={() => {
+          setSideMenuCloseRequested(true);
+          setActiveTab('stats');
+          setOpenProfilePopup(true);
+        }}
       />
       <LoginModal
         isOpen={showLoginModal}
@@ -1130,6 +1293,147 @@ const Main = () => {
           onShare={handleSharePromptAccept}
           onDismiss={handleSharePromptDismiss}
         />
+      )}
+      {sendWorkout && (
+        <div
+          className={`stats-follow-overlay ${sendWorkoutClosing ? 'closing' : ''}`}
+          style={{ zIndex: 200 }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeSendWorkout(); }}
+        >
+          <div className="stats-follow-panel" ref={sendWorkoutPanelRef}>
+            <div className="stats-follow-panel-header">
+              <span className="stats-send-title">Send to</span>
+              <button className="stats-follow-panel-close" onClick={closeSendWorkout}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <input
+              className="stats-follow-search"
+              type="text"
+              placeholder="Search..."
+              value={sendWorkoutSearch}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!sendWorkoutSearch && val) {
+                  const panel = sendWorkoutPanelRef.current;
+                  if (panel) panel.style.minHeight = panel.offsetHeight + 'px';
+                } else if (sendWorkoutSearch && !val) {
+                  const panel = sendWorkoutPanelRef.current;
+                  if (panel) panel.style.minHeight = '';
+                }
+                setSendWorkoutSearch(val);
+              }}
+            />
+            <div className="stats-follow-panel-list">
+              {sendWorkoutProfiles.length === 0 ? (
+                <div className="stats-follow-panel-empty">Not following anyone yet</div>
+              ) : (
+                sendWorkoutProfiles
+                  .filter(p => !sendWorkoutSearch || (p.displayName || '').toLowerCase().includes(sendWorkoutSearch.toLowerCase()))
+                  .map((p, i) => (
+                  <div
+                    key={p.uid}
+                    className="stats-follow-panel-item"
+                    style={{ animationDelay: `${i * 40}ms`, cursor: 'pointer' }}
+                    onClick={() => handleSendToUser(p)}
+                  >
+                    <div className="stats-follow-panel-avatar">
+                      {p.photoURL ? (
+                        <img src={p.photoURL} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="stats-follow-panel-avatar-placeholder">
+                          {(p.displayName || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span className="stats-follow-panel-name" style={{ flex: 1 }}>{p.displayName}</span>
+                    <div className={`stats-send-check ${sentTo[p.uid] ? 'selected' : ''}`}>
+                      {sentTo[p.uid] && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <button
+              className={`stats-send-submit ${Object.keys(sentTo).length > 0 ? '' : 'disabled'}`}
+              disabled={Object.keys(sentTo).length === 0}
+              onClick={() => { if (Object.keys(sentTo).length > 0) closeSendWorkout(); }}
+            >
+              Send{Object.keys(sentTo).length > 0 ? ` (${Object.keys(sentTo).length})` : ''}
+            </button>
+          </div>
+        </div>
+      )}
+      {scheduleWorkout && (
+        <div
+          className={`schedule-overlay ${scheduleClosing ? 'closing' : ''}`}
+          onClick={(e) => { if (e.target === e.currentTarget) closeSchedulePopup(); }}
+        >
+          <div className="schedule-panel">
+            <div className="schedule-header">
+              <div className="schedule-title-group">
+                <span className="schedule-label">Schedule</span>
+                <span className="schedule-workout-name">{scheduleWorkout.name}</span>
+              </div>
+              <button className="schedule-close" onClick={closeSchedulePopup}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="schedule-days-vertical">
+              {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((dayName, i) => {
+                const assigned = scheduleDraft[i];
+                const isThisWorkout = assigned === scheduleWorkout.name;
+                const isToday = i === new Date().getDay();
+                return (
+                  <button
+                    key={i}
+                    className={`schedule-row${isThisWorkout ? ' active' : ''}${isToday ? ' today' : ''}`}
+                    onClick={() => handleScheduleDaySelect(i)}
+                  >
+                    <span className="schedule-row-day">{dayName}</span>
+                    <div className="schedule-row-right">
+                      {assigned ? (
+                        <span className={`schedule-row-workout${isThisWorkout ? ' current' : ''}`}>
+                          {assigned}
+                        </span>
+                      ) : (
+                        <span className="schedule-row-rest">Rest</span>
+                      )}
+                      <span className={`schedule-row-check${isThisWorkout ? ' checked' : ''}`}>
+                        {isThisWorkout ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                          </svg>
+                        )}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              className={`schedule-save-btn${JSON.stringify(scheduleDraft) === JSON.stringify(weeklySchedule) ? ' disabled' : ''}`}
+              disabled={JSON.stringify(scheduleDraft) === JSON.stringify(weeklySchedule)}
+              onClick={handleScheduleSave}
+            >
+              Save
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );

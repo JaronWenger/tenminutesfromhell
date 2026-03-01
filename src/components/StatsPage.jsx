@@ -1,8 +1,52 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { getUserProfiles } from '../firebase/social';
+import { getUserProfiles, getFollowing, getFollowers, getAllPreferences } from '../firebase/social';
+import { getUserHistory, getUserWorkouts, saveUserWorkout } from '../firebase/firestore';
+import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './StatsPage.css';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+const buildCalendarGrid = (dailyMap) => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const jan1 = new Date(year, 0, 1);
+  const startDay = new Date(jan1);
+  startDay.setDate(jan1.getDate() - jan1.getDay());
+  const dec31 = new Date(year, 11, 31);
+  const endDay = new Date(dec31);
+  endDay.setDate(dec31.getDate() + (6 - dec31.getDay()));
+
+  const weeks = [];
+  const monthLabels = [];
+  let currentDate = new Date(startDay);
+  let weekIndex = 0;
+  let todayWeekIndex = 0;
+
+  while (currentDate <= endDay) {
+    const week = [];
+    for (let day = 0; day < 7; day++) {
+      if (currentDate <= endDay) {
+        const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+        const isFuture = currentDate > today;
+        if (currentDate.toDateString() === today.toDateString()) {
+          todayWeekIndex = weekIndex;
+        }
+        week.push({ date: key, count: dailyMap[key] || 0, isFuture });
+        if (currentDate.getDate() <= 7 && day === 0) {
+          monthLabels.push({
+            weekIndex,
+            label: currentDate.toLocaleString('default', { month: 'short' })
+          });
+        }
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    weeks.push(week);
+    weekIndex++;
+  }
+
+  return { weeks, monthLabels, numWeeks: weeks.length, todayWeekIndex };
+};
 
 const StatsPage = ({
   user,
@@ -18,7 +62,12 @@ const StatsPage = ({
   followingIds: propFollowingIds = [],
   followerIds: propFollowerIds = [],
   pinnedWorkouts = [],
-  onPinnedWorkoutsChange
+  onPinnedWorkoutsChange,
+  onWorkoutAdded,
+  onProfileClick,
+  openProfilePopup,
+  onProfilePopupOpened,
+  onShareWorkout
 }) => {
   const calendarScrollRef = useRef(null);
 
@@ -47,6 +96,8 @@ const StatsPage = ({
   const [followListProfiles, setFollowListProfiles] = useState([]);
   const [followListLoading, setFollowListLoading] = useState(false);
   const [followListClosing, setFollowListClosing] = useState(false);
+  const [followListSearch, setFollowListSearch] = useState('');
+  const followPanelRef = useRef(null);
 
   // Detail popup state (FLIP animation)
   const [detailWorkout, setDetailWorkout] = useState(null);
@@ -54,6 +105,14 @@ const StatsPage = ({
   const [detailRect, setDetailRect] = useState(null);
   const panelRef = useRef(null);
   const cardRefs = useRef({});
+
+  // Open profile popup when triggered from SideMenu
+  useEffect(() => {
+    if (openProfilePopup) {
+      setShowProfilePopup(true);
+      if (onProfilePopupOpened) onProfilePopupOpened();
+    }
+  }, [openProfilePopup, onProfilePopupOpened]);
 
   // Close year dropdown on outside click
   useEffect(() => {
@@ -520,6 +579,32 @@ const StatsPage = ({
   const [profilePopupClosing, setProfilePopupClosing] = useState(false);
   const ppCalendarScrollRef = useRef(null);
 
+  // Viewing another user's profile popup
+  const [viewingProfile, setViewingProfile] = useState(null);
+  const [viewingProfileFollowing, setViewingProfileFollowing] = useState(0);
+  const [viewingProfileFollowers, setViewingProfileFollowers] = useState(0);
+  const [viewingProfileClosing, setViewingProfileClosing] = useState(false);
+  const [viewingProfileStats, setViewingProfileStats] = useState(null);
+  const [viewingProfileCalendar, setViewingProfileCalendar] = useState(null);
+  const [viewingProfilePinnedWorkouts, setViewingProfilePinnedWorkouts] = useState([]);
+  const [viewingProfileCompletions, setViewingProfileCompletions] = useState({});
+  const [viewingProfileLoading, setViewingProfileLoading] = useState(false);
+  const [takenWorkouts, setTakenWorkouts] = useState({});
+  const [savingWorkouts, setSavingWorkouts] = useState({});
+  const vpCalendarScrollRef = useRef(null);
+  const vpPanelRef = useRef(null);
+  const vpPanelHeightRef = useRef(null);
+  const vpSkipFadeRef = useRef(false);
+
+  // Follow list within viewing profile
+  const [vpFollowListType, setVpFollowListType] = useState(null);
+  const [vpFollowListProfiles, setVpFollowListProfiles] = useState([]);
+  const [vpFollowListLoading, setVpFollowListLoading] = useState(false);
+  const [vpFollowListClosing, setVpFollowListClosing] = useState(false);
+  const [vpFollowListSearch, setVpFollowListSearch] = useState('');
+  const vpFollowPanelRef = useRef(null);
+
+
   const getCompletionCount = useCallback((workout) => {
     if (!history || history.length === 0) return 0;
     return history.filter(h =>
@@ -533,11 +618,97 @@ const StatsPage = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Helper: smoothly animate a panel from its current rendered height to its natural height
+  const animatePanelHeight = useCallback((panelRef) => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    // Capture current rendered height (works even mid-transition)
+    const fromH = panel.getBoundingClientRect().height;
+    // Temporarily clear styles to measure natural target height
+    panel.style.height = '';
+    panel.style.minHeight = '';
+    panel.style.transition = 'none';
+    const toH = panel.scrollHeight;
+    if (Math.abs(fromH - toH) < 2) {
+      // No meaningful change — clean up inline styles
+      panel.style.transition = '';
+      return;
+    }
+    // Lock at from, reflow, then animate
+    panel.style.height = fromH + 'px';
+    panel.style.overflow = 'hidden';
+    // eslint-disable-next-line no-unused-expressions
+    panel.offsetHeight;
+    panel.style.transition = 'height 0.3s ease';
+    panel.style.height = toH + 'px';
+    const onEnd = () => {
+      panel.style.height = '';
+      panel.style.overflow = '';
+      panel.style.transition = '';
+      panel.removeEventListener('transitionend', onEnd);
+    };
+    panel.addEventListener('transitionend', onEnd);
+  }, []);
+
+  // Animate viewing profile panel height when data loads
+  useLayoutEffect(() => {
+    const panel = vpPanelRef.current;
+    const fromH = vpPanelHeightRef.current;
+    if (!panel || !fromH || viewingProfileLoading) return;
+
+    const toH = panel.scrollHeight;
+    vpPanelHeightRef.current = null;
+
+    if (Math.abs(fromH - toH) < 4) return;
+
+    panel.style.height = fromH + 'px';
+    panel.style.overflow = 'hidden';
+    panel.style.transition = 'none';
+    // eslint-disable-next-line no-unused-expressions
+    panel.offsetHeight;
+    panel.style.transition = 'height 0.3s ease';
+    panel.style.height = toH + 'px';
+
+    const onEnd = () => {
+      panel.style.height = '';
+      panel.style.overflow = '';
+      panel.style.transition = '';
+      panel.removeEventListener('transitionend', onEnd);
+    };
+    panel.addEventListener('transitionend', onEnd);
+    return () => panel.removeEventListener('transitionend', onEnd);
+  }, [viewingProfileLoading, viewingProfileCalendar, viewingProfilePinnedWorkouts]);
+
   const openFollowList = async (type) => {
-    setFollowListType(type);
-    setFollowListLoading(true);
     setFollowListClosing(false);
-    setFollowListProfiles([]);
+    setFollowListSearch('');
+    try {
+      // Pre-fetch profiles before showing popup so it opens at correct size
+      const ids = type === 'following' ? followingIds : followerIds;
+      const profiles = await getUserProfiles(ids);
+      setFollowListType(type);
+      setFollowListLoading(false);
+      setFollowListProfiles(profiles);
+    } catch (err) {
+      console.error('Failed to load profiles:', err);
+      setFollowListType(type);
+      setFollowListLoading(false);
+      setFollowListProfiles([]);
+    }
+  };
+
+  const switchFollowListTab = async (type) => {
+    if (type === followListType) return;
+    // Lock panel at current height immediately
+    const panel = followPanelRef.current;
+    if (panel) {
+      panel.style.height = panel.getBoundingClientRect().height + 'px';
+      panel.style.minHeight = '';
+      panel.style.overflow = 'hidden';
+      panel.style.transition = 'none';
+    }
+    setFollowListType(type);
+    setFollowListSearch('');
     try {
       const ids = type === 'following' ? followingIds : followerIds;
       const profiles = await getUserProfiles(ids);
@@ -545,7 +716,10 @@ const StatsPage = ({
     } catch (err) {
       console.error('Failed to load profiles:', err);
     }
-    setFollowListLoading(false);
+    // Await two frames so React has fully committed before measuring
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => requestAnimationFrame(r));
+    animatePanelHeight(followPanelRef);
   };
 
   const closeFollowList = () => {
@@ -554,7 +728,199 @@ const StatsPage = ({
       setFollowListType(null);
       setFollowListClosing(false);
       setFollowListProfiles([]);
+      setFollowListSearch('');
     }, 200);
+  };
+
+  const openUserProfile = async (profile) => {
+    // Skip fade-in if replacing an existing overlay (prevents flash)
+    const hasOverlay = !!(followListType || vpFollowListType || viewingProfile);
+    vpSkipFadeRef.current = hasOverlay;
+    // Remove background popups instantly (no-fade overlay replaces their backdrop)
+    setFollowListType(null);
+    setFollowListClosing(false);
+    setFollowListProfiles([]);
+    setVpFollowListType(null);
+    setVpFollowListClosing(false);
+    setVpFollowListProfiles([]);
+    setShowProfilePopup(false);
+    setProfilePopupClosing(false);
+
+    setViewingProfile(profile);
+    setViewingProfileFollowing(0);
+    setViewingProfileFollowers(0);
+    setViewingProfileStats(null);
+    setViewingProfileCalendar(null);
+    setViewingProfilePinnedWorkouts([]);
+    setViewingProfileCompletions({});
+    // Pre-populate takenWorkouts: only mark workouts still owned by this creator (not remixed)
+    if (profile.uid !== user?.uid) {
+      const taken = {};
+      allWorkouts.forEach(w => {
+        if (w.creatorUid === profile.uid) taken[w.name] = true;
+      });
+      setTakenWorkouts(taken);
+    } else {
+      setTakenWorkouts({});
+    }
+    setViewingProfileClosing(false);
+    setViewingProfileLoading(true);
+    try {
+      const [following, followers, userHistory, workouts, prefs] = await Promise.all([
+        getFollowing(profile.uid),
+        getFollowers(profile.uid),
+        getUserHistory(profile.uid),
+        getUserWorkouts(profile.uid),
+        getAllPreferences(profile.uid)
+      ]);
+      setViewingProfileFollowing(following.length);
+      setViewingProfileFollowers(followers.length);
+
+      // Compute stats from history
+      const totalSeconds = userHistory.reduce((sum, e) => sum + (e.duration || 0), 0);
+      const totalHours = Math.floor(totalSeconds / 3600);
+      const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
+      const dailyMap = {};
+      userHistory.forEach(e => {
+        const d = e.completedAt || e.date;
+        if (!d) return;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        dailyMap[key] = (dailyMap[key] || 0) + 1;
+      });
+      setViewingProfileStats({ totalHours, totalMinutes, dailyMap });
+
+      // Compute completion counts per workout name
+      const completionMap = {};
+      userHistory.forEach(h => {
+        if (h.workoutName) completionMap[h.workoutName] = (completionMap[h.workoutName] || 0) + 1;
+      });
+      setViewingProfileCompletions(completionMap);
+
+      // Build calendar grid (current year)
+      setViewingProfileCalendar(buildCalendarGrid(dailyMap));
+
+      // Resolve pinned workouts
+      const pinnedNames = prefs.pinnedWorkouts || [];
+      if (pinnedNames.length > 0) {
+        const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+        const workoutMap = {};
+        allDefaults.forEach(w => { workoutMap[w.name] = w; });
+        workouts.filter(w => !w.deleted).forEach(w => { workoutMap[w.name] = w; });
+        setViewingProfilePinnedWorkouts(pinnedNames.map(name => workoutMap[name]).filter(Boolean));
+      }
+    } catch (err) {
+      console.error('Failed to load user profile:', err);
+    }
+    // Snapshot panel height before content expands
+    if (vpPanelRef.current) {
+      vpPanelHeightRef.current = vpPanelRef.current.offsetHeight;
+    }
+    setViewingProfileLoading(false);
+  };
+
+  const closeViewingProfile = () => {
+    vpSkipFadeRef.current = false;
+    setViewingProfileClosing(true);
+    setVpFollowListType(null);
+    setVpFollowListProfiles([]);
+    setTimeout(() => {
+      setViewingProfile(null);
+      setViewingProfileClosing(false);
+      setViewingProfileStats(null);
+      setViewingProfileCalendar(null);
+      setViewingProfilePinnedWorkouts([]);
+    }, 260);
+  };
+
+  const openVpFollowList = async (type) => {
+    if (!viewingProfile) return;
+    setVpFollowListType(type);
+    setVpFollowListLoading(true);
+    setVpFollowListClosing(false);
+    setVpFollowListProfiles([]);
+    setVpFollowListSearch('');
+    try {
+      const ids = type === 'following'
+        ? await getFollowing(viewingProfile.uid)
+        : await getFollowers(viewingProfile.uid);
+      const profiles = await getUserProfiles(ids);
+      // Lock panel at "Loading..." height before swapping content
+      const panel = vpFollowPanelRef.current;
+      if (panel) {
+        panel.style.height = panel.getBoundingClientRect().height + 'px';
+        panel.style.overflow = 'hidden';
+        panel.style.transition = 'none';
+      }
+      setVpFollowListProfiles(profiles);
+    } catch (err) {
+      console.error('Failed to load follow list:', err);
+    }
+    setVpFollowListLoading(false);
+    requestAnimationFrame(() => requestAnimationFrame(() => animatePanelHeight(vpFollowPanelRef)));
+  };
+
+  const switchVpFollowListTab = async (type) => {
+    if (type === vpFollowListType || !viewingProfile) return;
+    // Lock panel at current height immediately
+    const panel = vpFollowPanelRef.current;
+    if (panel) {
+      panel.style.height = panel.getBoundingClientRect().height + 'px';
+      panel.style.minHeight = '';
+      panel.style.transition = 'none';
+    }
+    setVpFollowListType(type);
+    setVpFollowListSearch('');
+    try {
+      const ids = type === 'following'
+        ? await getFollowing(viewingProfile.uid)
+        : await getFollowers(viewingProfile.uid);
+      const profiles = await getUserProfiles(ids);
+      setVpFollowListProfiles(profiles);
+      // Animate after React renders new content
+      requestAnimationFrame(() => requestAnimationFrame(() => animatePanelHeight(vpFollowPanelRef)));
+    } catch (err) {
+      console.error('Failed to load follow list:', err);
+    }
+  };
+
+  const closeVpFollowList = () => {
+    setVpFollowListClosing(true);
+    setTimeout(() => {
+      setVpFollowListType(null);
+      setVpFollowListClosing(false);
+      setVpFollowListProfiles([]);
+      setVpFollowListSearch('');
+    }, 200);
+  };
+
+  const handleTakeWorkout = async (workout) => {
+    if (!user || savingWorkouts[workout.name]) return;
+    if (takenWorkouts[workout.name]) {
+      closeDetail();
+      closeViewingProfile();
+      if (onStartWorkout) onStartWorkout(workout.name);
+      return;
+    }
+    setSavingWorkouts(prev => ({ ...prev, [workout.name]: true }));
+    try {
+      await saveUserWorkout(user.uid, {
+        name: workout.name,
+        type: workout.type,
+        exercises: workout.exercises,
+        isCustom: true,
+        tags: workout.tags || null,
+        restTime: workout.restTime ?? null,
+        creatorUid: viewingProfile?.uid || null,
+        creatorName: viewingProfile?.displayName || null,
+        creatorPhotoURL: viewingProfile?.photoURL || null,
+      });
+      setTakenWorkouts(prev => ({ ...prev, [workout.name]: true }));
+      if (onWorkoutAdded) onWorkoutAdded();
+    } catch (err) {
+      console.error('Failed to take workout:', err);
+    } finally {
+      setSavingWorkouts(prev => ({ ...prev, [workout.name]: false }));
+    }
   };
 
   const openDetail = useCallback((workout) => {
@@ -654,22 +1020,6 @@ const StatsPage = ({
     }, 230);
   }, [detailPhase, detailWorkout, detailRect]);
 
-  const handleShare = async (workout) => {
-    const shareText = `${workout.name} - ${workout.exercises.length} exercises`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: workout.name, text: shareText });
-      } catch (err) {
-        // User cancelled or share failed
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(shareText);
-      } catch (err) {
-        console.error('Failed to copy:', err);
-      }
-    }
-  };
 
   const detailOpen = detailWorkout && detailPhase !== 'leaving';
 
@@ -696,6 +1046,17 @@ const StatsPage = ({
     const scrollTarget = (todayIdx + 1) * cellWidth - el.clientWidth;
     el.scrollLeft = Math.max(0, scrollTarget);
   }, [showProfilePopup, displayCalendar]);
+
+  // Auto-scroll viewing profile heatmap to today
+  useEffect(() => {
+    if (!viewingProfile || !viewingProfileCalendar) return;
+    const el = vpCalendarScrollRef.current;
+    if (!el) return;
+    const cellWidth = 14;
+    const todayIdx = viewingProfileCalendar.todayWeekIndex ?? 0;
+    const scrollTarget = (todayIdx + 1) * cellWidth - el.clientWidth;
+    el.scrollLeft = Math.max(0, scrollTarget);
+  }, [viewingProfile, viewingProfileCalendar]);
 
   const closeProfilePopup = () => {
     setProfilePopupClosing(true);
@@ -758,7 +1119,7 @@ const StatsPage = ({
         </div>
         <button
           className="stats-card-action-btn"
-          onClick={(e) => { e.stopPropagation(); handleShare(workout); }}
+          onClick={(e) => { e.stopPropagation(); onShareWorkout(workout); }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
@@ -775,7 +1136,7 @@ const StatsPage = ({
       {/* Profile Header — sticky */}
       <div className="stats-profile-header">
         <div className="stats-profile-left">
-          <div className="stats-profile-pic-tap" onClick={() => setShowProfilePopup(true)}>
+          <div className="stats-profile-pic-tap" onClick={() => onProfileClick && onProfileClick()}>
             {user?.photoURL ? (
               <img src={user.photoURL} alt="" className="stats-profile-pic" referrerPolicy="no-referrer" />
             ) : (
@@ -992,9 +1353,9 @@ const StatsPage = ({
 
           {/* Pinned Workouts */}
           <div className="stats-section">
-            <h3 className="stats-section-title">Pinned Workouts <span className="stats-section-title-detail">{pinnedWorkouts.length}/3</span></h3>
+            <h3 className="stats-section-title">Pinned Workouts <span className="stats-section-title-detail">{user ? pinnedWorkouts.length : 3}/3</span></h3>
             <div className="stats-workout-cards">
-              {pinnedWorkoutObjects.map(renderPinnedCard)}
+              {(user ? pinnedWorkoutObjects : DEFAULT_TIMER_WORKOUTS.slice(0, 3)).map(renderPinnedCard)}
               <div className="stats-pin-add" onClick={openPinPicker}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"/>
@@ -1054,6 +1415,23 @@ const StatsPage = ({
         >
           <div className="stats-detail-panel" ref={panelRef}>
             <div className="stats-detail-header">
+              <div className="stats-detail-creator">
+                {(() => {
+                  // Determine whose photo to show: viewed profile > workout creator > self
+                  const creatorPhoto = viewingProfile
+                    ? viewingProfile.photoURL
+                    : detailWorkout.creatorPhotoURL || user?.photoURL;
+                  return creatorPhoto ? (
+                    <img src={creatorPhoto} alt="" className="stats-detail-creator-icon" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="stats-detail-creator-icon stats-detail-user-icon">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                      </svg>
+                    </div>
+                  );
+                })()}
+              </div>
               <div className={`stats-detail-title-group ${(detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : [])).length > 0 ? 'has-tags' : ''}`}>
                 <h2 className="stats-detail-name">{detailWorkout.name}</h2>
                 {(detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : [])).length > 0 && (
@@ -1065,13 +1443,36 @@ const StatsPage = ({
                 )}
               </div>
               <div className="stats-detail-header-actions">
-                <button className="stats-detail-share-btn" onClick={() => handleShare(detailWorkout)}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                    <polyline points="16 6 12 2 8 6"/>
-                    <line x1="12" y1="2" x2="12" y2="15"/>
-                  </svg>
-                </button>
+                {viewingProfile && viewingProfile.uid !== user?.uid ? (
+                  <button
+                    className={`stats-detail-share-btn ${takenWorkouts[detailWorkout.name] ? 'taken' : ''}`}
+                    onClick={() => handleTakeWorkout(detailWorkout)}
+                  >
+                    {savingWorkouts[detailWorkout.name] ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" className="stats-take-spinner">
+                        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="42" strokeLinecap="round"/>
+                      </svg>
+                    ) : takenWorkouts[detailWorkout.name] ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    )}
+                  </button>
+                ) : (
+                  <button className="stats-detail-share-btn" onClick={() => onShareWorkout(detailWorkout)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                      <polyline points="16 6 12 2 8 6"/>
+                      <line x1="12" y1="2" x2="12" y2="15"/>
+                    </svg>
+                  </button>
+                )}
                 <button className="stats-detail-close-btn" onClick={closeDetail}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1082,21 +1483,26 @@ const StatsPage = ({
             </div>
 
             <div className="stats-detail-meta-row">
-              <div className="stats-detail-meta">
-                <span>{formatTime((detailWorkout.exercises.length * 60) + prepTime)}</span>
-                <span className="stats-detail-dot">&middot;</span>
-                <span>{detailWorkout.exercises.length} exercises</span>
-                <span className="stats-detail-dot">&middot;</span>
-                <span>Rest {detailWorkout.restTime != null ? detailWorkout.restTime : globalRestTime}s</span>
+              <div className="stats-detail-meta-left">
+                <div className="stats-detail-meta">
+                  <span>{formatTime((detailWorkout.exercises.length * 60) + prepTime)}</span>
+                  <span className="stats-detail-dot">&middot;</span>
+                  <span>{detailWorkout.exercises.length} exercises</span>
+                </div>
+                <span className="stats-detail-rest-display">
+                  {detailWorkout.restTime != null ? detailWorkout.restTime : globalRestTime}s rest between exercises
+                </span>
               </div>
-              <button className="stats-detail-unpin-btn" onClick={() => setShowUnpinConfirm(true)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="2" y1="2" x2="22" y2="22"/>
-                  <path d="M12 17v5"/>
-                  <path d="M9 11.58V6l-1-1V4h10v1l-1 1v5.58"/>
-                  <path d="M6 17h12"/>
-                </svg>
-              </button>
+              {(!viewingProfile || viewingProfile.uid === user?.uid) && (
+                <button className="stats-detail-unpin-btn" onClick={() => setShowUnpinConfirm(true)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="2" y1="2" x2="22" y2="22"/>
+                    <path d="M12 17v5"/>
+                    <path d="M9 11.58V6l-1-1V4h10v1l-1 1v5.58"/>
+                    <path d="M6 17h12"/>
+                  </svg>
+                </button>
+              )}
             </div>
 
             <div className="stats-detail-exercises">
@@ -1166,11 +1572,12 @@ const StatsPage = ({
           className={`stats-follow-overlay ${followListClosing ? 'closing' : ''}`}
           onClick={(e) => { if (e.target === e.currentTarget) closeFollowList(); }}
         >
-          <div className="stats-follow-panel">
+          <div className="stats-follow-panel" ref={followPanelRef}>
             <div className="stats-follow-panel-header">
-              <span className="stats-follow-panel-title">
-                {followListType === 'following' ? 'Following' : 'Followers'}
-              </span>
+              <div className="stats-follow-tabs">
+                <button className={`stats-follow-tab ${followListType === 'following' ? 'active' : ''}`} onClick={() => switchFollowListTab('following')}>Following</button>
+                <button className={`stats-follow-tab ${followListType === 'followers' ? 'active' : ''}`} onClick={() => switchFollowListTab('followers')}>Followers</button>
+              </div>
               <button className="stats-follow-panel-close" onClick={closeFollowList}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1178,6 +1585,24 @@ const StatsPage = ({
                 </svg>
               </button>
             </div>
+            <input
+              className="stats-follow-search"
+              type="text"
+              placeholder="Search..."
+              value={followListSearch}
+              onChange={(e) => {
+                const val = e.target.value;
+                // Lock panel height on first char, unlock when cleared
+                if (!followListSearch && val) {
+                  const panel = followPanelRef.current;
+                  if (panel) panel.style.minHeight = panel.offsetHeight + 'px';
+                } else if (followListSearch && !val) {
+                  const panel = followPanelRef.current;
+                  if (panel) panel.style.minHeight = '';
+                }
+                setFollowListSearch(val);
+              }}
+            />
             <div className="stats-follow-panel-list">
               {followListLoading ? (
                 <div className="stats-follow-panel-empty">Loading...</div>
@@ -1186,8 +1611,249 @@ const StatsPage = ({
                   {followListType === 'following' ? 'Not following anyone yet' : 'No followers yet'}
                 </div>
               ) : (
-                followListProfiles.map((p, i) => (
-                  <div key={p.uid} className="stats-follow-panel-item" style={{ animationDelay: `${i * 40}ms` }}>
+                followListProfiles
+                  .filter(p => !followListSearch || (p.displayName || '').toLowerCase().includes(followListSearch.toLowerCase()))
+                  .map((p, i) => (
+                  <div key={p.uid} className="stats-follow-panel-item" style={{ animationDelay: `${i * 40}ms`, cursor: 'pointer' }} onClick={() => openUserProfile(p)}>
+                    <div className="stats-follow-panel-avatar">
+                      {p.photoURL ? (
+                        <img src={p.photoURL} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="stats-follow-panel-avatar-placeholder">
+                          {(p.displayName || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span className="stats-follow-panel-name">{p.displayName}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Viewing Other User Profile Popup */}
+      {viewingProfile && (
+        <div
+          className={`stats-user-pp-overlay ${viewingProfileClosing ? 'closing' : (vpSkipFadeRef.current ? 'no-fade' : '')}`}
+          onClick={(e) => { if (e.target === e.currentTarget) closeViewingProfile(); }}
+        >
+          <div className="stats-pp-panel" ref={vpPanelRef} key={viewingProfile.uid}>
+            <div className="stats-pp-header">
+              <div className="stats-pp-header-left">
+                {viewingProfile.photoURL ? (
+                  <img src={viewingProfile.photoURL} alt="" className="stats-pp-avatar" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="stats-pp-avatar stats-pp-avatar-fallback">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                  </div>
+                )}
+                <div className="stats-pp-header-info">
+                  <span className="stats-pp-name">{viewingProfile.displayName || 'Unknown'}</span>
+                  <div className="stats-pp-follow-row">
+                    <button className="stats-pp-follow-btn" onClick={() => openVpFollowList('following')}>
+                      <span className="stats-pp-follow-num">{viewingProfileFollowing}</span> Following
+                    </button>
+                    <button className="stats-pp-follow-btn" onClick={() => openVpFollowList('followers')}>
+                      <span className="stats-pp-follow-num">{viewingProfileFollowers}</span> Followers
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="stats-pp-header-right">
+                {viewingProfileLoading ? (
+                  <div className="stats-pp-time">
+                    <span className="stats-pp-time-value" style={{ opacity: 0.3 }}>...</span>
+                  </div>
+                ) : viewingProfileStats ? (
+                  <div className="stats-pp-time">
+                    {viewingProfileStats.totalHours > 0 && (
+                      <><span className="stats-pp-time-value">{viewingProfileStats.totalHours}</span><span className="stats-pp-time-unit">h </span></>
+                    )}
+                    <span className="stats-pp-time-value">{viewingProfileStats.totalMinutes}</span>
+                    <span className="stats-pp-time-unit">m</span>
+                  </div>
+                ) : (
+                  <div className="stats-pp-time">
+                    <span className="stats-pp-time-value">0</span>
+                    <span className="stats-pp-time-unit">m</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {viewingProfileLoading ? (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '0.82rem' }}>
+                Loading...
+              </div>
+            ) : (
+              <>
+                {viewingProfileCalendar && (
+                  <div className="stats-pp-calendar-scroll" ref={vpCalendarScrollRef}>
+                    <div
+                      className="stats-pp-calendar"
+                      style={{ minWidth: `${viewingProfileCalendar.numWeeks * 14}px` }}
+                    >
+                      <div
+                        className="calendar-month-labels"
+                        style={{ gridTemplateColumns: `repeat(${viewingProfileCalendar.numWeeks}, 1fr)` }}
+                      >
+                        {viewingProfileCalendar.monthLabels.map((m, i) => (
+                          <span
+                            key={i}
+                            className="month-label"
+                            style={{ gridColumnStart: m.weekIndex + 1 }}
+                          >
+                            {m.label}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="calendar-cells">
+                        {viewingProfileCalendar.weeks.map((week, wi) => (
+                          <div key={wi} className="calendar-week" style={{ cursor: 'default' }}>
+                            {week.map((day, di) => (
+                              <div
+                                key={di}
+                                className="calendar-cell"
+                                style={{ backgroundColor: getHeatColor(day.count, day.isFuture), cursor: 'default' }}
+                              />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {viewingProfilePinnedWorkouts.length > 0 && (
+                  <div className="stats-pp-cards">
+                      {viewingProfilePinnedWorkouts.map((workout, i) => {
+                        const totalSeconds = (workout.exercises.length * 60) + 15;
+                        const completions = viewingProfileCompletions[workout.name] || 0;
+                        return (
+                          <div key={workout.name} ref={(el) => { cardRefs.current[workout.name] = el; }} className="stats-workout-card stats-vp-card-fade" style={{ animationDelay: `${150 + i * 60}ms` }} onClick={() => openDetail(workout)}>
+                            <div className="stats-card-left">
+                              <div className="stats-card-name-row">
+                                <span className="stats-card-name">{workout.name}</span>
+                                {(workout.tags || (workout.tag ? [workout.tag] : [])).map(t => (
+                                  <span key={t} className="stats-card-tag">{t.toUpperCase()}</span>
+                                ))}
+                              </div>
+                              <div className="stats-card-detail">
+                                <span className="stats-card-time">{formatTime(totalSeconds)}</span>
+                                <span className="stats-card-dot">&middot;</span>
+                                <span>{workout.exercises.length} exercises</span>
+                                {completions > 0 && (
+                                  <>
+                                    <span className="stats-card-dot">&middot;</span>
+                                    <span className="stats-card-completions">{completions}x</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {viewingProfile.uid !== user?.uid ? (
+                              <button
+                                className={`stats-card-action-btn ${takenWorkouts[workout.name] ? 'taken' : ''}`}
+                                onClick={(e) => { e.stopPropagation(); handleTakeWorkout(workout); }}
+                              >
+                                {savingWorkouts[workout.name] ? (
+                                  <svg width="14" height="14" viewBox="0 0 24 24" className="stats-take-spinner">
+                                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="42" strokeLinecap="round"/>
+                                  </svg>
+                                ) : takenWorkouts[workout.name] ? (
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                  </svg>
+                                ) : (
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                  </svg>
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                className="stats-card-action-btn"
+                                onClick={(e) => { e.stopPropagation(); onShareWorkout(workout); }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                                  <polyline points="16 6 12 2 8 6"/>
+                                  <line x1="12" y1="2" x2="12" y2="15"/>
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Viewing Profile Follow List */}
+      {vpFollowListType && (
+        <div
+          className={`stats-follow-overlay ${vpFollowListClosing ? 'closing' : ''}`}
+          style={{ zIndex: 185 }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeVpFollowList(); }}
+        >
+          <div className="stats-follow-panel" ref={vpFollowPanelRef}>
+            <div className="stats-follow-panel-header">
+              <div className="stats-follow-tabs">
+                <button className={`stats-follow-tab ${vpFollowListType === 'following' ? 'active' : ''}`} onClick={() => switchVpFollowListTab('following')}>Following</button>
+                <button className={`stats-follow-tab ${vpFollowListType === 'followers' ? 'active' : ''}`} onClick={() => switchVpFollowListTab('followers')}>Followers</button>
+              </div>
+              <button className="stats-follow-panel-close" onClick={closeVpFollowList}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <input
+              className="stats-follow-search"
+              type="text"
+              placeholder="Search..."
+              value={vpFollowListSearch}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!vpFollowListSearch && val) {
+                  const panel = vpFollowPanelRef.current;
+                  if (panel) panel.style.minHeight = panel.offsetHeight + 'px';
+                } else if (vpFollowListSearch && !val) {
+                  const panel = vpFollowPanelRef.current;
+                  if (panel) panel.style.minHeight = '';
+                }
+                setVpFollowListSearch(val);
+              }}
+            />
+            <div className="stats-follow-panel-list">
+              {vpFollowListLoading ? (
+                <div className="stats-follow-panel-empty">Loading...</div>
+              ) : vpFollowListProfiles.length === 0 ? (
+                <div className="stats-follow-panel-empty">
+                  {vpFollowListType === 'following' ? 'Not following anyone yet' : 'No followers yet'}
+                </div>
+              ) : (
+                vpFollowListProfiles
+                  .filter(p => !vpFollowListSearch || (p.displayName || '').toLowerCase().includes(vpFollowListSearch.toLowerCase()))
+                  .map((p, i) => (
+                  <div
+                    key={p.uid}
+                    className="stats-follow-panel-item"
+                    style={{ animationDelay: `${i * 40}ms`, cursor: 'pointer' }}
+                    onClick={() => {
+                      openUserProfile(p);
+                    }}
+                  >
                     <div className="stats-follow-panel-avatar">
                       {p.photoURL ? (
                         <img src={p.photoURL} alt="" referrerPolicy="no-referrer" />
@@ -1290,6 +1956,7 @@ const StatsPage = ({
                     return (
                       <div
                         key={workout.name}
+                        ref={(el) => { cardRefs.current[workout.name] = el; }}
                         className="stats-workout-card"
                         onClick={() => handleProfilePopupCardClick(workout)}
                       >
@@ -1312,6 +1979,16 @@ const StatsPage = ({
                             )}
                           </div>
                         </div>
+                        <button
+                          className="stats-card-action-btn"
+                          onClick={(e) => { e.stopPropagation(); onShareWorkout(workout); }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                            <polyline points="16 6 12 2 8 6"/>
+                            <line x1="12" y1="2" x2="12" y2="15"/>
+                          </svg>
+                        </button>
                       </div>
                     );
                   })}
