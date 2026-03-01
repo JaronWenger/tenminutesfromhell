@@ -712,7 +712,7 @@ const Main = () => {
 
     // Fork: remove original default, append forked copy
     if (!isOwned && !isNew) {
-      const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true };
+      const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true, forked: true };
       setTimerWorkoutData(prev =>
         prev.map(w => w.name === workoutName ? forked : w)
       );

@@ -279,6 +279,49 @@ const StatsPage = ({
     return { weeks, monthLabels, numWeeks: weeks.length, todayWeekIndex };
   }, [stats.dailyMap, selectedYear]);
 
+  // Mini calendar for profile popup (last ~13 weeks)
+  const miniCalendarData = useMemo(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const currentSunday = new Date(today);
+    currentSunday.setDate(today.getDate() - dayOfWeek);
+    currentSunday.setHours(0, 0, 0, 0);
+
+    const startSunday = new Date(currentSunday);
+    startSunday.setDate(startSunday.getDate() - 12 * 7);
+
+    const endDate = new Date(currentSunday);
+    endDate.setDate(endDate.getDate() + 6);
+
+    const weeks = [];
+    const monthLabels = [];
+    let currentDate = new Date(startSunday);
+    let weekIndex = 0;
+
+    while (currentDate <= endDate) {
+      const week = [];
+      for (let day = 0; day < 7; day++) {
+        if (currentDate <= endDate) {
+          const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+          const isFuture = currentDate > today;
+          week.push({ date: key, count: stats.dailyMap[key] || 0, isFuture });
+
+          if (currentDate.getDate() <= 7 && day === 0) {
+            monthLabels.push({
+              weekIndex,
+              label: currentDate.toLocaleString('default', { month: 'short' })
+            });
+          }
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      weeks.push(week);
+      weekIndex++;
+    }
+
+    return { weeks, monthLabels, numWeeks: weeks.length };
+  }, [stats.dailyMap]);
+
   const getHeatColor = (count, isFuture) => {
     if (isFuture) return 'var(--heat-empty)';
     if (count === 0) return 'var(--heat-empty)';
@@ -468,6 +511,22 @@ const StatsPage = ({
   const [pinLimitFlash, setPinLimitFlash] = useState(false);
   const [pinPulseHint, setPinPulseHint] = useState(false);
 
+  // Unpin confirmation state
+  const [showUnpinConfirm, setShowUnpinConfirm] = useState(false);
+  const [unpinConfirmClosing, setUnpinConfirmClosing] = useState(false);
+
+  // Profile popup state
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [profilePopupClosing, setProfilePopupClosing] = useState(false);
+  const ppCalendarScrollRef = useRef(null);
+
+  const getCompletionCount = useCallback((workout) => {
+    if (!history || history.length === 0) return 0;
+    return history.filter(h =>
+      h.workoutId ? h.workoutId === workout.id : (!workout.id && h.workoutName === workout.name)
+    ).length;
+  }, [history]);
+
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -627,6 +686,29 @@ const StatsPage = ({
     }, 200);
   };
 
+  // Auto-scroll popup heatmap to show today
+  useEffect(() => {
+    if (!showProfilePopup) return;
+    const el = ppCalendarScrollRef.current;
+    if (!el) return;
+    const cellWidth = 14;
+    const todayIdx = displayCalendar.todayWeekIndex ?? 0;
+    const scrollTarget = (todayIdx + 1) * cellWidth - el.clientWidth;
+    el.scrollLeft = Math.max(0, scrollTarget);
+  }, [showProfilePopup, displayCalendar]);
+
+  const closeProfilePopup = () => {
+    setProfilePopupClosing(true);
+    setTimeout(() => {
+      setShowProfilePopup(false);
+      setProfilePopupClosing(false);
+    }, 260);
+  };
+
+  const handleProfilePopupCardClick = (workout) => {
+    openDetail(workout);
+  };
+
   const handlePinToggle = (workoutName) => {
     if (pinnedWorkouts.includes(workoutName)) {
       const updated = pinnedWorkouts.filter(n => n !== workoutName);
@@ -647,6 +729,7 @@ const StatsPage = ({
 
   const renderPinnedCard = (workout) => {
     const totalSeconds = (workout.exercises.length * 60) + prepTime;
+    const completions = getCompletionCount(workout);
     return (
       <div
         key={workout.name}
@@ -665,6 +748,12 @@ const StatsPage = ({
             <span className="stats-card-time">{formatTime(totalSeconds)}</span>
             <span className="stats-card-dot">&middot;</span>
             <span>{workout.exercises.length} exercises</span>
+            {completions > 0 && (
+              <>
+                <span className="stats-card-dot">&middot;</span>
+                <span className="stats-card-completions">{completions}x</span>
+              </>
+            )}
           </div>
         </div>
         <button
@@ -686,15 +775,17 @@ const StatsPage = ({
       {/* Profile Header — sticky */}
       <div className="stats-profile-header">
         <div className="stats-profile-left">
-          {user?.photoURL ? (
-            <img src={user.photoURL} alt="" className="stats-profile-pic" referrerPolicy="no-referrer" />
-          ) : (
-            <div className="stats-profile-pic stats-profile-pic-fallback">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-              </svg>
-            </div>
-          )}
+          <div className="stats-profile-pic-tap" onClick={() => setShowProfilePopup(true)}>
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="" className="stats-profile-pic" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="stats-profile-pic stats-profile-pic-fallback">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+              </div>
+            )}
+          </div>
           <div className="stats-profile-info">
             <span className="stats-profile-name">{user?.displayName || 'Guest'}</span>
             <div className="stats-follow-row">
@@ -939,7 +1030,12 @@ const StatsPage = ({
                         className={`stats-pin-picker-item ${alreadyPinned ? 'pinned' : ''}${alreadyPinned && pinPulseHint ? ' pulse-hint' : ''}`}
                         onClick={() => handlePinToggle(w.name)}
                       >
-                        {w.name}
+                        <span className="stats-pin-picker-item-name">{w.name}</span>
+                        {alreadyPinned && (
+                          <svg className="stats-pin-picker-item-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                            <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/>
+                          </svg>
+                        )}
                       </button>
                     );
                   })}
@@ -985,12 +1081,22 @@ const StatsPage = ({
               </div>
             </div>
 
-            <div className="stats-detail-meta">
-              <span>{formatTime((detailWorkout.exercises.length * 60) + prepTime)}</span>
-              <span className="stats-detail-dot">&middot;</span>
-              <span>{detailWorkout.exercises.length} exercises</span>
-              <span className="stats-detail-dot">&middot;</span>
-              <span>Rest {detailWorkout.restTime != null ? detailWorkout.restTime : globalRestTime}s</span>
+            <div className="stats-detail-meta-row">
+              <div className="stats-detail-meta">
+                <span>{formatTime((detailWorkout.exercises.length * 60) + prepTime)}</span>
+                <span className="stats-detail-dot">&middot;</span>
+                <span>{detailWorkout.exercises.length} exercises</span>
+                <span className="stats-detail-dot">&middot;</span>
+                <span>Rest {detailWorkout.restTime != null ? detailWorkout.restTime : globalRestTime}s</span>
+              </div>
+              <button className="stats-detail-unpin-btn" onClick={() => setShowUnpinConfirm(true)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="2" y1="2" x2="22" y2="22"/>
+                  <path d="M12 17v5"/>
+                  <path d="M9 11.58V6l-1-1V4h10v1l-1 1v5.58"/>
+                  <path d="M6 17h12"/>
+                </svg>
+              </button>
             </div>
 
             <div className="stats-detail-exercises">
@@ -1011,6 +1117,45 @@ const StatsPage = ({
             >
               Start Workout
             </button>
+
+            {showUnpinConfirm && (
+              <div className={`stats-unpin-confirm ${unpinConfirmClosing ? 'closing' : ''}`}>
+                <div
+                  className="stats-unpin-confirm-backdrop"
+                  onClick={() => {
+                    setUnpinConfirmClosing(true);
+                    setTimeout(() => { setShowUnpinConfirm(false); setUnpinConfirmClosing(false); }, 150);
+                  }}
+                />
+                <div className="stats-unpin-confirm-box">
+                  <p className="stats-unpin-confirm-title">Unpin Workout?</p>
+                  <p className="stats-unpin-confirm-msg">This workout will be removed from your pinned list.</p>
+                  <div className="stats-unpin-confirm-actions">
+                    <button
+                      className="stats-unpin-confirm-cancel"
+                      onClick={() => {
+                        setUnpinConfirmClosing(true);
+                        setTimeout(() => { setShowUnpinConfirm(false); setUnpinConfirmClosing(false); }, 150);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="stats-unpin-confirm-unpin"
+                      onClick={() => {
+                        setShowUnpinConfirm(false);
+                        setUnpinConfirmClosing(false);
+                        const updated = pinnedWorkouts.filter(n => n !== detailWorkout.name);
+                        onPinnedWorkoutsChange(updated);
+                        closeDetail();
+                      }}
+                    >
+                      Unpin
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1057,6 +1202,121 @@ const StatsPage = ({
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Popup */}
+      {showProfilePopup && (
+        <div
+          className={`stats-pp-overlay ${profilePopupClosing ? 'closing' : ''}`}
+          onClick={(e) => { if (e.target === e.currentTarget) closeProfilePopup(); }}
+        >
+          <div className="stats-pp-panel">
+            <div className="stats-pp-header">
+              <div className="stats-pp-header-left">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt="" className="stats-pp-avatar" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="stats-pp-avatar stats-pp-avatar-fallback">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                  </div>
+                )}
+                <div className="stats-pp-header-info">
+                  <span className="stats-pp-name">{user?.displayName || 'Guest'}</span>
+                  <div className="stats-pp-follow-row">
+                    <button className="stats-pp-follow-btn" onClick={() => openFollowList('following')}>
+                      <span className="stats-pp-follow-num">{followingCount}</span> Following
+                    </button>
+                    <button className="stats-pp-follow-btn" onClick={() => openFollowList('followers')}>
+                      <span className="stats-pp-follow-num">{followersCount}</span> Followers
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="stats-pp-header-right">
+                <div className="stats-pp-time">
+                  {displayStats.totalHours > 0 && (
+                    <><span className="stats-pp-time-value">{displayStats.totalHours}</span><span className="stats-pp-time-unit">h </span></>
+                  )}
+                  <span className="stats-pp-time-value">{displayStats.totalMinutes}</span>
+                  <span className="stats-pp-time-unit">m</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="stats-pp-calendar-scroll" ref={ppCalendarScrollRef}>
+              <div
+                className="stats-pp-calendar"
+                style={{ minWidth: `${displayCalendar.numWeeks * 14}px` }}
+              >
+                <div
+                  className="calendar-month-labels"
+                  style={{ gridTemplateColumns: `repeat(${displayCalendar.numWeeks}, 1fr)` }}
+                >
+                  {displayCalendar.monthLabels.map((m, i) => (
+                    <span
+                      key={i}
+                      className="month-label"
+                      style={{ gridColumnStart: m.weekIndex + 1 }}
+                    >
+                      {m.label}
+                    </span>
+                  ))}
+                </div>
+                <div className="calendar-cells">
+                  {displayCalendar.weeks.map((week, wi) => (
+                    <div key={wi} className="calendar-week" style={{ cursor: 'default' }}>
+                      {week.map((day, di) => (
+                        <div
+                          key={di}
+                          className="calendar-cell"
+                          style={{ backgroundColor: getHeatColor(day.count, day.isFuture), cursor: 'default' }}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {pinnedWorkoutObjects.length > 0 && (
+              <div className="stats-pp-cards">
+                  {pinnedWorkoutObjects.map(workout => {
+                    const totalSeconds = (workout.exercises.length * 60) + prepTime;
+                    const completions = getCompletionCount(workout);
+                    return (
+                      <div
+                        key={workout.name}
+                        className="stats-workout-card"
+                        onClick={() => handleProfilePopupCardClick(workout)}
+                      >
+                        <div className="stats-card-left">
+                          <div className="stats-card-name-row">
+                            <span className="stats-card-name">{workout.name}</span>
+                            {(workout.tags || (workout.tag ? [workout.tag] : [])).map(t => (
+                              <span key={t} className="stats-card-tag">{t.toUpperCase()}</span>
+                            ))}
+                          </div>
+                          <div className="stats-card-detail">
+                            <span className="stats-card-time">{formatTime(totalSeconds)}</span>
+                            <span className="stats-card-dot">&middot;</span>
+                            <span>{workout.exercises.length} exercises</span>
+                            {completions > 0 && (
+                              <>
+                                <span className="stats-card-dot">&middot;</span>
+                                <span className="stats-card-completions">{completions}x</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+            )}
           </div>
         </div>
       )}
