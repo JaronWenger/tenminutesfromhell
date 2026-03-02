@@ -815,13 +815,13 @@ const StatsPage = ({
       setViewingProfileCalendar(buildCalendarGrid(dailyMap));
 
       // Resolve pinned workouts
-      const pinnedNames = prefs.pinnedWorkouts || [];
-      if (pinnedNames.length > 0) {
+      const pinnedIds = prefs.pinnedWorkouts || [];
+      if (pinnedIds.length > 0) {
         const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
         const workoutMap = {};
-        allDefaults.forEach(w => { workoutMap[w.name] = w; });
-        workouts.filter(w => !w.deleted).forEach(w => { workoutMap[w.name] = w; });
-        setViewingProfilePinnedWorkouts(pinnedNames.map(name => workoutMap[name]).filter(Boolean));
+        allDefaults.forEach(w => { if (w.id) workoutMap[w.id] = w; });
+        workouts.filter(w => !w.deleted).forEach(w => { if (w.id) workoutMap[w.id] = w; });
+        setViewingProfilePinnedWorkouts(pinnedIds.map(id => workoutMap[id]).filter(Boolean));
       }
     } catch (err) {
       console.error('Failed to load user profile:', err);
