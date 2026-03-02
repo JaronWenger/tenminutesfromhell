@@ -40,6 +40,7 @@ export const saveUserWorkout = async (userId, workout) => {
     exercises: workout.exercises,
     isDefault: workout.isDefault || false,
     isCustom: workout.isCustom || false,
+    forked: workout.forked || false,
     defaultName: workout.defaultName || null,
     restTime: workout.restTime ?? null,
     isPublic: workout.isPublic ?? false,

@@ -399,11 +399,105 @@
   transform: none;
 }
 
+/* ── Private Share Prompt ── */
+.private-share-prompt {
+  width: 100%;
+  max-width: 300px;
+  background: #111111;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 28px 24px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  animation: stats-detail-slide-up 0.25s ease forwards;
+}
+
+.private-share-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 59, 48, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 59, 48, 0.8);
+  margin-bottom: 8px;
+}
+
+.private-share-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.private-share-desc {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 0 12px;
+}
+
+.private-share-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.private-share-public-btn {
+  width: 100%;
+  padding: 13px 0;
+  border-radius: 40px;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  background: rgba(30, 10, 10, 0.85);
+  color: #e74c3c;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  box-shadow: 0 0 30px rgba(231, 76, 60, 0.15), 0 4px 20px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.private-share-public-btn:active {
+  transform: scale(0.97);
+  border-color: rgba(231, 76, 60, 0.7);
+  box-shadow: 0 0 40px rgba(231, 76, 60, 0.25), 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.private-share-cancel-btn {
+  width: 100%;
+  padding: 12px 0;
+  border-radius: 40px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.private-share-cancel-btn:active {
+  opacity: 0.6;
+}
+
 /* ── Viewing Other User Profile Popup ── */
 .stats-user-pp-overlay {
+  --heat-empty: #1a1a1a;
+  --heat-1: #5c1a1a;
+  --heat-2: #8b2020;
+  --heat-3: #c0392b;
+  --heat-4: #e74c3c;
   position: fixed;
   inset: 0;
-  z-index: 175;
+  z-index: 600;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1013,6 +1107,15 @@
 @keyframes stats-detail-fade-out {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+
+@keyframes stats-detail-slide-up {
+  from { opacity: 0; transform: translateY(30px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.stats-detail-panel.feed-detail-animate {
+  animation: stats-detail-slide-up 0.28s ease forwards;
 }
 
 .stats-detail-panel {

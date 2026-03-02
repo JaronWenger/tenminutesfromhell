@@ -10,10 +10,11 @@ import FeedPage from './FeedPage';
 import SideMenu from './SideMenu';
 import LoginModal from './LoginModal';
 import SharePrompt from './SharePrompt';
+import ProfilePopup from './ProfilePopup';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -109,6 +110,8 @@ const Main = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   // Social / Feed state
+  const [hasUnread, setHasUnread] = useState(false);
+  const [feedLastViewed, setFeedLastViewed] = useState(null); // snapshot of last viewed time for highlight
   const [showFeedPage, setShowFeedPage] = useState(false);
   const [feedCloseRequested, setFeedCloseRequested] = useState(false);
   const [showSideMenu, setShowSideMenu] = useState(false);
@@ -120,6 +123,16 @@ const Main = () => {
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
   const [homeDetailCloseRequested, setHomeDetailCloseRequested] = useState(false);
   const [openProfilePopup, setOpenProfilePopup] = useState(false);
+  const [viewUserProfile, setViewUserProfile] = useState(null);
+  const [feedDetailPost, setFeedDetailPost] = useState(null);
+  const [feedDetailClosing, setFeedDetailClosing] = useState(false);
+  const [feedDetailIsOwn, setFeedDetailIsOwn] = useState(false); // current user owns/created this workout
+  const [feedDetailTaken, setFeedDetailTaken] = useState(false); // workout is in user's library (from someone else)
+  const [feedDetailSaving, setFeedDetailSaving] = useState(false);
+  const [feedDetailOwner, setFeedDetailOwner] = useState(null); // { uid, displayName, photoURL } of workout creator
+  const [feedDetailTags, setFeedDetailTags] = useState([]);
+  const [feedDetailRestTime, setFeedDetailRestTime] = useState(null);
+  const [feedAcceptedPostId, setFeedAcceptedPostId] = useState(null);
   const [activeColor, setActiveColor] = useState('#ff3b30');
   const [restColor, setRestColor] = useState('#007aff');
   const [sidePlankAlertEnabled, setSidePlankAlertEnabled] = useState(true);
@@ -135,6 +148,7 @@ const Main = () => {
   const [sendWorkoutSearch, setSendWorkoutSearch] = useState('');
   const [sentTo, setSentTo] = useState({});
   const sendWorkoutPanelRef = useRef(null);
+  const [privateShareWorkout, setPrivateShareWorkout] = useState(null);
 
   // Weekly schedule state
   const [weeklySchedule, setWeeklyScheduleState] = useState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
@@ -178,6 +192,11 @@ const Main = () => {
   }, [user, scheduleDraft, closeSchedulePopup]);
 
   const openSendWorkout = useCallback(async (workout) => {
+    const isOwnWorkout = !workout.creatorUid || workout.creatorUid === user?.uid;
+    if (isOwnWorkout && workout.isPublic === false) {
+      setPrivateShareWorkout(workout);
+      return;
+    }
     setSendWorkoutClosing(false);
     setSendWorkoutSearch('');
     setSentTo({});
@@ -329,6 +348,28 @@ const Main = () => {
     return () => { cancelled = true; };
   }, [user]);
 
+  // Check for unread notifications (on load, tab change, and every 60s)
+  const checkUnread = useCallback(() => {
+    if (!user) return;
+    const lastViewed = localStorage.getItem(`feedLastViewed_${user.uid}`);
+    const since = lastViewed ? new Date(lastViewed) : new Date(0);
+    hasNewNotifications(user.uid, since, followingIds)
+      .then(has => setHasUnread(has))
+      .catch(err => console.error('Unread check failed:', err));
+  }, [user, followingIds]);
+
+  useEffect(() => {
+    if (!user) { setHasUnread(false); return; }
+    checkUnread();
+    const interval = setInterval(checkUnread, 60000);
+    return () => clearInterval(interval);
+  }, [user, checkUnread]);
+
+  // Re-check when switching to home tab
+  useEffect(() => {
+    if (activeTab === 'home') checkUnread();
+  }, [activeTab, checkUnread]);
+
   // Merge custom workouts with defaults
   const mergeWorkouts = (customWorkouts) => {
     const timerDefaults = [...DEFAULT_TIMER_WORKOUTS];
@@ -340,12 +381,16 @@ const Main = () => {
       .map(c => c.defaultName)
       .filter(Boolean);
 
+    // Track which custom workouts were used as default overrides
+    const usedAsOverride = new Set();
+
     const timerResult = timerDefaults
       .filter(d => !deletedDefaults.includes(d.name))
       .map(d => {
         const override = customWorkouts.find(
           c => !c.deleted && (c.defaultName === d.name || (!c.defaultName && c.name === d.name))
         );
+        if (override) usedAsOverride.add(override.id || override.name);
         return override ? { ...d, ...override, exercises: override.exercises } : d;
       });
 
@@ -355,14 +400,15 @@ const Main = () => {
         const override = customWorkouts.find(
           c => !c.deleted && (c.defaultName === d.name || (!c.defaultName && c.name === d.name))
         );
+        if (override) usedAsOverride.add(override.id || override.name);
         return override ? { ...d, ...override, exercises: override.exercises } : d;
       });
 
-    // Add any fully custom workouts (not overriding defaults, not deleted)
+    // Add any fully custom workouts (not overriding defaults, not deleted, not already used as override)
     const defaultNames = [...timerDefaults, ...stopwatchDefaults].map(d => d.name);
     customWorkouts.forEach(c => {
       if (c.deleted) return;
-      // Forked workouts (isCustom) are always treated as custom, even if name matches a default
+      if (usedAsOverride.has(c.id || c.name)) return;
       if (c.isCustom) {
         if (c.type === 'timer') timerResult.push(c);
         else stopwatchResult.push(c);
@@ -413,6 +459,7 @@ const Main = () => {
         displayName: user.displayName,
         photoURL: user.photoURL
       });
+      setHasUnread(true);
     } catch (err) {
       console.error('Failed to share workout:', err);
     }
@@ -579,11 +626,13 @@ const Main = () => {
             .catch(err => console.error('Failed to refresh history:', err));
         }).catch(err => console.error('Failed to record history:', err));
 
-        if (autoShareEnabled === true) {
-          handleShareWorkout(workoutData);
-        } else if (autoShareEnabled === null) {
-          setPendingShareData(workoutData);
-          setShowSharePrompt(true);
+        if (selectedWorkoutObj?.isPublic !== false) {
+          if (autoShareEnabled === true) {
+            handleShareWorkout({ ...workoutData, isPublic: true });
+          } else if (autoShareEnabled === null) {
+            setPendingShareData({ ...workoutData, isPublic: true });
+            setShowSharePrompt(true);
+          }
         }
       }
     }
@@ -693,12 +742,14 @@ const Main = () => {
       recordWorkoutHistory(user.uid, workoutData)
         .catch(err => console.error('Failed to record history:', err));
 
-      // Social sharing logic
-      if (autoShareEnabled === true) {
-        handleShareWorkout(workoutData);
-      } else if (autoShareEnabled === null) {
-        setPendingShareData(workoutData);
-        setShowSharePrompt(true);
+      // Social sharing logic — only public workouts
+      if (selectedWorkoutObj?.isPublic !== false) {
+        if (autoShareEnabled === true) {
+          handleShareWorkout({ ...workoutData, isPublic: true });
+        } else if (autoShareEnabled === null) {
+          setPendingShareData({ ...workoutData, isPublic: true });
+          setShowSharePrompt(true);
+        }
       }
     }
     handleStopwatchStateChange({ time: 0, isRunning: false, laps: [] });
@@ -895,6 +946,32 @@ const Main = () => {
     }
   }, [user, timerSelectedWorkout]);
 
+  const handleVisibilityToggle = useCallback((workoutName, isPublic) => {
+    setTimerWorkoutData(prev =>
+      prev.map(w => w.name === workoutName ? { ...w, isPublic } : w)
+    );
+    // Unpin if making private
+    if (!isPublic && pinnedWorkouts.includes(workoutName)) {
+      handlePinnedWorkoutsChange(pinnedWorkouts.filter(n => n !== workoutName));
+    }
+    if (user) {
+      const workout = timerWorkoutData.find(w => w.name === workoutName);
+      if (workout) {
+        saveUserWorkout(user.uid, { ...workout, isPublic }).catch(err =>
+          console.error('Failed to save visibility:', err)
+        );
+      }
+    }
+  }, [user, timerWorkoutData, pinnedWorkouts, handlePinnedWorkoutsChange]);
+
+  const handleMakePublicAndShare = useCallback(() => {
+    if (!privateShareWorkout) return;
+    const workout = privateShareWorkout;
+    setPrivateShareWorkout(null);
+    handleVisibilityToggle(workout.name, true);
+    openSendWorkout({ ...workout, isPublic: true });
+  }, [privateShareWorkout, handleVisibilityToggle, openSendWorkout]);
+
   const handleHomeStartWorkout = useCallback((workoutName) => {
     setTimerSelectedWorkout(workoutName);
     if (user) {
@@ -904,6 +981,113 @@ const Main = () => {
     }
     setActiveTab('timer');
   }, [user]);
+
+  // Feed post detail popup
+  const openFeedDetail = useCallback((post) => {
+    const allW = [...timerWorkoutData, ...stopwatchWorkoutData];
+    const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+    const postExercises = JSON.stringify(post.exercises || []);
+    // For notifications without exercises (workout_saved), look up by name
+    const hasExercises = post.exercises && post.exercises.length > 0;
+    // Match by name AND exercises — same name with different exercises is a different workout
+    const exactMatch = hasExercises
+      ? allW.find(w => w.name === post.workoutName && JSON.stringify(w.exercises) === postExercises)
+      : allW.find(w => w.name === post.workoutName);
+    // Check if this exercise set matches a default workout
+    const isDefaultContent = allDefaults.some(d =>
+      d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises
+    );
+    let owner = null;
+    let isOwn = false;
+    if (exactMatch && exactMatch.creatorUid) {
+      // Taken from someone — show their info
+      owner = { uid: exactMatch.creatorUid, displayName: exactMatch.creatorName, photoURL: exactMatch.creatorPhotoURL };
+      isOwn = exactMatch.creatorUid === user?.uid;
+    } else if (exactMatch) {
+      // In library with no creator: user's own custom or unmodified default
+      if (isDefaultContent) {
+        owner = null; // app icon
+      } else {
+        owner = user ? { uid: user.uid, displayName: user.displayName, photoURL: user.photoURL } : null;
+      }
+      isOwn = true;
+    } else {
+      // Not in library — show download. Determine the owner for the avatar.
+      if (isDefaultContent) {
+        owner = null; // app icon for default content
+      } else {
+        // Best guess: the poster or unknown
+        owner = { uid: post.userId, displayName: post.displayName, photoURL: post.photoURL };
+      }
+      isOwn = false;
+    }
+    // Get tags and restTime from matched workout or defaults
+    const sourceWorkout = exactMatch || allDefaults.find(d => d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises);
+    const tags = sourceWorkout?.tags || (sourceWorkout?.tag ? [sourceWorkout.tag] : []);
+    setFeedDetailOwner(owner);
+    setFeedDetailIsOwn(isOwn);
+    setFeedDetailTaken(!isOwn && !!exactMatch);
+    setFeedDetailTags(tags);
+    setFeedDetailRestTime(sourceWorkout?.restTime ?? null);
+    setFeedDetailSaving(false);
+    setFeedDetailClosing(false);
+    // Enrich post with workout data if missing (e.g. workout_saved notifications)
+    const enrichedPost = (!hasExercises && sourceWorkout)
+      ? { ...post, exercises: sourceWorkout.exercises, workoutType: sourceWorkout.type, restTime: sourceWorkout.restTime }
+      : post;
+    setFeedDetailPost(enrichedPost);
+  }, [timerWorkoutData, stopwatchWorkoutData, user]);
+
+  const closeFeedDetail = useCallback(() => {
+    setFeedDetailClosing(true);
+    setTimeout(() => {
+      setFeedDetailPost(null);
+      setFeedDetailClosing(false);
+    }, 200);
+  }, []);
+
+  const handleFeedDetailTake = useCallback(async () => {
+    if (!user || !feedDetailPost || feedDetailSaving) return;
+    if (feedDetailTaken) {
+      // Already taken — start the workout
+      closeFeedDetail();
+      setShowFeedPage(false);
+      setFeedCloseRequested(false);
+      handleHomeStartWorkout(feedDetailPost.workoutName);
+      return;
+    }
+    setFeedDetailSaving(true);
+    try {
+      await saveUserWorkout(user.uid, {
+        name: feedDetailPost.workoutName,
+        type: feedDetailPost.workoutType || 'timer',
+        exercises: feedDetailPost.exercises || [],
+        isCustom: true,
+        creatorUid: feedDetailOwner?.uid || null,
+        creatorName: feedDetailOwner?.displayName || null,
+        creatorPhotoURL: feedDetailOwner?.photoURL || null,
+      });
+      setFeedDetailTaken(true);
+      refreshWorkouts();
+      if (feedDetailPost.type === 'workout_shared') {
+        setFeedAcceptedPostId(feedDetailPost.id);
+        updateNotificationStatus(feedDetailPost.id, 'accepted').catch(err => console.error('Failed to update notification status:', err));
+      }
+      createSaveNotification({
+        recipientUid: feedDetailOwner?.uid,
+        actorUid: user.uid,
+        actorName: user.displayName,
+        actorPhotoURL: user.photoURL,
+        workoutName: feedDetailPost.workoutName,
+        source: 'activity'
+      }).catch(err => console.error('Save notif failed:', err));
+    } catch (err) {
+      console.error('Failed to save workout:', err);
+    } finally {
+      setFeedDetailSaving(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, feedDetailPost, feedDetailOwner, feedDetailSaving, feedDetailTaken, closeFeedDetail, handleHomeStartWorkout, refreshWorkouts]);
 
   const handleDeleteWorkout = (workoutName) => {
     const defaultNames = DEFAULT_TIMER_WORKOUTS.map(d => d.name);
@@ -1088,6 +1272,7 @@ const Main = () => {
           onProfileClick={() => setShowSideMenu(true)}
           openProfilePopup={openProfilePopup}
           onProfilePopupOpened={() => setOpenProfilePopup(false)}
+          onShareWorkout={openSendWorkout}
         />
       );
     }
@@ -1136,7 +1321,8 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
-            onBellClick={() => setShowFeedPage(true)}
+            onBellClick={() => { if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
+            hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
             prepTime={prepTime}
@@ -1144,7 +1330,7 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
-
+            onVisibilityToggle={handleVisibilityToggle}
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
             onShareWorkout={openSendWorkout}
@@ -1184,7 +1370,8 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
-            onBellClick={() => setShowFeedPage(true)}
+            onBellClick={() => { if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
+            hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
             prepTime={prepTime}
@@ -1192,7 +1379,7 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
-
+            onVisibilityToggle={handleVisibilityToggle}
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
             onShareWorkout={openSendWorkout}
@@ -1257,7 +1444,135 @@ const Main = () => {
         isOpen={showFeedPage}
         onClose={() => { setShowFeedPage(false); setFeedCloseRequested(false); }}
         requestClose={feedCloseRequested}
+        onViewProfile={(profile) => {
+          setViewUserProfile(profile);
+        }}
+        onStartWorkout={handleHomeStartWorkout}
+        onViewPostWorkout={openFeedDetail}
+        onWorkoutAdded={refreshWorkouts}
+        acceptedPostId={feedAcceptedPostId}
+        allWorkouts={[...timerWorkoutData, ...stopwatchWorkoutData]}
+        lastViewedAt={feedLastViewed}
       />
+      {viewUserProfile && (
+        <ProfilePopup
+          profile={viewUserProfile}
+          user={user}
+          allWorkouts={[...timerWorkoutData, ...stopwatchWorkoutData]}
+          onClose={() => setViewUserProfile(null)}
+          onStartWorkout={handleHomeStartWorkout}
+          onWorkoutAdded={refreshWorkouts}
+          onShareWorkout={openSendWorkout}
+          prepTime={prepTime}
+          globalRestTime={restTime}
+        />
+      )}
+      {feedDetailPost && (
+        <div
+          className={`stats-detail-overlay ${feedDetailClosing ? 'closing' : ''}`}
+          style={{ zIndex: 520 }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeFeedDetail(); }}
+        >
+          <div className="stats-detail-panel feed-detail-animate">
+            <div className="stats-detail-header">
+              <div className="stats-detail-creator">
+                {feedDetailOwner?.photoURL ? (
+                  <img src={feedDetailOwner.photoURL} alt="" className="stats-detail-creator-icon" referrerPolicy="no-referrer" />
+                ) : (
+                  <img src="/logo192.png" alt="" className="stats-detail-creator-icon" />
+                )}
+              </div>
+              <div className={`stats-detail-title-group ${feedDetailTags.length > 0 ? 'has-tags' : ''}`}>
+                <h2 className="stats-detail-name">{feedDetailPost.workoutName}</h2>
+                {feedDetailTags.length > 0 && (
+                  <div className="stats-detail-tags-row">
+                    {feedDetailTags.map(t => (
+                      <span key={t} className="stats-detail-tag-pill">{t.toUpperCase()}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="stats-detail-header-actions">
+                {feedDetailIsOwn ? (
+                  <button className="stats-detail-share-btn" onClick={() => {
+                    const workout = { name: feedDetailPost.workoutName, type: feedDetailPost.workoutType || 'timer', exercises: feedDetailPost.exercises || [] };
+                    openSendWorkout(workout);
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                      <polyline points="16 6 12 2 8 6"/>
+                      <line x1="12" y1="2" x2="12" y2="15"/>
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    className={`stats-detail-share-btn ${feedDetailTaken ? 'taken' : ''}`}
+                    onClick={handleFeedDetailTake}
+                  >
+                    {feedDetailSaving ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" className="stats-take-spinner">
+                        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="42" strokeLinecap="round"/>
+                      </svg>
+                    ) : feedDetailTaken ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
+                <button className="stats-detail-close-btn" onClick={closeFeedDetail}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="stats-detail-meta-row">
+              <div className="stats-detail-meta-left">
+                <div className="stats-detail-meta">
+                  <span>{Math.floor((feedDetailPost.duration || 0) / 60)}:{((feedDetailPost.duration || 0) % 60).toString().padStart(2, '0')}</span>
+                  <span className="stats-detail-dot">&middot;</span>
+                  <span>{feedDetailPost.exerciseCount || (feedDetailPost.exercises || []).length} exercises</span>
+                </div>
+                <span className="stats-detail-rest-display">
+                  {feedDetailRestTime != null ? feedDetailRestTime : restTime}s rest between exercises
+                </span>
+              </div>
+            </div>
+
+            {feedDetailPost.exercises && feedDetailPost.exercises.length > 0 && (
+              <div className="stats-detail-exercises">
+                {feedDetailPost.exercises.map((exercise, i) => (
+                  <div key={`${exercise}-${i}`} className="stats-detail-exercise">
+                    <span className="stats-detail-exercise-num">{i + 1}</span>
+                    <span className="stats-detail-exercise-name">{exercise}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              className="stats-detail-start-btn"
+              onClick={() => {
+                closeFeedDetail();
+                setShowFeedPage(false);
+                setFeedCloseRequested(false);
+                handleHomeStartWorkout(feedDetailPost.workoutName);
+              }}
+            >
+              Start Workout
+            </button>
+          </div>
+        </div>
+      )}
       <SideMenu
         isOpen={showSideMenu}
         onClose={() => { setShowSideMenu(false); setSideMenuCloseRequested(false); }}
@@ -1294,10 +1609,36 @@ const Main = () => {
           onDismiss={handleSharePromptDismiss}
         />
       )}
+      {privateShareWorkout && (
+        <div
+          className="stats-follow-overlay"
+          style={{ zIndex: 710 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setPrivateShareWorkout(null); }}
+        >
+          <div className="private-share-prompt">
+            <div className="private-share-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <p className="private-share-title">This workout is private</p>
+            <p className="private-share-desc">Make it public to share with others</p>
+            <div className="private-share-actions">
+              <button className="private-share-public-btn" onClick={handleMakePublicAndShare}>
+                Make Public & Share
+              </button>
+              <button className="private-share-cancel-btn" onClick={() => setPrivateShareWorkout(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {sendWorkout && (
         <div
           className={`stats-follow-overlay ${sendWorkoutClosing ? 'closing' : ''}`}
-          style={{ zIndex: 200 }}
+          style={{ zIndex: 700 }}
           onClick={(e) => { if (e.target === e.currentTarget) closeSendWorkout(); }}
         >
           <div className="stats-follow-panel" ref={sendWorkoutPanelRef}>
@@ -1364,7 +1705,28 @@ const Main = () => {
             <button
               className={`stats-send-submit ${Object.keys(sentTo).length > 0 ? '' : 'disabled'}`}
               disabled={Object.keys(sentTo).length === 0}
-              onClick={() => { if (Object.keys(sentTo).length > 0) closeSendWorkout(); }}
+              onClick={() => {
+                if (Object.keys(sentTo).length === 0 || !user || !sendWorkout) return;
+                const recipientUids = Object.keys(sentTo);
+                recipientUids.forEach(uid => {
+                  createShareNotification({
+                    recipientUid: uid,
+                    actorUid: user.uid,
+                    actorName: user.displayName,
+                    actorPhotoURL: user.photoURL,
+                    workoutName: sendWorkout.name,
+                    workoutType: sendWorkout.type,
+                    exercises: sendWorkout.exercises,
+                    restTime: sendWorkout.restTime ?? null,
+                    tags: sendWorkout.tags || null,
+                    creatorUid: sendWorkout.creatorUid || user.uid,
+                    creatorName: sendWorkout.creatorName || user.displayName,
+                    creatorPhotoURL: sendWorkout.creatorPhotoURL || user.photoURL,
+                  }).catch(err => console.error('Share notif failed:', err));
+                });
+                setHasUnread(true);
+                closeSendWorkout();
+              }}
             >
               Send{Object.keys(sentTo).length > 0 ? ` (${Object.keys(sentTo).length})` : ''}
             </button>

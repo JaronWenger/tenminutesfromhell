@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -9,14 +9,16 @@ import {
   followUser,
   unfollowUser,
   toggleLike,
-  batchCheckLikes
+  batchCheckLikes,
+  updateNotificationStatus
 } from '../firebase/social';
+import { saveUserWorkout } from '../firebase/firestore';
 import './FeedPage.css';
 
 const APP_URL = 'https://hiitem.com';
 const INVITE_TEXT = `Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress! ${APP_URL}`;
 
-const FeedPage = ({ isOpen, onClose, requestClose }) => {
+const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, acceptedPostId, allWorkouts = [], lastViewedAt }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('feed');
   const [posts, setPosts] = useState([]);
@@ -25,21 +27,34 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
   const [likedPosts, setLikedPosts] = useState({});
   const [loading, setLoading] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [shareActions, setShareActions] = useState({}); // notifId → 'accepting' | 'accepted' | 'denied'
 
   // People sub-tab state
   const [peopleSubTab, setPeopleSubTab] = useState('suggested');
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestedUsers, setSuggestedUsers] = useState([]);
 
+  const lastViewedDate = lastViewedAt ? new Date(lastViewedAt) : null;
+  const isNewPost = (post) => {
+    if (!lastViewedDate || !post.createdAt) return false;
+    const postDate = post.createdAt instanceof Date ? post.createdAt : new Date(post.createdAt);
+    return postDate > lastViewedDate;
+  };
+
   const loadFeed = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const feedPosts = await getFeedPosts(user.uid);
+      const [feedPosts, following] = await Promise.all([
+        getFeedPosts(user.uid),
+        getFollowing(user.uid)
+      ]);
       setPosts(feedPosts);
-      if (feedPosts.length > 0) {
+      setFollowingIds(following);
+      const workoutPosts = feedPosts.filter(p => !p.type);
+      if (workoutPosts.length > 0) {
         const likes = await batchCheckLikes(
-          feedPosts.map(p => p.id),
+          workoutPosts.map(p => p.id),
           user.uid
         );
         setLikedPosts(likes);
@@ -80,6 +95,13 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     }
   }, [isOpen, user, activeTab, loadFeed, loadPeople]);
 
+  // Sync accepted status from detail view
+  useEffect(() => {
+    if (acceptedPostId) {
+      setShareActions(prev => ({ ...prev, [acceptedPostId]: 'accepted' }));
+    }
+  }, [acceptedPostId]);
+
   // Allow parent to trigger the animated close
   useEffect(() => {
     if (requestClose && isOpen && !isClosing) {
@@ -91,13 +113,39 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     }
   }, [requestClose, isOpen, isClosing, onClose]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsClosing(true);
     setTimeout(() => {
       setIsClosing(false);
       onClose();
     }, 280);
-  };
+  }, [onClose]);
+
+  // Swipe navigation between tabs
+  const swipeStartX = useRef(null);
+  const swipeStartY = useRef(null);
+
+  const handleContentTouchStart = useCallback((e) => {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleContentTouchEnd = useCallback((e) => {
+    if (swipeStartX.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - swipeStartX.current;
+    const deltaY = e.changedTouches[0].clientY - swipeStartY.current;
+    swipeStartX.current = null;
+    swipeStartY.current = null;
+    if (Math.abs(deltaX) < 60 || Math.abs(deltaY) > Math.abs(deltaX)) return;
+    if (deltaX < 0) {
+      // Swipe left: Activity → People
+      if (activeTab === 'feed') setActiveTab('people');
+    } else {
+      // Swipe right: People → Activity, Activity → close
+      if (activeTab === 'people') setActiveTab('feed');
+      else if (activeTab === 'feed') handleClose();
+    }
+  }, [activeTab, handleClose]);
 
   const handleFollow = async (targetUid) => {
     if (!user) return;
@@ -161,11 +209,50 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
     }
   };
 
+  const isSharedWorkoutInLibrary = useCallback((post) => {
+    return allWorkouts.some(w => w.name === post.workoutName);
+  }, [allWorkouts]);
+
   const formatDuration = (seconds) => {
     if (!seconds && seconds !== 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleAcceptSharedWorkout = async (post) => {
+    if (!user || shareActions[post.id]) return;
+    setShareActions(prev => ({ ...prev, [post.id]: 'accepting' }));
+    try {
+      await saveUserWorkout(user.uid, {
+        name: post.workoutName,
+        type: post.workoutType || 'timer',
+        exercises: post.exercises || [],
+        isCustom: true,
+        restTime: post.restTime ?? null,
+        tags: post.tags || null,
+        creatorUid: post.creatorUid || post.userId,
+        creatorName: post.creatorName || post.displayName,
+        creatorPhotoURL: post.creatorPhotoURL || post.photoURL,
+      });
+      await updateNotificationStatus(post.id, 'accepted');
+      setShareActions(prev => ({ ...prev, [post.id]: 'accepted' }));
+      if (onWorkoutAdded) onWorkoutAdded();
+    } catch (err) {
+      console.error('Failed to accept shared workout:', err);
+      setShareActions(prev => { const n = { ...prev }; delete n[post.id]; return n; });
+    }
+  };
+
+  const handleDenySharedWorkout = async (post) => {
+    if (!user || shareActions[post.id]) return;
+    setShareActions(prev => ({ ...prev, [post.id]: 'denied' }));
+    try {
+      await updateNotificationStatus(post.id, 'denied');
+    } catch (err) {
+      console.error('Failed to deny shared workout:', err);
+      setShareActions(prev => { const n = { ...prev }; delete n[post.id]; return n; });
+    }
   };
 
   // Build people list: non-followed (sorted by mutual count) first, then followed
@@ -214,28 +301,29 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
             <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
-        <span className="feed-header-title">Activity</span>
+        <div className="feed-filter-bar">
+          <button
+            className={`feed-filter-chip ${activeTab === 'feed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('feed')}
+          >
+            Activity
+          </button>
+          <button
+            className={`feed-filter-chip ${activeTab === 'people' ? 'active' : ''}`}
+            onClick={() => setActiveTab('people')}
+          >
+            People
+          </button>
+        </div>
         <div className="feed-header-spacer" />
       </div>
 
-      {/* Tabs */}
-      <div className="feed-tabs">
-        <button
-          className={`feed-tab ${activeTab === 'feed' ? 'active' : ''}`}
-          onClick={() => setActiveTab('feed')}
-        >
-          Feed
-        </button>
-        <button
-          className={`feed-tab ${activeTab === 'people' ? 'active' : ''}`}
-          onClick={() => setActiveTab('people')}
-        >
-          People
-        </button>
-      </div>
-
       {/* Content */}
-      <div className="feed-content">
+      <div
+        className="feed-content"
+        onTouchStart={handleContentTouchStart}
+        onTouchEnd={handleContentTouchEnd}
+      >
         {!user && (
           <div className="feed-empty">
             <p>Sign in to see activity</p>
@@ -257,10 +345,187 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
                 <span>Complete a workout or follow people to see activity here</span>
               </div>
             ) : (
-              posts.map(post => (
-                <div key={post.id} className="feed-post-card">
+              posts.map(post => post.type === 'follow' ? (
+                <div
+                  key={post.id}
+                  className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL })}
+                >
                   <div className="feed-post-header">
                     <div className="feed-post-avatar">
+                      {post.photoURL ? (
+                        <img src={post.photoURL} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="feed-post-avatar-placeholder">
+                          {(post.displayName || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="feed-post-meta">
+                      <span className="feed-post-name">{post.displayName}</span>
+                      <span className="feed-post-time">
+                        {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                        {post.createdAt ? ` at ${post.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                      </span>
+                      <span className="feed-post-subtitle">Started following you</span>
+                    </div>
+                    <button
+                      className={`feed-follow-btn ${followingIds.includes(post.userId) ? 'following' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        followingIds.includes(post.userId) ? handleUnfollow(post.userId) : handleFollow(post.userId);
+                      }}
+                    >
+                      {followingIds.includes(post.userId) ? 'Following' : 'Follow'}
+                    </button>
+                  </div>
+                </div>
+              ) : post.type === 'workout_saved' ? (
+                <div
+                  key={post.id}
+                  className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onViewPostWorkout && onViewPostWorkout(post)}
+                >
+                  <div className="feed-post-header">
+                    <div
+                      className="feed-post-avatar"
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL }); }}
+                    >
+                      {post.photoURL ? (
+                        <img src={post.photoURL} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="feed-post-avatar-placeholder">
+                          {(post.displayName || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="feed-post-meta">
+                      <span className="feed-post-name">{post.displayName}</span>
+                      <span className="feed-post-time">
+                        {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                        {post.createdAt ? ` at ${post.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                      </span>
+                      <span className="feed-post-subtitle">Saved <strong>{post.workoutName}</strong> &middot; from {post.source === 'pinned' ? 'Pinned' : 'Activity'}</span>
+                    </div>
+                    <div className="feed-save-notif-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              ) : post.type === 'workout_shared' ? (
+                <div
+                  key={post.id}
+                  className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onViewPostWorkout && onViewPostWorkout(post)}
+                >
+                  <div className="feed-post-header">
+                    <div
+                      className="feed-post-avatar"
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL }); }}
+                    >
+                      {post.photoURL ? (
+                        <img src={post.photoURL} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="feed-post-avatar-placeholder">
+                          {(post.displayName || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="feed-post-meta">
+                      <span className="feed-post-name">{post.displayName}</span>
+                      <span className="feed-post-time">
+                        {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                        {post.createdAt ? ` at ${post.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                      </span>
+                      <span className="feed-post-subtitle">Sent you <strong>{post.workoutName}</strong> &middot; {post.exercises?.length || 0} exercises</span>
+                    </div>
+                  </div>
+                  {(shareActions[post.id] === 'accepted' || post.status === 'accepted' || isSharedWorkoutInLibrary(post)) ? (
+                    <div className="feed-share-actions">
+                      <span className="feed-share-status accepted">{(shareActions[post.id] === 'accepted' || post.status === 'accepted') ? 'Added to library' : 'Already in library'}</span>
+                    </div>
+                  ) : (shareActions[post.id] === 'denied' || post.status === 'denied') ? (
+                    <div className="feed-share-actions">
+                      <span className="feed-share-status denied">Declined</span>
+                    </div>
+                  ) : (
+                    <div className="feed-share-actions">
+                      <button
+                        className="feed-share-deny-btn"
+                        onClick={(e) => { e.stopPropagation(); handleDenySharedWorkout(post); }}
+                      >
+                        Deny
+                      </button>
+                      <button
+                        className={`feed-share-accept-btn ${shareActions[post.id] === 'accepting' ? 'saving' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); handleAcceptSharedWorkout(post); }}
+                        disabled={shareActions[post.id] === 'accepting'}
+                      >
+                        {shareActions[post.id] === 'accepting' ? 'Saving...' : 'Accept'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : post.type === 'workout_sent' ? (
+                <div
+                  key={post.id}
+                  className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onViewPostWorkout && onViewPostWorkout(post)}
+                >
+                  <div className="feed-post-header">
+                    <div
+                      className="feed-post-avatar"
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: post.userId, displayName: post.recipientName, photoURL: post.recipientPhotoURL }); }}
+                    >
+                      {post.recipientPhotoURL ? (
+                        <img src={post.recipientPhotoURL} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="feed-post-avatar-placeholder">
+                          {(post.recipientName || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="feed-post-meta">
+                      <span className="feed-post-name">{post.recipientName}</span>
+                      <span className="feed-post-time">
+                        {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                        {post.createdAt ? ` at ${post.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                      </span>
+                      <span className="feed-post-subtitle">
+                        You sent <strong>{post.workoutName}</strong> &middot; {post.status === 'accepted' ? (
+                          <span className="feed-sent-status accepted">Accepted</span>
+                        ) : post.status === 'denied' ? (
+                          <span className="feed-sent-status denied">Declined</span>
+                        ) : (
+                          <span className="feed-sent-status pending">Pending</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="feed-save-notif-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div key={post.id} className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`} style={{ cursor: 'pointer' }} onClick={() => onViewPostWorkout && onViewPostWorkout(post)}>
+                  <div className="feed-post-header">
+                    <div
+                      className="feed-post-avatar"
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL }); }}
+                    >
                       {post.photoURL ? (
                         <img src={post.photoURL} alt="" referrerPolicy="no-referrer" />
                       ) : (
@@ -279,7 +544,7 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
                     </div>
                     <button
                       className={`feed-like-btn ${likedPosts[post.id] ? 'liked' : ''}`}
-                      onClick={() => handleLike(post.id)}
+                      onClick={(e) => { e.stopPropagation(); handleLike(post.id); }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill={likedPosts[post.id] ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -362,7 +627,11 @@ const FeedPage = ({ isOpen, onClose, requestClose }) => {
                 ) : (
                   filterBySearch(peopleList).map(u => (
                     <div key={u.uid} className="feed-person-card">
-                      <div className="feed-person-avatar">
+                      <div
+                        className="feed-person-avatar"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => onViewProfile && onViewProfile({ uid: u.uid, displayName: u.displayName, photoURL: u.photoURL })}
+                      >
                         {u.photoURL ? (
                           <img src={u.photoURL} alt="" referrerPolicy="no-referrer" />
                         ) : (

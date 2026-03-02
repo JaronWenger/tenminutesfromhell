@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { getUserProfiles, getFollowing, getFollowers, getAllPreferences } from '../firebase/social';
+import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification } from '../firebase/social';
 import { getUserHistory, getUserWorkouts, saveUserWorkout } from '../firebase/firestore';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './StatsPage.css';
@@ -552,9 +552,9 @@ const StatsPage = ({
     return [...timerWorkoutData, ...stopwatchWorkoutData];
   }, [timerWorkoutData, stopwatchWorkoutData]);
 
-  // Only owned workouts for the pin picker (forked defaults or custom)
+  // Only owned public workouts for the pin picker (forked defaults or custom, must be public)
   const ownedWorkouts = useMemo(() => {
-    return allWorkouts.filter(w => w.forked || !defaultWorkoutNames.includes(w.name));
+    return allWorkouts.filter(w => (w.forked || !defaultWorkoutNames.includes(w.name)) && w.isPublic !== false);
   }, [allWorkouts, defaultWorkoutNames]);
 
   // Resolved pinned workout objects (filter out stale names)
@@ -736,7 +736,12 @@ const StatsPage = ({
     // Skip fade-in if replacing an existing overlay (prevents flash)
     const hasOverlay = !!(followListType || vpFollowListType || viewingProfile);
     vpSkipFadeRef.current = hasOverlay;
-    // Remove background popups instantly (no-fade overlay replaces their backdrop)
+    // VP follow list has transparent backdrop — animate panel out smoothly
+    if (vpFollowListType) {
+      setVpFollowListClosing(true);
+      await new Promise(r => setTimeout(r, 200));
+    }
+    // Main follow list has its own backdrop — remove instantly (profile overlay replaces it in same render)
     setFollowListType(null);
     setFollowListClosing(false);
     setFollowListProfiles([]);
@@ -746,6 +751,7 @@ const StatsPage = ({
     setShowProfilePopup(false);
     setProfilePopupClosing(false);
 
+    // Show profile overlay immediately (no-fade when replacing existing overlay)
     setViewingProfile(profile);
     setViewingProfileFollowing(0);
     setViewingProfileFollowers(0);
@@ -916,6 +922,14 @@ const StatsPage = ({
       });
       setTakenWorkouts(prev => ({ ...prev, [workout.name]: true }));
       if (onWorkoutAdded) onWorkoutAdded();
+      createSaveNotification({
+        recipientUid: viewingProfile?.uid,
+        actorUid: user.uid,
+        actorName: user.displayName,
+        actorPhotoURL: user.photoURL,
+        workoutName: workout.name,
+        source: 'pinned'
+      }).catch(err => console.error('Save notif failed:', err));
     } catch (err) {
       console.error('Failed to take workout:', err);
     } finally {
@@ -1411,6 +1425,7 @@ const StatsPage = ({
       {detailWorkout && (
         <div
           className={`stats-detail-overlay ${detailPhase === 'leaving' ? 'closing' : ''}`}
+          style={viewingProfile ? { zIndex: 700 } : undefined}
           onClick={(e) => { if (e.target === e.currentTarget) closeDetail(); }}
         >
           <div className="stats-detail-panel" ref={panelRef}>
@@ -1802,7 +1817,7 @@ const StatsPage = ({
       {vpFollowListType && (
         <div
           className={`stats-follow-overlay ${vpFollowListClosing ? 'closing' : ''}`}
-          style={{ zIndex: 185 }}
+          style={{ zIndex: 610, background: 'rgba(0,0,0,0.3)' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeVpFollowList(); }}
         >
           <div className="stats-follow-panel" ref={vpFollowPanelRef}>

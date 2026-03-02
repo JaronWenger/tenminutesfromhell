@@ -12,7 +12,8 @@ import {
   limit,
   writeBatch,
   serverTimestamp,
-  increment
+  increment,
+  deleteField
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -174,18 +175,24 @@ export const followUser = async (myUid, targetUid) => {
   const batch = writeBatch(db);
   batch.set(
     doc(db, 'following', myUid, 'userFollowing', targetUid),
-    { followedAt: serverTimestamp() }
+    { followedAt: serverTimestamp(), active: true, unfollowedAt: deleteField() },
+    { merge: true }
   );
   batch.set(
     doc(db, 'followers', targetUid, 'userFollowers', myUid),
-    { followedAt: serverTimestamp() }
+    { followedAt: serverTimestamp(), active: true, unfollowedAt: deleteField() },
+    { merge: true }
   );
   await batch.commit();
 };
 
 export const unfollowUser = async (myUid, targetUid) => {
   const batch = writeBatch(db);
-  batch.delete(doc(db, 'following', myUid, 'userFollowing', targetUid));
+  batch.set(
+    doc(db, 'following', myUid, 'userFollowing', targetUid),
+    { active: false, unfollowedAt: serverTimestamp() },
+    { merge: true }
+  );
   batch.delete(doc(db, 'followers', targetUid, 'userFollowers', myUid));
   await batch.commit();
 };
@@ -194,7 +201,7 @@ export const getFollowing = async (userId) => {
   const snapshot = await getDocs(
     collection(db, 'following', userId, 'userFollowing')
   );
-  return snapshot.docs.map(d => d.id);
+  return snapshot.docs.filter(d => d.data().active !== false).map(d => d.id);
 };
 
 export const getFollowers = async (userId) => {
@@ -202,6 +209,32 @@ export const getFollowers = async (userId) => {
     collection(db, 'followers', userId, 'userFollowers')
   );
   return snapshot.docs.map(d => d.id);
+};
+
+export const getFollowerNotifications = async (userId) => {
+  const snapshot = await getDocs(
+    collection(db, 'followers', userId, 'userFollowers')
+  );
+  const followerDocs = snapshot.docs.map(d => ({
+    uid: d.id,
+    followedAt: d.data().followedAt?.toDate?.() || null
+  })).filter(f => f.followedAt);
+  if (followerDocs.length === 0) return [];
+  // Fetch profiles for display names/photos
+  const profiles = await getUserProfiles(followerDocs.map(f => f.uid));
+  const profileMap = {};
+  profiles.forEach(p => { profileMap[p.uid] = p; });
+  return followerDocs.map(f => {
+    const p = profileMap[f.uid] || {};
+    return {
+      id: `follow-${f.uid}`,
+      type: 'follow',
+      userId: f.uid,
+      displayName: p.displayName || 'Someone',
+      photoURL: p.photoURL || null,
+      createdAt: f.followedAt
+    };
+  });
 };
 
 export const getUserProfiles = async (userIds) => {
@@ -241,6 +274,160 @@ export const getSuggestedUsers = async (userId) => {
     .sort((a, b) => b.mutualCount - a.mutualCount);
 };
 
+// ── Save Notifications ──
+
+export const createSaveNotification = async ({ recipientUid, actorUid, actorName, actorPhotoURL, workoutName, source }) => {
+  if (!recipientUid || recipientUid === actorUid) return;
+  await addDoc(collection(db, 'notifications'), {
+    recipientUid,
+    type: 'workout_saved',
+    actorUid,
+    actorName: actorName || 'Someone',
+    actorPhotoURL: actorPhotoURL || null,
+    workoutName,
+    source,
+    createdAt: serverTimestamp()
+  });
+};
+
+export const getSaveNotifications = async (userId) => {
+  const q = query(
+    collection(db, 'notifications'),
+    where('recipientUid', '==', userId),
+    where('type', '==', 'workout_saved'),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  const snapshot = await getDocs(q);
+  const seen = new Set();
+  const results = [];
+  snapshot.docs.forEach(d => {
+    const data = d.data();
+    const key = `${data.actorUid}_${data.workoutName}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    results.push({
+      id: d.id,
+      type: 'workout_saved',
+      userId: data.actorUid,
+      displayName: data.actorName,
+      photoURL: data.actorPhotoURL,
+      workoutName: data.workoutName,
+      source: data.source,
+      createdAt: data.createdAt?.toDate?.() || null
+    });
+  });
+  return results;
+};
+
+export const createShareNotification = async ({ recipientUid, actorUid, actorName, actorPhotoURL, workoutName, workoutType, exercises, restTime, tags, creatorUid, creatorName, creatorPhotoURL }) => {
+  if (!recipientUid || recipientUid === actorUid) return;
+  await addDoc(collection(db, 'notifications'), {
+    recipientUid,
+    type: 'workout_shared',
+    actorUid,
+    actorName: actorName || 'Someone',
+    actorPhotoURL: actorPhotoURL || null,
+    workoutName,
+    workoutType: workoutType || 'timer',
+    exercises: exercises || [],
+    restTime: restTime ?? null,
+    tags: tags || null,
+    // Preserve original creator (falls back to sharer if not provided)
+    creatorUid: creatorUid || actorUid,
+    creatorName: creatorName || actorName || 'Someone',
+    creatorPhotoURL: creatorPhotoURL || actorPhotoURL || null,
+    status: 'pending',
+    createdAt: serverTimestamp()
+  });
+};
+
+export const getShareNotifications = async (userId) => {
+  const q = query(
+    collection(db, 'notifications'),
+    where('recipientUid', '==', userId),
+    where('type', '==', 'workout_shared'),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  const snapshot = await getDocs(q);
+  const seen = new Set();
+  const results = [];
+  snapshot.docs.forEach(d => {
+    const data = d.data();
+    const key = `${data.actorUid}_${data.workoutName}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    results.push({
+      id: d.id,
+      type: 'workout_shared',
+      userId: data.actorUid,
+      displayName: data.actorName,
+      photoURL: data.actorPhotoURL,
+      workoutName: data.workoutName,
+      workoutType: data.workoutType,
+      exercises: data.exercises,
+      restTime: data.restTime,
+      tags: data.tags,
+      status: data.status,
+      creatorUid: data.creatorUid || data.actorUid,
+      creatorName: data.creatorName || data.actorName,
+      creatorPhotoURL: data.creatorPhotoURL || data.actorPhotoURL,
+      createdAt: data.createdAt?.toDate?.() || null
+    });
+  });
+  return results;
+};
+
+export const getSentShareNotifications = async (userId) => {
+  const q = query(
+    collection(db, 'notifications'),
+    where('actorUid', '==', userId),
+    where('type', '==', 'workout_shared'),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  const snapshot = await getDocs(q);
+  const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (allDocs.length === 0) return [];
+  // Deduplicate: keep most recent per recipient + workout
+  const seen = new Set();
+  const docs = [];
+  allDocs.forEach(d => {
+    const key = `${d.recipientUid}_${d.workoutName}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    docs.push(d);
+  });
+  const recipientIds = [...new Set(docs.map(d => d.recipientUid))];
+  const profiles = await getUserProfiles(recipientIds);
+  const profileMap = {};
+  profiles.forEach(p => { profileMap[p.uid] = p; });
+  return docs.map(d => {
+    const recipient = profileMap[d.recipientUid] || {};
+    return {
+      id: d.id,
+      type: 'workout_sent',
+      userId: d.recipientUid,
+      recipientName: recipient.displayName || 'Someone',
+      recipientPhotoURL: recipient.photoURL || null,
+      displayName: d.actorName,
+      photoURL: d.actorPhotoURL,
+      workoutName: d.workoutName,
+      workoutType: d.workoutType,
+      exercises: d.exercises,
+      restTime: d.restTime,
+      tags: d.tags,
+      status: d.status,
+      createdAt: d.createdAt?.toDate?.() || null
+    };
+  });
+};
+
+export const updateNotificationStatus = async (notificationId, status) => {
+  await setDoc(doc(db, 'notifications', notificationId), { status }, { merge: true });
+};
+
 // ── Posts ──
 
 export const createPost = async (userId, workoutData, profile) => {
@@ -253,6 +440,7 @@ export const createPost = async (userId, workoutData, profile) => {
     duration: workoutData.duration,
     exerciseCount: workoutData.exercises.length,
     exercises: workoutData.exercises,
+    isPublic: workoutData.isPublic !== false,
     likeCount: 0,
     createdAt: serverTimestamp()
   });
@@ -266,11 +454,81 @@ export const createPost = async (userId, workoutData, profile) => {
   return postRef.id;
 };
 
+// ── Unread notification check (lightweight, limit 1) ──
+
+export const hasNewNotifications = async (userId, sinceDate, followingIds = []) => {
+  if (!userId) return false;
+  const since = sinceDate || new Date(0);
+
+  const isNewer = (snap) => {
+    if (snap.empty) return false;
+    const data = snap.docs[0].data();
+    const ts = data.createdAt?.toDate?.() || data.followedAt?.toDate?.() || null;
+    return ts && ts > since;
+  };
+
+  // Check all feed sources using existing index patterns (limit 1, compare client-side)
+  const checks = [
+    // Save notifications (recipientUid + type + createdAt index)
+    getDocs(query(
+      collection(db, 'notifications'),
+      where('recipientUid', '==', userId),
+      where('type', '==', 'workout_saved'),
+      orderBy('createdAt', 'desc'), limit(1)
+    )),
+    // Share notifications (same index)
+    getDocs(query(
+      collection(db, 'notifications'),
+      where('recipientUid', '==', userId),
+      where('type', '==', 'workout_shared'),
+      orderBy('createdAt', 'desc'), limit(1)
+    )),
+    // Sent share notifications (actorUid + type + createdAt index)
+    getDocs(query(
+      collection(db, 'notifications'),
+      where('actorUid', '==', userId),
+      where('type', '==', 'workout_shared'),
+      orderBy('createdAt', 'desc'), limit(1)
+    )),
+    // Own posts (userId + createdAt index)
+    getDocs(query(
+      collection(db, 'posts'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'), limit(1)
+    ))
+  ];
+
+  // Posts from followed users
+  if (followingIds.length > 0) {
+    checks.push(
+      getDocs(query(
+        collection(db, 'posts'),
+        where('userId', 'in', followingIds.slice(0, 30)),
+        orderBy('createdAt', 'desc'), limit(1)
+      ))
+    );
+  }
+
+  const results = await Promise.all(checks);
+  return results.some(isNewer);
+};
+
 export const getFeedPosts = async (userId, pageSize = 30) => {
-  // Get who the user follows
-  const followingIds = await getFollowing(userId);
+  // Get ALL following docs (active + inactive) to preserve feed history
+  const followSnapshot = await getDocs(
+    collection(db, 'following', userId, 'userFollowing')
+  );
+  const unfollowCutoffs = {}; // userId → unfollowedAt Date (only for inactive follows)
+  const allFollowIds = [];
+  followSnapshot.docs.forEach(d => {
+    const data = d.data();
+    allFollowIds.push(d.id);
+    if (data.active === false && data.unfollowedAt) {
+      unfollowCutoffs[d.id] = data.unfollowedAt.toDate ? data.unfollowedAt.toDate() : data.unfollowedAt;
+    }
+  });
   // Include own posts
-  const userIds = [userId, ...followingIds];
+  const userIds = [userId, ...allFollowIds];
 
   if (userIds.length === 0) return [];
 
@@ -298,6 +556,38 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
       };
     });
     allPosts = allPosts.concat(posts);
+  }
+
+  // Filter out posts from unfollowed users that were created after the unfollow
+  allPosts = allPosts.filter(post => {
+    const cutoff = unfollowCutoffs[post.userId];
+    if (!cutoff) return true; // active follow or own post — keep all
+    return post.createdAt && post.createdAt <= cutoff; // only keep posts from before unfollow
+  });
+
+  // Hide private posts from other users (keep own private posts)
+  allPosts = allPosts.filter(post => {
+    if (post.type) return true; // notifications, not workout posts
+    if (post.userId === userId) return true; // own posts always visible
+    return post.isPublic !== false; // hide other users' private posts
+  });
+
+  // Merge follow + save + share + sent notifications
+  try {
+    const [followNotifs, saveNotifs, shareNotifs, sentNotifs] = await Promise.all([
+      getFollowerNotifications(userId),
+      getSaveNotifications(userId).catch(err => { console.error('Save notifications failed:', err); return []; }),
+      getShareNotifications(userId).catch(err => { console.error('Share notifications failed:', err.message, err); return []; }),
+      getSentShareNotifications(userId).catch(err => { console.error('Sent notifications failed:', err.message, err); return []; })
+    ]);
+    allPosts = allPosts.concat(followNotifs, saveNotifs, shareNotifs, sentNotifs);
+  } catch (err) {
+    console.error('Notification merge failed:', err.message);
+    // Still try follow notifications alone
+    try {
+      const followNotifs = await getFollowerNotifications(userId);
+      allPosts = allPosts.concat(followNotifs);
+    } catch (_) { /* skip notifications entirely */ }
   }
 
   // Sort combined results by date

@@ -1,110 +1,133 @@
 # Architectural Patterns
 
-Recurring patterns observed across multiple files in this codebase.
+Recurring patterns across multiple files in this codebase.
 
 ## 1. Centralized State Hub
 
-All application state lives in `src/components/main.jsx`. Child components receive state via props and communicate changes via callback props. No component manages its own persistent state — only UI-local state (e.g., swipe offsets, expanded panels).
+All app state lives in `main.jsx` (~1800 lines). Children receive state via props and communicate via callbacks. No child manages persistent state — only UI-local state (swipe offsets, expanded panels).
 
-**Pattern**: Parent owns state, children get `value` + `onChange` props.
+**Files**: main.jsx → Home.jsx, StatsPage.jsx, FeedPage.jsx, Timer.jsx, ProfilePopup.jsx
 
-**Examples**:
-- `main.jsx:18` — `timerWorkoutData` state, passed to Home and Timer
-- `main.jsx:40-48` — `timerState` object, passed as individual props to Timer
-- `main.jsx:384-390` — `handleWorkoutSelection` callback, passed as `onWorkoutSelect`
+## 2. Default + Override Merge System
 
-## 2. Dual State Sync (Parent ↔ Child)
+Hardcoded defaults from `defaultWorkouts.js` are the baseline. Firestore stores user customizations. On load, `mergeWorkouts()` (main.jsx:374) layers customs over defaults.
 
-Children maintain local copies of parent state via useState, then sync with useEffect when props change. Local state allows immediate UI updates; callbacks push changes to parent.
+**Merge logic**:
+1. Collect `{ deleted: true }` markers → filter out those defaults
+2. For each default, find custom override by `name` or `defaultName`
+3. Track overrides in `usedAsOverride` Set to prevent duplicates
+4. Append remaining custom workouts (not used as overrides, not deleted)
 
-**Pattern**: Local state initialized from props → useEffect syncs prop changes → handler calls `updateParentState()`.
+**Soft-delete**: Removing a default stores `{ deleted: true, defaultName }` — not a real delete. This allows re-adding defaults later.
 
-**Examples**:
-- `Timer.jsx:37-40` — Local `timeLeft`, `isRunning` state from props
-- `Timer.jsx:43-48` — useEffect syncs when props change
-- `Timer.jsx:56-66` — `updateParentState()` merges local state before calling parent callback
+## 3. Workout Ownership Chain
 
-## 3. Firestore Optimistic Updates
+When workouts are shared/taken, `creatorUid` preserves the original author:
+- User creates workout → `creatorUid: null` (or their own UID)
+- User takes from profile → `creatorUid: originalCreator`
+- User shares to friend → notification carries `creatorUid` of original creator, not sharer
+- Friend accepts → saved with original `creatorUid`
+- User forks/remixes → `forked: true`, becomes their own workout
 
-State is updated locally first (instant UI feedback), then persisted to Firestore asynchronously. Errors are caught and logged but don't roll back the local state.
+**Key rule**: Sharing never claims ownership. Only create or remix makes it yours.
+
+## 4. Optimistic UI Updates
+
+State updates locally first for instant feedback, then persists to Firestore async. Errors logged but don't roll back (Firestore syncs on next load).
 
 **Pattern**: `setState(newValue)` → `if (user) { firestoreCall().catch(console.error) }`
 
-**Examples**:
-- `main.jsx:399-438` — `handleExerciseSave`: updates local state, then `saveUserWorkout()` in background
-- `main.jsx:452-471` — `handleDeleteWorkout`: removes from state, then `deleteUserWorkout()` async
-- `main.jsx:184-197` — Timer completion: records history async, refreshes on success
+**Examples**: Like toggles (FeedPage.jsx:170), visibility toggles (main.jsx:948), workout saves (main.jsx:399)
 
-## 4. Default + Override Merge
+## 5. FLIP Animation (Detail Overlays)
 
-Hardcoded default workouts are the baseline. Firestore stores user customizations as overrides. On load, `mergeWorkouts()` layers customs over defaults, supporting renames (`defaultName` field) and soft deletes (`deleted: true` marker).
+Workout detail panels animate from card position to fullscreen using FLIP (First, Last, Invert, Play).
 
-**Pattern**: Load defaults → fetch customs → merge by name/defaultName → filter deleted → append net-new customs.
+**Used in**: Home.jsx, StatsPage.jsx, ProfilePopup.jsx
 
-**Key file**: `main.jsx:119-152` — `mergeWorkouts()` function
-**Data source**: `src/data/defaultWorkouts.js` — 6 timer + 6 stopwatch presets
+**Steps**:
+1. Capture card bounding rect (`detailRect`)
+2. Render full panel, get its rect
+3. Calculate `translate(dx, dy) scale(sx, sy)` from panel to card
+4. Apply transform, force repaint (`offsetHeight`), transition to `transform: none`
 
-## 5. Touch Gesture State Machine
+## 6. Touch Gesture State Machine
 
-Touch interactions use a ref-based state machine: track start position → calculate deltas on move → commit or cancel on end. Refs prevent re-renders during gesture; state updates only on commit.
+Swipe/drag interactions use refs (not state) during gesture to avoid re-renders. State updates only on commit.
 
-**Pattern**: `useRef` for coordinates/flags, `useState` only for committed visual state.
+**Pattern**: `useRef` for coordinates/flags during touch → `useState` only for committed position
 
-**Home.jsx swipe-to-delete**:
-- `Home.jsx:63-68` — touchStart records X/Y into refs
-- `Home.jsx:70-83` — touchMove calculates deltaX, sets swipeOffset state only when threshold crossed
-- `Home.jsx:85-93` — touchEnd snaps to -80px or resets
+**Home.jsx**: Swipe-to-delete (horizontal) + long-press reorder (vertical). Conflict resolved via `isDragging`/`isSwiping` ref gates.
 
-**Home.jsx long-press reorder**:
-- `Home.jsx:68` — 400ms setTimeout starts drag mode
-- `Home.jsx:76-87` — touchMove during drag checks bounding rects of all cards
-- `Home.jsx:95-105` — touchEnd commits reorder via `onReorder()`
+**FeedPage.jsx**: Swipe-to-close on detail overlays.
 
-**Conflict resolution**: `isDragging` ref gates swipe handlers; `isSwiping` ref gates click handlers.
+## 7. Notification Deduplication
 
-## 6. Interval + Ref Cleanup
+Multiple identical notifications (same sender + workout) are deduplicated in fetch functions using a Set with composite key `${actorUid}_${workoutName}`. Since queries use `orderBy('createdAt', 'desc')`, the most recent is naturally kept.
 
-Timers and stopwatches use `setInterval` stored in a `useRef`, with cleanup in the useEffect return. This prevents stale closures and memory leaks.
+**Functions**: `getSaveNotifications`, `getShareNotifications`, `getSentShareNotifications` in social.js
 
-**Pattern**: `ref.current = setInterval(...)` in effect body → `clearInterval(ref.current)` in cleanup.
+## 8. Unread Notification Badge (Lightweight Polling)
 
-**Examples**:
-- `main.jsx:165-216` — Timer interval (1s ticks), clears on pause/unmount
-- `main.jsx:222-242` — Stopwatch interval (10ms ticks), same pattern
+Instead of loading the full feed, `hasNewNotifications()` (social.js) fetches 1 doc from each feed source with `limit(1)`, compares timestamp to `lastViewedAt` from localStorage.
 
-## 7. Wake Lock Lifecycle
+**Sources checked**: save notifications, share notifications, sent notifications, own posts, followed users' posts
 
-Screen wake lock is acquired when a timer/stopwatch starts, released when it stops or completes. Errors are silently caught (not all browsers support it).
+**Triggers**: App load, tab switch to home, every 60s interval, after posting/sending
 
-**Pattern**: `requestWakeLock()` on `isRunning: true` → `releaseWakeLock()` on `isRunning: false` or completion.
+**localStorage key**: `feedLastViewed_{userId}`
 
-**Key files**:
-- `main.jsx:245-264` — `requestWakeLock()` / `releaseWakeLock()` helpers
-- `main.jsx:267-280` — `handleTimerStateChange` triggers lock based on running transition
+## 9. Auth-Gated Persistence
 
-## 8. Tab Navigation Without Router
+App works fully offline with hardcoded defaults. Firebase is additive — all Firestore calls gated by `if (user)`.
 
-Navigation is a single `activeTab` string state in main.jsx. `renderContent()` switches on this value to render the correct component. Edit pages use `currentEditPage` + `currentEditLevel` for nested navigation.
+**Pattern**: Feature works with local state → `if (user) { persist() }` adds cloud sync
 
-**Pattern**: `activeTab` for top-level tabs → `currentEditPage`/`currentEditLevel` for drill-down → `handleEditPageBack` pops levels.
+## 10. Panel Height Animation
 
-**Key file**: `main.jsx:581-684` — `renderContent()` switch statement
+Smooth panel expansion when content changes (e.g., toggling sections, accepting shared workouts).
 
-## 9. CSS Component Scoping
+**Pattern** (ProfilePopup.jsx, others):
+1. Capture current height
+2. Set `transition: none`, measure `scrollHeight`
+3. Set height to current, force repaint
+4. Enable transition, set height to target
+5. On `transitionend`, remove fixed height
 
-Each component has its own `.css` file. Class names must be scoped to avoid collisions since CRA doesn't use CSS Modules.
+## 11. Interval + Ref Cleanup
 
-**Convention**: Prefix classes with component context when generic names risk collision.
+Timers/stopwatches use `setInterval` stored in `useRef`, cleaned up in effect return. Prevents stale closures and memory leaks.
 
-**Lesson learned**: Home.css originally used `.workout-list` which collided with WorkoutList.css, breaking Timer page layout. Fixed by renaming to `.home-workout-list`.
+**Pattern**: `ref.current = setInterval(...)` in effect → `clearInterval(ref.current)` in cleanup
 
-## 10. Auth-Gated Persistence
+## 12. Wake Lock Lifecycle
 
-All Firestore operations are guarded by `if (user)` checks. The app works fully offline/logged-out with hardcoded defaults — Firebase is additive, not required.
+Screen wake lock acquired on timer/stopwatch start, released on stop/completion. Errors silently caught (not all browsers support it).
 
-**Pattern**: Feature works with local state → `if (user) { persist() }` adds cloud sync.
+**Location**: main.jsx — `requestWakeLock()` / `releaseWakeLock()` helpers
 
-**Examples**:
-- `main.jsx:428-438` — Save workout only if logged in
-- `main.jsx:466-470` — Delete workout only if logged in
-- `main.jsx:184-197` — Record history only if logged in
+## 13. CSS Component Scoping
+
+Each component has its own `.css` file. Class names prefixed by component context since CRA doesn't use CSS Modules.
+
+| Prefix | Component |
+|--------|-----------|
+| `home-` | Home.jsx |
+| `feed-` | FeedPage.jsx |
+| `stats-` | StatsPage.jsx + ProfilePopup.jsx (shared styles) |
+| `timer-` | Timer.jsx |
+| `stopwatch-` | Stopwatch.jsx |
+| `tab-` | TabBar.jsx |
+| `side-` | SideMenu.jsx |
+| `schedule-` | Schedule popup (in main.jsx) |
+| `private-share-` | Private share prompt (in main.jsx) |
+
+**Lesson**: `.workout-list` collided between Home.css and WorkoutList.css. Renamed to `.home-workout-list`.
+
+## 14. Ref-Based Lookup to Avoid Effect Retriggers
+
+When a `useEffect` needs access to a prop that changes frequently (like `allWorkouts`), store it in a ref to avoid retriggering the effect.
+
+**Pattern**: `const ref = useRef(prop); ref.current = prop;` — then use `ref.current` inside effects
+
+**Used in**: ProfilePopup.jsx, Home.jsx
