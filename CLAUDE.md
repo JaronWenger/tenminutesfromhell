@@ -77,6 +77,13 @@ src/
 - **`isPublic: false`** → private, sharing blocked (only for own workouts — others' workouts in your library are always shareable)
 - **Sharing preserves creator chain**: if B shares A's workout to C, `creatorUid` stays as A's UID
 
+## Workout Identity & Mutation Rules
+
+- **Renaming a workout does NOT create a new document** — it edits in place on the same Firestore document ID (`id` field). The `id` is stable across renames.
+- **Only two operations create new Firestore documents**: (1) the Create button (`isCustom: true`), (2) remix/fork of another user's workout (`forked: true`).
+- **Default workouts have no `id`** — they are hardcoded in `src/data/defaultWorkouts.js` and are never stored in Firestore unless the user modifies them (at which point they become a custom doc with an `id`).
+- **Pinned workouts** are stored and resolved exclusively by `workout.id`. All default workouts have stable hardcoded IDs (e.g. `"default-the-devils-10"`) in `defaultWorkouts.js`. Never use name as a pin identifier.
+
 ## Notification Types
 
 | Type | Trigger | Key Fields |

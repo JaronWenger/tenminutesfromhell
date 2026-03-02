@@ -931,7 +931,9 @@ const Main = () => {
     if (user && finalName) {
       const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
       const isDefault = defaultNames.includes(workoutName);
+      const existingWorkout = timerWorkoutData.find(w => w.name === workoutName);
       saveUserWorkout(user.uid, {
+        id: existingWorkout?.id || null,
         name: finalName,
         type: 'timer',
         exercises,
@@ -944,18 +946,18 @@ const Main = () => {
         creatorPhotoURL: null,
       }).catch(err => console.error('Failed to save workout:', err));
     }
-  }, [user, timerSelectedWorkout]);
+  }, [user, timerSelectedWorkout, timerWorkoutData]);
 
   const handleVisibilityToggle = useCallback((workoutName, isPublic) => {
     setTimerWorkoutData(prev =>
       prev.map(w => w.name === workoutName ? { ...w, isPublic } : w)
     );
-    // Unpin if making private
-    if (!isPublic && pinnedWorkouts.includes(workoutName)) {
-      handlePinnedWorkoutsChange(pinnedWorkouts.filter(n => n !== workoutName));
-    }
     if (user) {
       const workout = timerWorkoutData.find(w => w.name === workoutName);
+      // Unpin if making private
+      if (!isPublic && workout?.id && pinnedWorkouts.includes(workout.id)) {
+        handlePinnedWorkoutsChange(pinnedWorkouts.filter(n => n !== workout.id));
+      }
       if (workout) {
         saveUserWorkout(user.uid, { ...workout, isPublic }).catch(err =>
           console.error('Failed to save visibility:', err)

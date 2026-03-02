@@ -1,5 +1,6 @@
 export const DEFAULT_TIMER_WORKOUTS = [
   {
+    id: "default-the-devils-10",
     name: "The Devils 10",
     type: "timer",
     exercises: [
@@ -17,6 +18,7 @@ export const DEFAULT_TIMER_WORKOUTS = [
     ]
   },
   {
+    id: "default-abs-2",
     name: "Abs 2",
     type: "timer",
     exercises: [
@@ -31,6 +33,7 @@ export const DEFAULT_TIMER_WORKOUTS = [
     ]
   },
   {
+    id: "default-core-blaster",
     name: "Core Blaster",
     type: "timer",
     exercises: [
@@ -47,6 +50,7 @@ export const DEFAULT_TIMER_WORKOUTS = [
     ]
   },
   {
+    id: "default-leg-day-hell",
     name: "Leg Day Hell",
     type: "timer",
     exercises: [
@@ -63,6 +67,7 @@ export const DEFAULT_TIMER_WORKOUTS = [
     ]
   },
   {
+    id: "default-full-body-burn",
     name: "Full Body Burn",
     type: "timer",
     exercises: [
@@ -79,6 +84,7 @@ export const DEFAULT_TIMER_WORKOUTS = [
     ]
   },
   {
+    id: "default-cardio-inferno",
     name: "Cardio Inferno",
     type: "timer",
     exercises: [
@@ -98,6 +104,7 @@ export const DEFAULT_TIMER_WORKOUTS = [
 
 export const DEFAULT_STOPWATCH_WORKOUTS = [
   {
+    id: "default-back-bis",
     name: "Back & Bis",
     type: "stopwatch",
     exercises: [
@@ -113,6 +120,7 @@ export const DEFAULT_STOPWATCH_WORKOUTS = [
     ]
   },
   {
+    id: "default-shoulders",
     name: "Shoulders",
     type: "stopwatch",
     exercises: [
@@ -128,6 +136,7 @@ export const DEFAULT_STOPWATCH_WORKOUTS = [
     ]
   },
   {
+    id: "default-chest-tris",
     name: "Chest & Tris",
     type: "stopwatch",
     exercises: [
@@ -143,6 +152,7 @@ export const DEFAULT_STOPWATCH_WORKOUTS = [
     ]
   },
   {
+    id: "default-legs-glutes",
     name: "Legs & Glutes",
     type: "stopwatch",
     exercises: [
@@ -158,6 +168,7 @@ export const DEFAULT_STOPWATCH_WORKOUTS = [
     ]
   },
   {
+    id: "default-upper-body-power",
     name: "Upper Body Power",
     type: "stopwatch",
     exercises: [
@@ -173,6 +184,7 @@ export const DEFAULT_STOPWATCH_WORKOUTS = [
     ]
   },
   {
+    id: "default-strength-endurance",
     name: "Strength & Endurance",
     type: "stopwatch",
     exercises: [

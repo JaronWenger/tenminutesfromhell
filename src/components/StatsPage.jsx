@@ -552,17 +552,26 @@ const StatsPage = ({
     return [...timerWorkoutData, ...stopwatchWorkoutData];
   }, [timerWorkoutData, stopwatchWorkoutData]);
 
-  // Only owned public workouts for the pin picker (forked defaults or custom, must be public)
+  // Non-default, non-private workouts available for pinning
   const ownedWorkouts = useMemo(() => {
-    return allWorkouts.filter(w => (w.forked || !defaultWorkoutNames.includes(w.name)) && w.isPublic !== false);
+    return allWorkouts.filter(w => !defaultWorkoutNames.includes(w.name) && w.isPublic !== false);
   }, [allWorkouts, defaultWorkoutNames]);
 
-  // Resolved pinned workout objects (filter out stale names)
+  // Resolved pinned workout objects (filter out stale entries)
   const pinnedWorkoutObjects = useMemo(() => {
     return pinnedWorkouts
-      .map(name => allWorkouts.find(w => w.name === name))
+      .map(id => allWorkouts.find(w => w.id === id))
       .filter(Boolean);
   }, [pinnedWorkouts, allWorkouts]);
+
+  // Auto-clean stale pinned IDs from Firestore
+  useEffect(() => {
+    if (!user || allWorkouts.length === 0 || pinnedWorkouts.length === 0) return;
+    const validIds = pinnedWorkoutObjects.map(w => w.id);
+    if (validIds.length < pinnedWorkouts.length) {
+      if (onPinnedWorkoutsChange) onPinnedWorkoutsChange(validIds);
+    }
+  }, [user, allWorkouts, pinnedWorkouts, pinnedWorkoutObjects, onPinnedWorkoutsChange]);
 
   // Pin picker popup state
   const [showPinPicker, setShowPinPicker] = useState(false);
@@ -1084,19 +1093,19 @@ const StatsPage = ({
     openDetail(workout);
   };
 
-  const handlePinToggle = (workoutName) => {
-    if (pinnedWorkouts.includes(workoutName)) {
-      const updated = pinnedWorkouts.filter(n => n !== workoutName);
+  const handlePinToggle = (workoutId) => {
+    if (pinnedWorkouts.includes(workoutId)) {
+      const updated = pinnedWorkouts.filter(n => n !== workoutId);
       if (onPinnedWorkoutsChange) onPinnedWorkoutsChange(updated);
       return;
     }
-    if (pinnedWorkouts.length >= 3) {
+    if (pinnedWorkoutObjects.length >= 3) {
       setPinLimitFlash(true);
       setPinPulseHint(true);
       setTimeout(() => { setPinLimitFlash(false); setPinPulseHint(false); }, 600);
       return;
     }
-    const updated = [...pinnedWorkouts, workoutName];
+    const updated = [...pinnedWorkouts, workoutId];
     if (onPinnedWorkoutsChange) onPinnedWorkoutsChange(updated);
     closePinPicker();
   };
@@ -1367,7 +1376,7 @@ const StatsPage = ({
 
           {/* Pinned Workouts */}
           <div className="stats-section">
-            <h3 className="stats-section-title">Pinned Workouts <span className="stats-section-title-detail">{user ? pinnedWorkouts.length : 3}/3</span></h3>
+            <h3 className="stats-section-title">Pinned Workouts <span className="stats-section-title-detail">{user ? pinnedWorkoutObjects.length : 3}/3</span></h3>
             <div className="stats-workout-cards">
               {(user ? pinnedWorkoutObjects : DEFAULT_TIMER_WORKOUTS.slice(0, 3)).map(renderPinnedCard)}
               <div className="stats-pin-add" onClick={openPinPicker}>
@@ -1388,7 +1397,7 @@ const StatsPage = ({
             >
               <div className="stats-pin-picker-panel">
                 <div className="stats-pin-picker-header">
-                  <span className="stats-pin-picker-title">Choose a Workout <span className={`stats-pin-picker-count ${pinLimitFlash ? 'flash-red' : ''}`}>{pinnedWorkouts.length}/3</span></span>
+                  <span className="stats-pin-picker-title">Choose a Workout <span className={`stats-pin-picker-count ${pinLimitFlash ? 'flash-red' : ''}`}>{pinnedWorkoutObjects.length}/3</span></span>
                   <button className="stats-pin-picker-close" onClick={closePinPicker}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1398,12 +1407,12 @@ const StatsPage = ({
                 </div>
                 <div className="stats-pin-picker-list">
                   {ownedWorkouts.map(w => {
-                    const alreadyPinned = pinnedWorkouts.includes(w.name);
+                    const alreadyPinned = pinnedWorkouts.includes(w.id);
                     return (
                       <button
                         key={w.name}
                         className={`stats-pin-picker-item ${alreadyPinned ? 'pinned' : ''}${alreadyPinned && pinPulseHint ? ' pulse-hint' : ''}`}
-                        onClick={() => handlePinToggle(w.name)}
+                        onClick={() => handlePinToggle(w.id)}
                       >
                         <span className="stats-pin-picker-item-name">{w.name}</span>
                         {alreadyPinned && (
@@ -1566,7 +1575,7 @@ const StatsPage = ({
                       onClick={() => {
                         setShowUnpinConfirm(false);
                         setUnpinConfirmClosing(false);
-                        const updated = pinnedWorkouts.filter(n => n !== detailWorkout.name);
+                        const updated = pinnedWorkouts.filter(n => n !== detailWorkout.id);
                         onPinnedWorkoutsChange(updated);
                         closeDetail();
                       }}
