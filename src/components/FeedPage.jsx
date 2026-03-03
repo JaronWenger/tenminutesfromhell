@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -8,8 +8,9 @@ import {
   getSuggestedUsers,
   followUser,
   unfollowUser,
-  toggleLike,
-  batchCheckLikes,
+  toggleReaction,
+  batchCheckReactions,
+  getEmojiReactors,
   updateNotificationStatus,
   joinPost
 } from '../firebase/social';
@@ -17,6 +18,7 @@ import { saveUserWorkout, recordWorkoutHistory } from '../firebase/firestore';
 import './FeedPage.css';
 
 const APP_URL = 'https://hiitem.com';
+const REACTION_EMOJIS = ['🏆', '🦍', '🦧', '🐦‍🔥', '🦦', '🔥'];
 const INVITE_TEXT = `Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress! ${APP_URL}`;
 
 const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt, externalFollowedUid }) => {
@@ -25,7 +27,12 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
   const [posts, setPosts] = useState([]);
   const [users, setUsers] = useState([]);
   const [followingIds, setFollowingIds] = useState([]);
-  const [likedPosts, setLikedPosts] = useState({});
+  const [userReactions, setUserReactions] = useState({});
+  const [openPickerId, setOpenPickerId] = useState(null);
+  const [reactionTooltip, setReactionTooltip] = useState(null); // { postId, emoji, reactors, loading }
+  const longPressTimer = useRef(null);
+  const longPressActivated = useRef(false);
+  const tooltipRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [shareActions, setShareActions] = useState({}); // notifId → 'accepting' | 'accepted' | 'denied'
@@ -47,6 +54,60 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     if (!lastViewedDate || !post.createdAt) return false;
     const postDate = post.createdAt instanceof Date ? post.createdAt : new Date(post.createdAt);
     return postDate > lastViewedDate;
+  };
+
+  // Close reaction picker on outside tap
+  useEffect(() => {
+    if (!openPickerId) return;
+    const close = () => setOpenPickerId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openPickerId]);
+
+  // Dismiss reaction tooltip on outside tap/click (delayed so the triggering event doesn't dismiss it)
+  useEffect(() => {
+    if (!reactionTooltip) return;
+    let touchHandler, mouseHandler;
+    const timer = setTimeout(() => {
+      touchHandler = () => setReactionTooltip(null);
+      mouseHandler = () => setReactionTooltip(null);
+      document.addEventListener('touchstart', touchHandler);
+      document.addEventListener('mousedown', mouseHandler);
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      if (touchHandler) document.removeEventListener('touchstart', touchHandler);
+      if (mouseHandler) document.removeEventListener('mousedown', mouseHandler);
+    };
+  }, [reactionTooltip]);
+
+  // Clamp tooltip within viewport after it renders
+  useLayoutEffect(() => {
+    if (!reactionTooltip || !tooltipRef.current) return;
+    const el = tooltipRef.current;
+    const rect = el.getBoundingClientRect();
+    const PAD = 10;
+    if (rect.right > window.innerWidth - PAD) {
+      el.style.left = (window.innerWidth - PAD - rect.width / 2) + 'px';
+    } else if (rect.left < PAD) {
+      el.style.left = (PAD + rect.width / 2) + 'px';
+    }
+  }, [reactionTooltip]);
+
+  const handleChipLongPress = async (chipEl, postId, emoji) => {
+    longPressActivated.current = true;
+    const rect = chipEl.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top;
+    setReactionTooltip({ postId, emoji, reactors: null, x, y });
+    try {
+      const reactors = await getEmojiReactors(postId, emoji);
+      setReactionTooltip(prev =>
+        prev?.postId === postId && prev?.emoji === emoji ? { ...prev, reactors } : prev
+      );
+    } catch (err) {
+      setReactionTooltip(null);
+    }
   };
 
   // Grace period ticker — re-renders every second while any post has an active grace window
@@ -100,11 +161,11 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
       setFollowingIds(following);
       const workoutPosts = feedPosts.filter(p => !p.type);
       if (workoutPosts.length > 0) {
-        const likes = await batchCheckLikes(
+        const reactions = await batchCheckReactions(
           workoutPosts.map(p => p.id),
           user.uid
         );
-        setLikedPosts(likes);
+        setUserReactions(reactions);
       }
     } catch (err) {
       console.error('[Feed] Failed to load feed:', err.message, err);
@@ -214,27 +275,31 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     }
   };
 
-  const handleLike = async (postId) => {
+  const handleReact = async (postId, emoji) => {
     if (!user) return;
-    const wasLiked = likedPosts[postId];
+    setOpenPickerId(null);
+    const current = userReactions[postId] || [];
+    const hasEmoji = current.includes(emoji);
+    const next = hasEmoji ? current.filter(e => e !== emoji) : [...current, emoji];
     // Optimistic update
-    setLikedPosts(prev => ({ ...prev, [postId]: !wasLiked }));
-    setPosts(prev => prev.map(p =>
-      p.id === postId
-        ? { ...p, likeCount: p.likeCount + (wasLiked ? -1 : 1) }
-        : p
-    ));
+    setUserReactions(prev => ({ ...prev, [postId]: next }));
+    setPosts(prev => prev.map(p => {
+      if (p.id !== postId) return p;
+      const counts = { ...(p.reactionCounts || {}) };
+      counts[emoji] = Math.max(0, (counts[emoji] || 0) + (hasEmoji ? -1 : 1));
+      return { ...p, reactionCounts: counts };
+    }));
     try {
-      await toggleLike(postId, user.uid);
+      await toggleReaction(postId, user.uid, emoji, user.displayName);
     } catch (err) {
       // Revert on error
-      setLikedPosts(prev => ({ ...prev, [postId]: wasLiked }));
-      setPosts(prev => prev.map(p =>
-        p.id === postId
-          ? { ...p, likeCount: p.likeCount + (wasLiked ? 1 : -1) }
-          : p
-      ));
-      console.error('Failed to toggle like:', err);
+      setUserReactions(prev => ({ ...prev, [postId]: current }));
+      setPosts(prev => prev.map(p => {
+        if (p.id !== postId) return p;
+        const counts = { ...(p.reactionCounts || {}) };
+        counts[emoji] = Math.max(0, (counts[emoji] || 0) + (hasEmoji ? 1 : -1));
+        return { ...p, reactionCounts: counts };
+      }));
     }
   };
 
@@ -612,15 +677,29 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                           onClick={(e) => handleJoin(e, post)}
                         >JOIN</button>
                       )}
-                      <button
-                        className={`feed-like-btn ${likedPosts[post.id] ? 'liked' : ''}`}
-                        onClick={(e) => { e.stopPropagation(); handleLike(post.id); }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill={likedPosts[post.id] ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                        </svg>
-                        <span>{post.likeCount || 0}</span>
-                      </button>
+                      <div className="feed-reaction-add-wrap">
+                        <button
+                          className="feed-reaction-add"
+                          onClick={() => setOpenPickerId(id => id === post.id ? null : post.id)}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+                          </svg>
+                        </button>
+                        {openPickerId === post.id && (
+                          <div className="feed-reaction-picker">
+                            {REACTION_EMOJIS.map(e => (
+                              <button
+                                key={e}
+                                className={`feed-reaction-picker-btn${(userReactions[post.id] || []).includes(e) ? ' selected' : ''}`}
+                                onClick={() => handleReact(post.id, e)}
+                              >
+                                {e}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {Object.keys(post.joinedUsers || {}).length > 0 && (
@@ -655,6 +734,47 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                       </div>
                     </div>
                   )}
+                  {/* Reactions footer — always rendered, CSS drives expand/collapse */}
+                  {(() => {
+                    const hasReactions = Object.entries(post.reactionCounts || {}).some(([, c]) => c > 0);
+                    return (
+                      <div
+                        className={`feed-post-reactions-footer${hasReactions ? ' has-reactions' : ''}`}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <div className="feed-reactions-inner">
+                          {Object.entries(post.reactionCounts || {})
+                            .filter(([, count]) => count > 0)
+                            .map(([emoji, count]) => (
+                              <button
+                                key={emoji}
+                                className={`feed-reaction-chip${(userReactions[post.id] || []).includes(emoji) ? ' active' : ''}`}
+                                onClick={() => {
+                                  if (longPressActivated.current) { longPressActivated.current = false; return; }
+                                  handleReact(post.id, emoji);
+                                }}
+                                onTouchStart={(e) => {
+                                  const el = e.currentTarget;
+                                  longPressTimer.current = setTimeout(() => handleChipLongPress(el, post.id, emoji), 250);
+                                }}
+                                onTouchEnd={() => { clearTimeout(longPressTimer.current); setReactionTooltip(null); }}
+                                onTouchMove={() => { clearTimeout(longPressTimer.current); setReactionTooltip(null); }}
+                                onTouchCancel={() => { clearTimeout(longPressTimer.current); setReactionTooltip(null); }}
+                                onMouseDown={(e) => {
+                                  const el = e.currentTarget;
+                                  longPressTimer.current = setTimeout(() => handleChipLongPress(el, post.id, emoji), 250);
+                                }}
+                                onMouseUp={() => { clearTimeout(longPressTimer.current); setReactionTooltip(null); }}
+                                onMouseLeave={() => { clearTimeout(longPressTimer.current); setReactionTooltip(null); }}
+                              >
+                                <span>{emoji}</span>
+                                <span className="feed-reaction-count">{count}</span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 );
               })
@@ -813,6 +933,26 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
           </>
         )}
       </div>
+
+      {/* Reaction tooltip — fixed overlay to escape overflow:hidden containers */}
+      {reactionTooltip && (
+        <div
+          ref={tooltipRef}
+          className="feed-reaction-tooltip"
+          style={{ left: reactionTooltip.x, top: reactionTooltip.y - 10 }}
+        >
+          {reactionTooltip.reactors === null
+            ? <span className="feed-reaction-tooltip-name">...</span>
+            : reactionTooltip.reactors.length === 0
+              ? <span className="feed-reaction-tooltip-name">No one yet</span>
+              : reactionTooltip.reactors.map((r, i) => (
+                  <span key={i} className="feed-reaction-tooltip-name">
+                    {r.displayName}
+                  </span>
+                ))
+          }
+        </div>
+      )}
     </div>
   );
 };

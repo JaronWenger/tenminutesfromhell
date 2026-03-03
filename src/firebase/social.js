@@ -626,36 +626,64 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
   return allPosts.slice(0, pageSize);
 };
 
-// ── Likes ──
+// ── Reactions ──
 
-export const toggleLike = async (postId, userId) => {
-  const likeRef = doc(db, 'posts', postId, 'likes', userId);
+export const toggleReaction = async (postId, userId, emoji, displayName) => {
+  const reactionRef = doc(db, 'posts', postId, 'reactions', `${userId}_${emoji}`);
   const postRef = doc(db, 'posts', postId);
-  const snap = await getDoc(likeRef);
+  const snap = await getDoc(reactionRef);
 
+  const batch = writeBatch(db);
   if (snap.exists()) {
-    const batch = writeBatch(db);
-    batch.delete(likeRef);
-    batch.set(postRef, { likeCount: increment(-1) }, { merge: true });
+    // Already reacted with this emoji — remove it
+    batch.delete(reactionRef);
+    batch.update(postRef, { [`reactionCounts.${emoji}`]: increment(-1) });
     await batch.commit();
-    return false; // unliked
+    return false;
   } else {
-    const batch = writeBatch(db);
-    batch.set(likeRef, { userId, createdAt: serverTimestamp() });
-    batch.set(postRef, { likeCount: increment(1) }, { merge: true });
+    // Add this emoji reaction
+    batch.set(reactionRef, { emoji, userId, displayName: displayName || null, createdAt: serverTimestamp() });
+    batch.update(postRef, { [`reactionCounts.${emoji}`]: increment(1) });
     await batch.commit();
-    return true; // liked
+    return true;
   }
 };
 
-export const batchCheckLikes = async (postIds, userId) => {
+export const getEmojiReactors = async (postId, emoji) => {
+  const q = query(
+    collection(db, 'posts', postId, 'reactions'),
+    where('emoji', '==', emoji)
+  );
+  const snap = await getDocs(q);
+  const reactors = snap.docs.map(d => ({
+    userId: d.data().userId,
+    displayName: d.data().displayName || null
+  }));
+
+  // Back-fill display names for any reactions saved before displayName was stored
+  const missing = reactors.filter(r => !r.displayName);
+  if (missing.length > 0) {
+    const profiles = await getUserProfiles(missing.map(r => r.userId));
+    const profileMap = {};
+    profiles.forEach(p => { profileMap[p.uid] = p.displayName || null; });
+    missing.forEach(r => { r.displayName = profileMap[r.userId] || 'Someone'; });
+  }
+
+  return reactors;
+};
+
+export const batchCheckReactions = async (postIds, userId) => {
   if (postIds.length === 0) return {};
   const result = {};
-  // Check each post's likes subcollection for this user
+  postIds.forEach(id => { result[id] = []; });
   await Promise.all(
     postIds.map(async (postId) => {
-      const snap = await getDoc(doc(db, 'posts', postId, 'likes', userId));
-      result[postId] = snap.exists();
+      const q = query(
+        collection(db, 'posts', postId, 'reactions'),
+        where('userId', '==', userId)
+      );
+      const snap = await getDocs(q);
+      result[postId] = snap.docs.map(d => d.data().emoji);
     })
   );
   return result;
