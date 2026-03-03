@@ -290,6 +290,17 @@ const Home = ({
     }
   }, [activeFilter, filterChips]);
 
+  // Sync detailWorkout snapshot with live timerWorkoutData (e.g. isPublic set after creation)
+  useEffect(() => {
+    if (!detailWorkout) return;
+    const updated = detailWorkout.id
+      ? timerWorkoutData.find(w => w.id === detailWorkout.id)
+      : (detailWorkout.name ? timerWorkoutData.find(w => w.name === detailWorkout.name) : null);
+    if (updated && updated.isPublic !== detailWorkout.isPublic) {
+      setDetailWorkout(prev => ({ ...prev, isPublic: updated.isPublic }));
+    }
+  }, [timerWorkoutData, detailWorkout?.id, detailWorkout?.name, detailWorkout?.isPublic]);
+
   // ── Detail overlay ──
   const openDetail = useCallback((workout) => {
     const el = cardRefs.current[workout.name];

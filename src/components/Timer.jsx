@@ -49,6 +49,7 @@ const Timer = ({
   const [targetTime, setTargetTime] = useState(propTargetTime !== undefined ? propTargetTime : calculateTotalTime());
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(propSelectedWorkoutIndex !== undefined ? propSelectedWorkoutIndex : 0);
   const [setCount, setSetCount] = useState(1);
+  const [completedSets, setCompletedSets] = useState(0);
   const [showSparks, setShowSparks] = useState(initialLoad);
   const [sparksClosing, setSparksClosing] = useState(false);
   const introSparksRef = useRef(initialLoad);
@@ -96,11 +97,12 @@ const Timer = ({
     }
   }, [isRunning, isVisible]);
 
-  // Show sparks when workout completes
+  // Show sparks and add a credit when workout completes
   useEffect(() => {
     if (timeLeft === 0 && !isRunning && targetTime > 0) {
       setShowSparks(true);
       setSparksClosing(false);
+      setCompletedSets(prev => prev + 1);
     }
   }, [timeLeft, isRunning, targetTime]);
 
@@ -112,10 +114,11 @@ const Timer = ({
     if (propSelectedWorkoutIndex !== undefined) setSelectedWorkoutIndex(propSelectedWorkoutIndex);
   }, [propTimeLeft, propIsRunning, propTargetTime, propSelectedWorkoutIndex]);
 
-  // Reset set count when workout changes (targetTime changes from parent)
+  // Reset set count and completed sets when the selected workout changes
   useEffect(() => {
     setSetCount(1);
-  }, [propTargetTime]);
+    setCompletedSets(0);
+  }, [selectedWorkoutName]);
 
 
 
@@ -130,6 +133,7 @@ const Timer = ({
         isRunning,
         targetTime,
         selectedWorkoutIndex,
+        completedSets,
         ...newState
       });
     }
@@ -211,6 +215,13 @@ const Timer = ({
 
   return (
     <div className="timer-container">
+      {completedSets > 0 && (
+        <div className="timer-credits">
+          {Array.from({ length: completedSets }).map((_, i) => (
+            <div key={i} className="timer-credit-chip" />
+          ))}
+        </div>
+      )}
       {showSparks && (
         <div className={`timer-sparks-bg ${sparksClosing ? 'timer-sparks-closing' : ''}`}>
           <img src={Sparks} alt="" className="timer-sparks-img" />

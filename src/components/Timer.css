@@ -16,6 +16,33 @@
   overscroll-behavior: none;
 }
 
+/* ── Set credits (top-left, one chip per completed set) ── */
+.timer-credits {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  left: 16px;
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.timer-credit-chip {
+  width: 11px;
+  height: 15px;
+  border-radius: 3px;
+  background: rgba(255, 59, 48, 0.25);
+  border: 1px solid rgba(255, 59, 48, 0.75);
+  box-shadow: 0 0 6px rgba(255, 59, 48, 0.55), 0 0 16px rgba(255, 59, 48, 0.2);
+  animation: creditChipPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes creditChipPop {
+  from { transform: scale(0.4); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
 /* Selected Workout Title */
 .timer-workout-title {
   text-align: center;

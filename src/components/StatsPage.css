@@ -1020,6 +1020,14 @@
   flex-shrink: 0;
 }
 
+.stats-pin-picker-empty {
+  padding: 20px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
 .stats-card-left {
   display: flex;
   flex-direction: column;

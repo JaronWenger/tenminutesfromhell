@@ -4,6 +4,7 @@ import {
   getDocs,
   setDoc,
   addDoc,
+  updateDoc,
   deleteDoc,
   query,
   orderBy,
@@ -118,7 +119,7 @@ export const deleteUserWorkout = async (userId, workoutName, isDefault) => {
   }
 };
 
-// Record a completed workout to history
+// Record a completed workout to history — returns the new doc ID
 export const recordWorkoutHistory = async (userId, entry) => {
   const data = {
     workoutName: entry.workoutName,
@@ -130,5 +131,11 @@ export const recordWorkoutHistory = async (userId, entry) => {
     completedAt: serverTimestamp()
   };
   if (entry.workoutId) data.workoutId = entry.workoutId;
-  await addDoc(collection(db, 'users', userId, 'history'), data);
+  const docRef = await addDoc(collection(db, 'users', userId, 'history'), data);
+  return docRef.id;
+};
+
+// Update an existing history entry (e.g., when additional sets are completed)
+export const updateWorkoutHistory = async (userId, historyId, updates) => {
+  await updateDoc(doc(db, 'users', userId, 'history', historyId), updates);
 };

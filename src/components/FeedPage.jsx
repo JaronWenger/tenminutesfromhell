@@ -10,15 +10,16 @@ import {
   unfollowUser,
   toggleLike,
   batchCheckLikes,
-  updateNotificationStatus
+  updateNotificationStatus,
+  joinPost
 } from '../firebase/social';
-import { saveUserWorkout } from '../firebase/firestore';
+import { saveUserWorkout, recordWorkoutHistory } from '../firebase/firestore';
 import './FeedPage.css';
 
 const APP_URL = 'https://hiitem.com';
 const INVITE_TEXT = `Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress! ${APP_URL}`;
 
-const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, acceptedPostId, allWorkouts = [], lastViewedAt }) => {
+const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('feed');
   const [posts, setPosts] = useState([]);
@@ -40,6 +41,44 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     const postDate = post.createdAt instanceof Date ? post.createdAt : new Date(post.createdAt);
     return postDate > lastViewedDate;
   };
+
+  // Grace period ticker — re-renders every second while any post has an active grace window
+  const [, forceGraceTick] = useState(0);
+  useEffect(() => {
+    const workoutPosts = posts.filter(p => !p.type && p.lastCompletedAt);
+    const anyActive = workoutPosts.some(p => Date.now() - p.lastCompletedAt.getTime() < 60000);
+    if (!anyActive) return;
+    const id = setInterval(() => forceGraceTick(n => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [posts]);
+
+  const isGraceActive = (post) => {
+    if (!post.lastCompletedAt) return false;
+    return Date.now() - post.lastCompletedAt.getTime() < 60000;
+  };
+
+  const handleJoin = useCallback(async (e, post) => {
+    e.stopPropagation();
+    if (!user) return;
+    // Optimistic update
+    setPosts(prev => prev.map(p => p.id === post.id
+      ? { ...p, joinedUsers: { ...p.joinedUsers, [user.uid]: { displayName: user.displayName, photoURL: user.photoURL || null } } }
+      : p
+    ));
+    try {
+      await joinPost(post.id, user.uid, { displayName: user.displayName, photoURL: user.photoURL });
+      await recordWorkoutHistory(user.uid, {
+        workoutName: post.workoutName,
+        workoutType: post.workoutType || 'timer',
+        duration: post.duration,
+        setCount: 1,
+        exercises: post.exercises || [],
+      });
+      if (onHistoryRecorded) onHistoryRecorded();
+    } catch (err) {
+      console.error('Failed to join workout:', err);
+    }
+  }, [user, onWorkoutAdded]);
 
   const loadFeed = useCallback(async () => {
     if (!user) return;
@@ -345,7 +384,8 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                 <span>Complete a workout or follow people to see activity here</span>
               </div>
             ) : (
-              posts.map(post => post.type === 'follow' ? (
+              posts.map(post => {
+                if (post.type === 'follow') return (
                 <div
                   key={post.id}
                   className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
@@ -381,7 +421,8 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                     </button>
                   </div>
                 </div>
-              ) : post.type === 'workout_saved' ? (
+                );
+                if (post.type === 'workout_saved') return (
                 <div
                   key={post.id}
                   className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
@@ -417,7 +458,8 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                     </div>
                   </div>
                 </div>
-              ) : post.type === 'workout_shared' ? (
+                );
+                if (post.type === 'workout_shared') return (
                 <div
                   key={post.id}
                   className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
@@ -473,7 +515,8 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                     </div>
                   )}
                 </div>
-              ) : post.type === 'workout_sent' ? (
+                );
+                if (post.type === 'workout_sent') return (
                 <div
                   key={post.id}
                   className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
@@ -518,7 +561,8 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                     </div>
                   </div>
                 </div>
-              ) : (
+                );
+                return (
                 <div key={post.id} className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`} style={{ cursor: 'pointer' }} onClick={() => onViewPostWorkout && onViewPostWorkout(post)}>
                   <div className="feed-post-header">
                     <div
@@ -541,19 +585,54 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                         {post.createdAt ? ` at ${post.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
                       </span>
                       <span className="feed-post-subtitle">{post.workoutName} &middot; {formatDuration(post.duration)} &middot; {post.exerciseCount} exercises</span>
+                      {post.setsCompleted > 1 && (
+                        <span className="feed-post-sets">
+                          {Array.from({ length: post.setsCompleted }).map((_, i) => (
+                            <span key={i} className="feed-post-credit-chip" />
+                          ))}
+                          {post.setsCompleted} sets
+                        </span>
+                      )}
                     </div>
-                    <button
-                      className={`feed-like-btn ${likedPosts[post.id] ? 'liked' : ''}`}
-                      onClick={(e) => { e.stopPropagation(); handleLike(post.id); }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill={likedPosts[post.id] ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                      </svg>
-                      <span>{post.likeCount || 0}</span>
-                    </button>
+                    <div className="feed-post-actions" onClick={e => e.stopPropagation()}>
+                      {user && post.userId !== user.uid && isGraceActive(post) && !(post.joinedUsers && post.joinedUsers[user.uid]) && (
+                        <button className="feed-join-btn" onClick={(e) => handleJoin(e, post)}>JOIN</button>
+                      )}
+                      <button
+                        className={`feed-like-btn ${likedPosts[post.id] ? 'liked' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); handleLike(post.id); }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill={likedPosts[post.id] ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                        <span>{post.likeCount || 0}</span>
+                      </button>
+                    </div>
                   </div>
+                  {Object.keys(post.joinedUsers || {}).length > 0 && (
+                    <div className="feed-post-together" onClick={e => e.stopPropagation()}>
+                      <div className="feed-together-avatars">
+                        {post.photoURL
+                          ? <img src={post.photoURL} alt="" className="feed-together-avatar" referrerPolicy="no-referrer" />
+                          : <div className="feed-together-avatar feed-together-avatar-placeholder">{(post.displayName || '?')[0].toUpperCase()}</div>
+                        }
+                        {Object.entries(post.joinedUsers).map(([uid, profile]) => (
+                          profile.photoURL
+                            ? <img key={uid} src={profile.photoURL} alt="" className="feed-together-avatar" referrerPolicy="no-referrer" />
+                            : <div key={uid} className="feed-together-avatar feed-together-avatar-placeholder">{(profile.displayName || '?')[0].toUpperCase()}</div>
+                        ))}
+                      </div>
+                      <div className="feed-together-text">
+                        <span className="feed-together-names">
+                          {post.displayName}{Object.entries(post.joinedUsers).map(([uid, profile]) => ` & ${uid === user?.uid ? 'you' : profile.displayName}`).join('')}
+                        </span>
+                        <span className="feed-together-label">completed together</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))
+                );
+              })
             )}
           </>
         )}

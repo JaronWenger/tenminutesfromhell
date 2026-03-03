@@ -127,7 +127,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
     match /userProfiles/{userId} {
       allow read: if request.auth != null;
@@ -144,15 +145,16 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
+      allow update: if request.auth != null;
     }
     match /posts/{postId}/likes/{likeId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
     }
     match /notifications/{notificationId} {
-      allow read: if request.auth != null && resource.data.recipientUid == request.auth.uid;
+      allow read: if request.auth != null && (resource.data.recipientUid == request.auth.uid || resource.data.actorUid == request.auth.uid);
       allow create: if request.auth != null && request.resource.data.actorUid == request.auth.uid;
-      allow update: if request.auth != null;
+      allow update: if request.auth != null && resource.data.recipientUid == request.auth.uid;
     }
   }
 }

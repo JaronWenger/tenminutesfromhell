@@ -214,6 +214,56 @@
   margin-top: 2px;
 }
 
+.feed-post-sets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: rgba(255, 59, 48, 0.8);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.feed-post-credit-chip {
+  display: inline-block;
+  width: 8px;
+  height: 11px;
+  border-radius: 2px;
+  background: rgba(255, 59, 48, 0.25);
+  border: 1px solid rgba(255, 59, 48, 0.7);
+  box-shadow: 0 0 4px rgba(255, 59, 48, 0.4);
+  flex-shrink: 0;
+}
+
+.feed-post-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.feed-join-btn {
+  background: rgba(255, 59, 48, 0.15);
+  border: 1px solid rgba(255, 59, 48, 0.5);
+  color: #ff3b30;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.2);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.feed-join-btn:active {
+  background: rgba(255, 59, 48, 0.28);
+  box-shadow: 0 0 14px rgba(255, 59, 48, 0.35);
+}
+
 .feed-like-btn {
   flex-shrink: 0;
   display: flex;
@@ -226,6 +276,68 @@
   cursor: pointer;
   padding: 4px;
   transition: color 0.15s ease;
+}
+
+.feed-post-together {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 7px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.feed-together-avatars {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+}
+
+.feed-together-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #0d0d0f;
+  margin-left: -9px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.feed-together-avatar:first-child {
+  margin-left: 0;
+}
+
+.feed-together-avatar-placeholder {
+  background: rgba(255, 59, 48, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: rgba(255, 59, 48, 0.85);
+}
+
+.feed-together-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.feed-together-names {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-together-label {
+  font-size: 0.62rem;
+  color: rgba(255, 59, 48, 0.65);
+  font-weight: 500;
+  letter-spacing: 0.2px;
 }
 
 .feed-like-btn.liked {

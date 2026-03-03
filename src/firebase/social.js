@@ -5,6 +5,7 @@ import {
   getDocs,
   setDoc,
   addDoc,
+  updateDoc,
   deleteDoc,
   query,
   where,
@@ -64,6 +65,7 @@ export const getAllPreferences = async (userId) => {
   const data = snap.data();
   return {
     autoShare: data.autoShare ?? null,
+    newWorkoutsPublic: data.newWorkoutsPublic ?? true,
     activeColor: data.activeColor || null,
     restColor: data.restColor || null,
     workoutOrder: data.workoutOrder || null,
@@ -87,6 +89,13 @@ export const getWorkoutOrder = async (userId) => {
 export const setAutoSharePreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     autoShare: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setNewWorkoutsPublicPreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    newWorkoutsPublic: value,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };
@@ -441,8 +450,11 @@ export const createPost = async (userId, workoutData, profile) => {
     exerciseCount: workoutData.exercises.length,
     exercises: workoutData.exercises,
     isPublic: workoutData.isPublic !== false,
+    setsCompleted: workoutData.setsCompleted || 1,
+    joinedUsers: {},
     likeCount: 0,
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
+    lastCompletedAt: serverTimestamp()
   });
 
   // Increment workout count on profile
@@ -452,6 +464,24 @@ export const createPost = async (userId, workoutData, profile) => {
   }, { merge: true });
 
   return postRef.id;
+};
+
+export const updatePostSetsCompleted = async (postId, setsCompleted) => {
+  await updateDoc(doc(db, 'posts', postId), {
+    setsCompleted,
+    lastCompletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const joinPost = async (postId, joinerUid, joinerProfile) => {
+  await updateDoc(doc(db, 'posts', postId), {
+    [`joinedUsers.${joinerUid}`]: {
+      displayName: joinerProfile.displayName || 'Anonymous',
+      photoURL: joinerProfile.photoURL || null,
+    },
+    updatedAt: serverTimestamp()
+  });
 };
 
 // ── Unread notification check (lightweight, limit 1) ──
@@ -552,7 +582,8 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
       return {
         id: d.id,
         ...data,
-        createdAt: data.createdAt?.toDate?.() || null
+        createdAt: data.createdAt?.toDate?.() || null,
+        lastCompletedAt: data.lastCompletedAt?.toDate?.() || null
       };
     });
     allPosts = allPosts.concat(posts);

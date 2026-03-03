@@ -7,7 +7,7 @@ const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
 const OTHER_COLORS = ['#ff9500', '#34c759', '#af52de', '#ff2d55', '#5ac8fa', '#30b0c7', '#ffffff'];
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, newWorkoutsPublic, onToggleNewWorkoutsPublic, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
@@ -82,6 +82,20 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             </svg>
             <span className="sidemenu-item-label">Auto-Share Workouts</span>
             <div className={`sidemenu-toggle ${autoShareEnabled === true ? 'on' : ''}`}>
+              <div className="sidemenu-toggle-knob" />
+            </div>
+          </div>
+
+          <div className="sidemenu-divider" />
+
+          <div className="sidemenu-item" onClick={onToggleNewWorkoutsPublic}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/>
+            </svg>
+            <span className="sidemenu-item-label">New workouts are public</span>
+            <div className={`sidemenu-toggle ${newWorkoutsPublic !== false ? 'on' : ''}`}>
               <div className="sidemenu-toggle-knob" />
             </div>
           </div>

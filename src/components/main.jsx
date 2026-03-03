@@ -13,8 +13,8 @@ import SharePrompt from './SharePrompt';
 import ProfilePopup from './ProfilePopup';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications } from '../firebase/social';
+import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, updateWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, setNewWorkoutsPublicPreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -119,6 +119,7 @@ const Main = () => {
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [pendingShareData, setPendingShareData] = useState(null);
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
+  const [newWorkoutsPublic, setNewWorkoutsPublic] = useState(true); // default ON
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
   const [homeDetailCloseRequested, setHomeDetailCloseRequested] = useState(false);
@@ -311,6 +312,7 @@ const Main = () => {
         const prefs = await getAllPreferences(user.uid);
         if (cancelled) return;
         setAutoShareEnabled(prefs.autoShare);
+        setNewWorkoutsPublic(prefs.newWorkoutsPublic);
         if (prefs.activeColor) setActiveColor(prefs.activeColor);
         if (prefs.restColor) setRestColor(prefs.restColor);
         setSidePlankAlertEnabled(prefs.sidePlankAlert);
@@ -424,6 +426,17 @@ const Main = () => {
     return { timer: timerResult, stopwatch: stopwatchResult };
   };
 
+  // Refresh history from Firestore (called after joining someone's workout)
+  const refreshHistory = useCallback(async () => {
+    if (!user) return;
+    try {
+      const history = await getUserHistory(user.uid);
+      setWorkoutHistory(history);
+    } catch (err) {
+      console.error('Failed to refresh history:', err);
+    }
+  }, [user]);
+
   // Refresh workouts from Firestore (called after taking a workout from another user)
   const refreshWorkouts = useCallback(async () => {
     if (!user) return;
@@ -453,15 +466,17 @@ const Main = () => {
 
   // Share workout post helper
   const handleShareWorkout = useCallback(async (workoutData) => {
-    if (!user) return;
+    if (!user) return null;
     try {
-      await createPost(user.uid, workoutData, {
+      const postId = await createPost(user.uid, workoutData, {
         displayName: user.displayName,
         photoURL: user.photoURL
       });
       setHasUnread(true);
+      return postId;
     } catch (err) {
       console.error('Failed to share workout:', err);
+      return null;
     }
   }, [user]);
 
@@ -483,6 +498,13 @@ const Main = () => {
     setAutoShareEnabled(newValue);
     await setAutoSharePreference(user.uid, newValue);
   }, [user, autoShareEnabled]);
+
+  const handleToggleNewWorkoutsPublic = useCallback(async () => {
+    if (!user) return;
+    const newValue = newWorkoutsPublic !== true;
+    setNewWorkoutsPublic(newValue);
+    await setNewWorkoutsPublicPreference(user.uid, newValue);
+  }, [user, newWorkoutsPublic]);
 
   const handleToggleSidePlankAlert = useCallback(async () => {
     const newValue = !sidePlankAlertEnabled;
@@ -587,6 +609,16 @@ const Main = () => {
     };
   }, [timerState.isRunning]);
 
+  // Session tracking for set credits, multi-set posts, and history — reset when workout changes
+  const sessionPostIdRef = useRef(null);
+  const sessionHistoryIdRef = useRef(null);
+  const sessionSetCountRef = useRef(0);
+  useEffect(() => {
+    sessionPostIdRef.current = null;
+    sessionHistoryIdRef.current = null;
+    sessionSetCountRef.current = 0;
+  }, [timerSelectedWorkout]);
+
   // Detect workout completion — runs side effects outside of state updater
   const timerCompletedRef = useRef(false);
   useEffect(() => {
@@ -612,25 +644,56 @@ const Main = () => {
       if (user) {
         const exercises = getExerciseList(timerSelectedWorkout);
         const selectedWorkoutObj = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
-        const workoutData = {
-          workoutName: timerSelectedWorkout,
-          workoutId: selectedWorkoutObj?.id || null,
-          workoutType: 'timer',
-          duration: timerState.targetTime,
-          setCount: exercises.length,
-          exercises
-        };
-        recordWorkoutHistory(user.uid, workoutData).then(() => {
-          getUserHistory(user.uid)
-            .then(setWorkoutHistory)
-            .catch(err => console.error('Failed to refresh history:', err));
-        }).catch(err => console.error('Failed to record history:', err));
+
+        // Increment set counter for this session (always, for all workouts)
+        sessionSetCountRef.current += 1;
+        const setsCompleted = sessionSetCountRef.current;
+
+        const refreshHistory = () => getUserHistory(user.uid)
+          .then(setWorkoutHistory)
+          .catch(err => console.error('Failed to refresh history:', err));
+
+        // Create or update single history entry for this session
+        if (setsCompleted === 1 || !sessionHistoryIdRef.current) {
+          recordWorkoutHistory(user.uid, {
+            workoutName: timerSelectedWorkout,
+            workoutId: selectedWorkoutObj?.id || null,
+            workoutType: 'timer',
+            duration: timerState.targetTime,
+            setCount: 1,
+            exercises
+          }).then(historyId => {
+            if (historyId) sessionHistoryIdRef.current = historyId;
+            refreshHistory();
+          }).catch(err => console.error('Failed to record history:', err));
+        } else {
+          updateWorkoutHistory(user.uid, sessionHistoryIdRef.current, {
+            duration: timerState.targetTime * setsCompleted,
+            setCount: setsCompleted
+          }).then(refreshHistory)
+            .catch(err => console.error('Failed to update history:', err));
+        }
 
         if (selectedWorkoutObj?.isPublic !== false) {
+          const shareData = {
+            workoutName: timerSelectedWorkout,
+            workoutId: selectedWorkoutObj?.id || null,
+            workoutType: 'timer',
+            duration: timerState.targetTime,
+            exercises,
+            exerciseCount: exercises.length
+          };
           if (autoShareEnabled === true) {
-            handleShareWorkout({ ...workoutData, isPublic: true });
-          } else if (autoShareEnabled === null) {
-            setPendingShareData({ ...workoutData, isPublic: true });
+            if (setsCompleted === 1 || !sessionPostIdRef.current) {
+              handleShareWorkout({ ...shareData, isPublic: true, setsCompleted }).then(postId => {
+                if (postId) sessionPostIdRef.current = postId;
+              });
+            } else {
+              updatePostSetsCompleted(sessionPostIdRef.current, setsCompleted)
+                .catch(err => console.error('Failed to update post sets:', err));
+            }
+          } else if (autoShareEnabled === null && setsCompleted === 1) {
+            setPendingShareData({ ...shareData, isPublic: true, setsCompleted });
             setShowSharePrompt(true);
           }
         }
@@ -836,11 +899,16 @@ const Main = () => {
     const isNew = workoutName === 'New Workout';
     const finalName = newTitle || workoutName;
 
+    // New/default workouts follow "new workouts are public" setting; existing custom workouts preserve their visibility
+    const currentData = workoutType === 'timer' ? timerWorkoutData : stopwatchWorkoutData;
+    const existingWorkout = currentData.find(w => w.name === workoutName);
+    const isPublic = existingWorkout?.isPublic != null ? existingWorkout.isPublic : (newWorkoutsPublic !== false);
+
     // Optimistic local update
     const setData = workoutType === 'timer' ? setTimerWorkoutData : setStopwatchWorkoutData;
     setData(prev => {
       if (isNew) {
-        return [...prev, { name: finalName, type: workoutType, exercises: updatedExercises }];
+        return [...prev, { name: finalName, type: workoutType, exercises: updatedExercises, isPublic }];
       }
       return prev.map(w =>
         w.name === workoutName
@@ -874,6 +942,7 @@ const Main = () => {
         type: workoutType,
         exercises: updatedExercises,
         isDefault,
+        isPublic,
         defaultName: isDefault && newTitle ? workoutName : null,
         creatorUid: null,
         creatorName: null,
@@ -888,9 +957,11 @@ const Main = () => {
     const isNew = !workoutName;
     const safeTags = tags && tags.length > 0 ? tags : null;
 
-    // Fork: remove original default, append forked copy
+    // Fork: if original was public, the remix stays public; otherwise follow "new workouts are public" setting
     if (!isOwned && !isNew) {
-      const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true, forked: true };
+      const originalWorkout = timerWorkoutData.find(w => w.name === workoutName);
+      const isPublic = originalWorkout?.isPublic === true ? true : (newWorkoutsPublic !== false);
+      const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true, forked: true, isPublic };
       setTimerWorkoutData(prev =>
         prev.map(w => w.name === workoutName ? forked : w)
       );
@@ -910,9 +981,13 @@ const Main = () => {
       return;
     }
 
+    // New/default workouts follow "new workouts are public" setting; existing custom workouts preserve their visibility
+    const existingWorkout = timerWorkoutData.find(w => w.name === workoutName);
+    const isPublic = existingWorkout?.isPublic != null ? existingWorkout.isPublic : (newWorkoutsPublic !== false);
+
     // Optimistic local update
     if (isNew && finalName) {
-      setTimerWorkoutData(prev => [...prev, { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags }]);
+      setTimerWorkoutData(prev => [...prev, { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isPublic }]);
       setTimerSelectedWorkout(finalName);
     } else {
       setTimerWorkoutData(prev =>
@@ -931,13 +1006,13 @@ const Main = () => {
     if (user && finalName) {
       const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
       const isDefault = defaultNames.includes(workoutName);
-      const existingWorkout = timerWorkoutData.find(w => w.name === workoutName);
       saveUserWorkout(user.uid, {
         id: existingWorkout?.id || null,
         name: finalName,
         type: 'timer',
         exercises,
         isDefault: isNew ? false : isDefault,
+        isPublic,
         defaultName: isDefault && newTitle ? workoutName : null,
         restTime: newRestTime ?? null,
         tags: safeTags,
@@ -946,7 +1021,7 @@ const Main = () => {
         creatorPhotoURL: null,
       }).catch(err => console.error('Failed to save workout:', err));
     }
-  }, [user, timerSelectedWorkout, timerWorkoutData]);
+  }, [user, timerSelectedWorkout, timerWorkoutData, newWorkoutsPublic]);
 
   const handleVisibilityToggle = useCallback((workoutName, isPublic) => {
     setTimerWorkoutData(prev =>
@@ -1452,6 +1527,7 @@ const Main = () => {
         onStartWorkout={handleHomeStartWorkout}
         onViewPostWorkout={openFeedDetail}
         onWorkoutAdded={refreshWorkouts}
+        onHistoryRecorded={refreshHistory}
         acceptedPostId={feedAcceptedPostId}
         allWorkouts={[...timerWorkoutData, ...stopwatchWorkoutData]}
         lastViewedAt={feedLastViewed}
@@ -1581,6 +1657,8 @@ const Main = () => {
         requestClose={sideMenuCloseRequested}
         autoShareEnabled={autoShareEnabled}
         onToggleAutoShare={handleToggleAutoShare}
+        newWorkoutsPublic={newWorkoutsPublic}
+        onToggleNewWorkoutsPublic={handleToggleNewWorkoutsPublic}
         sidePlankAlertEnabled={sidePlankAlertEnabled}
         onToggleSidePlankAlert={handleToggleSidePlankAlert}
         prepTime={prepTime}

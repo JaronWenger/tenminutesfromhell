@@ -1397,7 +1397,7 @@ const StatsPage = ({
             >
               <div className="stats-pin-picker-panel">
                 <div className="stats-pin-picker-header">
-                  <span className="stats-pin-picker-title">Choose a Workout <span className={`stats-pin-picker-count ${pinLimitFlash ? 'flash-red' : ''}`}>{pinnedWorkoutObjects.length}/3</span></span>
+                  <span className="stats-pin-picker-title">Pin Your Public Workouts <span className={`stats-pin-picker-count ${pinLimitFlash ? 'flash-red' : ''}`}>{pinnedWorkoutObjects.length}/3</span></span>
                   <button className="stats-pin-picker-close" onClick={closePinPicker}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1406,23 +1406,29 @@ const StatsPage = ({
                   </button>
                 </div>
                 <div className="stats-pin-picker-list">
-                  {ownedWorkouts.map(w => {
-                    const alreadyPinned = pinnedWorkouts.includes(w.id);
-                    return (
-                      <button
-                        key={w.name}
-                        className={`stats-pin-picker-item ${alreadyPinned ? 'pinned' : ''}${alreadyPinned && pinPulseHint ? ' pulse-hint' : ''}`}
-                        onClick={() => handlePinToggle(w.id)}
-                      >
-                        <span className="stats-pin-picker-item-name">{w.name}</span>
-                        {alreadyPinned && (
-                          <svg className="stats-pin-picker-item-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                            <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/>
-                          </svg>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {ownedWorkouts.length === 0 ? (
+                    <div className="stats-pin-picker-empty">
+                      Only your own public workouts can be pinned. Create a custom workout or make one public to pin it.
+                    </div>
+                  ) : (
+                    ownedWorkouts.map(w => {
+                      const alreadyPinned = pinnedWorkouts.includes(w.id);
+                      return (
+                        <button
+                          key={w.name}
+                          className={`stats-pin-picker-item ${alreadyPinned ? 'pinned' : ''}${alreadyPinned && pinPulseHint ? ' pulse-hint' : ''}`}
+                          onClick={() => handlePinToggle(w.id)}
+                        >
+                          <span className="stats-pin-picker-item-name">{w.name}</span>
+                          {alreadyPinned && (
+                            <svg className="stats-pin-picker-item-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                              <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/>
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
