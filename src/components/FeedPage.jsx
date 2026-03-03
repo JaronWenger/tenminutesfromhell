@@ -29,6 +29,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
   const [loading, setLoading] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [shareActions, setShareActions] = useState({}); // notifId → 'accepting' | 'accepted' | 'denied'
+  const [expandedTogetherId, setExpandedTogetherId] = useState(null);
 
   // People sub-tab state
   const [peopleSubTab, setPeopleSubTab] = useState('suggested');
@@ -56,6 +57,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     if (!post.lastCompletedAt) return false;
     return Date.now() - post.lastCompletedAt.getTime() < 60000;
   };
+
 
   const handleJoin = useCallback(async (e, post) => {
     e.stopPropagation();
@@ -595,8 +597,14 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                       )}
                     </div>
                     <div className="feed-post-actions" onClick={e => e.stopPropagation()}>
-                      {user && post.userId !== user.uid && isGraceActive(post) && !(post.joinedUsers && post.joinedUsers[user.uid]) && (
-                        <button className="feed-join-btn" onClick={(e) => handleJoin(e, post)}>JOIN</button>
+                      {user && post.userId !== user.uid &&
+                        post.lastCompletedAt &&
+                        (Date.now() - post.lastCompletedAt.getTime()) < 61500 &&
+                        !(post.joinedUsers && post.joinedUsers[user.uid]) && (
+                        <button
+                          className={`feed-join-btn${!isGraceActive(post) ? ' feed-join-fading' : ''}`}
+                          onClick={(e) => handleJoin(e, post)}
+                        >JOIN</button>
                       )}
                       <button
                         className={`feed-like-btn ${likedPosts[post.id] ? 'liked' : ''}`}
@@ -610,16 +618,27 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                     </div>
                   </div>
                   {Object.keys(post.joinedUsers || {}).length > 0 && (
-                    <div className="feed-post-together" onClick={e => e.stopPropagation()}>
+                    <div
+                      className={`feed-post-together${expandedTogetherId === post.id ? ' feed-together-open' : ''}`}
+                      onClick={e => { e.stopPropagation(); setExpandedTogetherId(id => id === post.id ? null : post.id); }}
+                    >
                       <div className="feed-together-avatars">
                         {post.photoURL
-                          ? <img src={post.photoURL} alt="" className="feed-together-avatar" referrerPolicy="no-referrer" />
-                          : <div className="feed-together-avatar feed-together-avatar-placeholder">{(post.displayName || '?')[0].toUpperCase()}</div>
+                          ? <img src={post.photoURL} alt="" className="feed-together-avatar" referrerPolicy="no-referrer"
+                              onClick={expandedTogetherId === post.id ? e => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL }); } : undefined} />
+                          : <div className="feed-together-avatar feed-together-avatar-placeholder"
+                              onClick={expandedTogetherId === post.id ? e => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL }); } : undefined}>
+                              {(post.displayName || '?')[0].toUpperCase()}
+                            </div>
                         }
                         {Object.entries(post.joinedUsers).map(([uid, profile]) => (
                           profile.photoURL
-                            ? <img key={uid} src={profile.photoURL} alt="" className="feed-together-avatar" referrerPolicy="no-referrer" />
-                            : <div key={uid} className="feed-together-avatar feed-together-avatar-placeholder">{(profile.displayName || '?')[0].toUpperCase()}</div>
+                            ? <img key={uid} src={profile.photoURL} alt="" className="feed-together-avatar" referrerPolicy="no-referrer"
+                                onClick={expandedTogetherId === post.id ? e => { e.stopPropagation(); onViewProfile && onViewProfile({ uid, displayName: profile.displayName, photoURL: profile.photoURL }); } : undefined} />
+                            : <div key={uid} className="feed-together-avatar feed-together-avatar-placeholder"
+                                onClick={expandedTogetherId === post.id ? e => { e.stopPropagation(); onViewProfile && onViewProfile({ uid, displayName: profile.displayName, photoURL: profile.photoURL }); } : undefined}>
+                                {(profile.displayName || '?')[0].toUpperCase()}
+                              </div>
                         ))}
                       </div>
                       <div className="feed-together-text">
