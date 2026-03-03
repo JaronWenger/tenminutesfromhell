@@ -1634,6 +1634,31 @@
 .stats-pp-header-right {
   flex-shrink: 0;
   text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.stats-pp-follow-action-btn {
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid rgba(255, 59, 48, 0.45);
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.12);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stats-pp-follow-action-btn:active {
+  background: rgba(255, 59, 48, 0.22);
+  box-shadow: 0 0 14px rgba(255, 59, 48, 0.28);
 }
 
 .stats-pp-time {

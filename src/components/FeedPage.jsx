@@ -19,7 +19,7 @@ import './FeedPage.css';
 const APP_URL = 'https://hiitem.com';
 const INVITE_TEXT = `Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress! ${APP_URL}`;
 
-const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt }) => {
+const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt, externalFollowedUid }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('feed');
   const [posts, setPosts] = useState([]);
@@ -35,6 +35,12 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
   const [peopleSubTab, setPeopleSubTab] = useState('suggested');
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestedUsers, setSuggestedUsers] = useState([]);
+
+  // Sync external follow actions (e.g. from ProfilePopup) into local followingIds
+  useEffect(() => {
+    if (!externalFollowedUid) return;
+    setFollowingIds(prev => prev.includes(externalFollowedUid) ? prev : [...prev, externalFollowedUid]);
+  }, [externalFollowedUid]);
 
   const lastViewedDate = lastViewedAt ? new Date(lastViewedAt) : null;
   const isNewPost = (post) => {

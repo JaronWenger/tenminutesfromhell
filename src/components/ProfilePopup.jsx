@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification } from '../firebase/social';
+import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser } from '../firebase/social';
 import { getUserHistory, getUserWorkouts, saveUserWorkout } from '../firebase/firestore';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './StatsPage.css';
@@ -55,7 +55,7 @@ const getHeatColor = (count, isFuture) => {
   return 'var(--heat-4)';
 };
 
-const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, prepTime = 15, globalRestTime = 15 }) => {
+const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, onFollowChanged, prepTime = 15, globalRestTime = 15 }) => {
   const [activeProfile, setActiveProfile] = useState(profile);
   const [profileFollowing, setProfileFollowing] = useState(0);
   const [profileFollowers, setProfileFollowers] = useState(0);
@@ -67,6 +67,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
   const [loading, setLoading] = useState(true);
   const [takenWorkouts, setTakenWorkouts] = useState({});
   const [savingWorkouts, setSavingWorkouts] = useState({});
+  const [isFollowingProfile, setIsFollowingProfile] = useState(false);
 
   const calendarScrollRef = useRef(null);
   const ppPanelRef = useRef(null);
@@ -142,6 +143,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
       // Reset data and swap profile after panel animates out
       setProfileFollowing(0);
       setProfileFollowers(0);
+      setIsFollowingProfile(false);
       setStats(null);
       setCalendar(null);
       setPinnedWorkouts([]);
@@ -179,6 +181,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
         if (cancelled) return;
         setProfileFollowing(following.length);
         setProfileFollowers(followers.length);
+        setIsFollowingProfile(followers.includes(user?.uid));
 
         const totalSeconds = userHistory.reduce((sum, e) => sum + (e.duration || 0), 0);
         const totalHours = Math.floor(totalSeconds / 3600);
@@ -250,7 +253,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
     };
     panel.addEventListener('transitionend', onEnd);
     return () => panel.removeEventListener('transitionend', onEnd);
-  }, [loading, calendar, pinnedWorkouts]);
+  }, [loading, calendar, pinnedWorkouts, isFollowingProfile]);
 
   // Auto-scroll heatmap to today
   useEffect(() => {
@@ -467,6 +470,23 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
     }
   };
 
+  const handleFollowToggle = async () => {
+    if (!user || isFollowingProfile) return;
+    if (ppPanelRef.current) {
+      panelHeightRef.current = ppPanelRef.current.offsetHeight;
+    }
+    setIsFollowingProfile(true);
+    setProfileFollowers(prev => prev + 1);
+    try {
+      await followUser(user.uid, activeProfile.uid);
+      if (onFollowChanged) onFollowChanged(activeProfile.uid);
+    } catch (err) {
+      console.error('Follow failed:', err);
+      setIsFollowingProfile(false);
+      setProfileFollowers(prev => prev - 1);
+    }
+  };
+
   if (!activeProfile) return null;
 
   return (
@@ -501,11 +521,11 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
               </div>
             </div>
             <div className="stats-pp-header-right">
-              {loading ? (
-                <div className="stats-pp-time">
-                  <span className="stats-pp-time-value" style={{ opacity: 0.3 }}>...</span>
-                </div>
-              ) : stats ? (
+              {!loading && activeProfile.uid !== user?.uid && !isFollowingProfile ? (
+                <button className="stats-pp-follow-action-btn" onClick={handleFollowToggle}>
+                  Follow
+                </button>
+              ) : !loading && stats ? (
                 <div className="stats-pp-time">
                   {stats.totalHours > 0 && (
                     <><span className="stats-pp-time-value">{stats.totalHours}</span><span className="stats-pp-time-unit">h </span></>
@@ -513,22 +533,17 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                   <span className="stats-pp-time-value">{stats.totalMinutes}</span>
                   <span className="stats-pp-time-unit">m</span>
                 </div>
-              ) : (
+              ) : !loading ? (
                 <div className="stats-pp-time">
                   <span className="stats-pp-time-value">0</span>
                   <span className="stats-pp-time-unit">m</span>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
-          {loading ? (
-            <div style={{ padding: '20px 0', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '0.82rem' }}>
-              Loading...
-            </div>
-          ) : (
-            <>
-              {calendar && (
+          <>
+              {(isFollowingProfile || activeProfile.uid === user?.uid) && calendar && (
                 <div className="stats-pp-calendar-scroll" ref={calendarScrollRef}>
                   <div
                     className="stats-pp-calendar"
@@ -565,7 +580,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                 </div>
               )}
 
-              {pinnedWorkouts.length > 0 && (
+              {(isFollowingProfile || activeProfile.uid === user?.uid) && pinnedWorkouts.length > 0 && (
                 <div className="stats-pp-cards">
                   {pinnedWorkouts.map((workout, i) => {
                     const totalSeconds = (workout.exercises.length * 60) + 15;
@@ -636,7 +651,6 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                 </div>
               )}
             </>
-          )}
         </div>
 
         {/* Detail Popup — rendered inside profile overlay so it paints on top */}

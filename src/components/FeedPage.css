@@ -550,23 +550,34 @@
   padding: 7px 16px;
   border-radius: 10px;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.3px;
   cursor: pointer;
-  border: 1.5px solid transparent;
+  border: 1px solid rgba(255, 59, 48, 0.45);
   flex-shrink: 0;
-  transition: all 0.15s ease;
-  background: rgba(255, 59, 48, 0.8);
-  color: white;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.12);
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .feed-follow-btn.following {
   background: transparent;
-  border-color: rgba(255, 59, 48, 0.4);
-  color: rgba(255, 59, 48, 0.7);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.4);
+  box-shadow: none;
 }
 
 .feed-follow-btn:active {
-  opacity: 0.7;
+  background: rgba(255, 59, 48, 0.22);
+  box-shadow: 0 0 14px rgba(255, 59, 48, 0.28);
+}
+
+.feed-follow-btn.following:active {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
 }
 
 /* ── Search Bar ── */
@@ -688,20 +699,24 @@
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 14px;
-  background: rgba(255, 59, 48, 0.8);
-  border: none;
+  padding: 13px;
+  background: rgba(255, 59, 48, 0.12);
+  border: 1px solid rgba(255, 59, 48, 0.45);
   border-radius: 14px;
-  color: white;
+  color: #ff3b30;
   font-size: 0.88rem;
   font-weight: 700;
+  letter-spacing: 0.4px;
   font-family: inherit;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  box-shadow: 0 0 10px rgba(255, 59, 48, 0.15);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .feed-bottom-invite-btn:active {
-  opacity: 0.8;
+  background: rgba(255, 59, 48, 0.22);
+  box-shadow: 0 0 16px rgba(255, 59, 48, 0.3);
 }
 
 .feed-contacts-invite {
@@ -712,8 +727,9 @@
 
 .feed-contacts-invite .feed-bottom-invite-btn {
   background: transparent;
-  border: 1.5px solid rgba(255, 59, 48, 0.4);
-  color: rgba(255, 59, 48, 0.8);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  color: rgba(255, 59, 48, 0.7);
+  box-shadow: none;
 }
 
 /* ── Responsive ── */

@@ -125,6 +125,7 @@ const Main = () => {
   const [homeDetailCloseRequested, setHomeDetailCloseRequested] = useState(false);
   const [openProfilePopup, setOpenProfilePopup] = useState(false);
   const [viewUserProfile, setViewUserProfile] = useState(null);
+  const [lastFollowedUid, setLastFollowedUid] = useState(null);
   const [feedDetailPost, setFeedDetailPost] = useState(null);
   const [feedDetailClosing, setFeedDetailClosing] = useState(false);
   const [feedDetailIsOwn, setFeedDetailIsOwn] = useState(false); // current user owns/created this workout
@@ -1531,6 +1532,7 @@ const Main = () => {
         acceptedPostId={feedAcceptedPostId}
         allWorkouts={[...timerWorkoutData, ...stopwatchWorkoutData]}
         lastViewedAt={feedLastViewed}
+        externalFollowedUid={lastFollowedUid}
       />
       {viewUserProfile && (
         <ProfilePopup
@@ -1541,6 +1543,7 @@ const Main = () => {
           onStartWorkout={handleHomeStartWorkout}
           onWorkoutAdded={refreshWorkouts}
           onShareWorkout={openSendWorkout}
+          onFollowChanged={(uid) => setLastFollowedUid(uid)}
           prepTime={prepTime}
           globalRestTime={restTime}
         />

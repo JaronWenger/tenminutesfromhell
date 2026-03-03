@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification } from '../firebase/social';
+import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser } from '../firebase/social';
 import { getUserHistory, getUserWorkouts, saveUserWorkout } from '../firebase/firestore';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './StatsPage.css';
@@ -592,6 +592,7 @@ const StatsPage = ({
   const [viewingProfile, setViewingProfile] = useState(null);
   const [viewingProfileFollowing, setViewingProfileFollowing] = useState(0);
   const [viewingProfileFollowers, setViewingProfileFollowers] = useState(0);
+  const [isFollowingViewingProfile, setIsFollowingViewingProfile] = useState(false);
   const [viewingProfileClosing, setViewingProfileClosing] = useState(false);
   const [viewingProfileStats, setViewingProfileStats] = useState(null);
   const [viewingProfileCalendar, setViewingProfileCalendar] = useState(null);
@@ -686,7 +687,7 @@ const StatsPage = ({
     };
     panel.addEventListener('transitionend', onEnd);
     return () => panel.removeEventListener('transitionend', onEnd);
-  }, [viewingProfileLoading, viewingProfileCalendar, viewingProfilePinnedWorkouts]);
+  }, [viewingProfileLoading, viewingProfileCalendar, viewingProfilePinnedWorkouts, isFollowingViewingProfile]);
 
   const openFollowList = async (type) => {
     setFollowListClosing(false);
@@ -741,6 +742,22 @@ const StatsPage = ({
     }, 200);
   };
 
+  const handleVpFollowToggle = async () => {
+    if (!user || !viewingProfile || isFollowingViewingProfile) return;
+    if (vpPanelRef.current) {
+      vpPanelHeightRef.current = vpPanelRef.current.offsetHeight;
+    }
+    setIsFollowingViewingProfile(true);
+    setViewingProfileFollowers(prev => prev + 1);
+    try {
+      await followUser(user.uid, viewingProfile.uid);
+    } catch (err) {
+      console.error('Follow failed:', err);
+      setIsFollowingViewingProfile(false);
+      setViewingProfileFollowers(prev => prev - 1);
+    }
+  };
+
   const openUserProfile = async (profile) => {
     // Skip fade-in if replacing an existing overlay (prevents flash)
     const hasOverlay = !!(followListType || vpFollowListType || viewingProfile);
@@ -764,6 +781,7 @@ const StatsPage = ({
     setViewingProfile(profile);
     setViewingProfileFollowing(0);
     setViewingProfileFollowers(0);
+    setIsFollowingViewingProfile(false);
     setViewingProfileStats(null);
     setViewingProfileCalendar(null);
     setViewingProfilePinnedWorkouts([]);
@@ -790,6 +808,7 @@ const StatsPage = ({
       ]);
       setViewingProfileFollowing(following.length);
       setViewingProfileFollowers(followers.length);
+      setIsFollowingViewingProfile(followers.includes(user?.uid));
 
       // Compute stats from history
       const totalSeconds = userHistory.reduce((sum, e) => sum + (e.duration || 0), 0);
@@ -1694,11 +1713,11 @@ const StatsPage = ({
                 </div>
               </div>
               <div className="stats-pp-header-right">
-                {viewingProfileLoading ? (
-                  <div className="stats-pp-time">
-                    <span className="stats-pp-time-value" style={{ opacity: 0.3 }}>...</span>
-                  </div>
-                ) : viewingProfileStats ? (
+                {!viewingProfileLoading && viewingProfile.uid !== user?.uid && !isFollowingViewingProfile ? (
+                  <button className="stats-pp-follow-action-btn" onClick={handleVpFollowToggle}>
+                    Follow
+                  </button>
+                ) : !viewingProfileLoading && viewingProfileStats ? (
                   <div className="stats-pp-time">
                     {viewingProfileStats.totalHours > 0 && (
                       <><span className="stats-pp-time-value">{viewingProfileStats.totalHours}</span><span className="stats-pp-time-unit">h </span></>
@@ -1706,22 +1725,17 @@ const StatsPage = ({
                     <span className="stats-pp-time-value">{viewingProfileStats.totalMinutes}</span>
                     <span className="stats-pp-time-unit">m</span>
                   </div>
-                ) : (
+                ) : !viewingProfileLoading ? (
                   <div className="stats-pp-time">
                     <span className="stats-pp-time-value">0</span>
                     <span className="stats-pp-time-unit">m</span>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
 
-            {viewingProfileLoading ? (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '0.82rem' }}>
-                Loading...
-              </div>
-            ) : (
-              <>
-                {viewingProfileCalendar && (
+            <>
+                {(isFollowingViewingProfile || viewingProfile.uid === user?.uid) && viewingProfileCalendar && (
                   <div className="stats-pp-calendar-scroll" ref={vpCalendarScrollRef}>
                     <div
                       className="stats-pp-calendar"
@@ -1758,7 +1772,7 @@ const StatsPage = ({
                   </div>
                 )}
 
-                {viewingProfilePinnedWorkouts.length > 0 && (
+                {(isFollowingViewingProfile || viewingProfile.uid === user?.uid) && viewingProfilePinnedWorkouts.length > 0 && (
                   <div className="stats-pp-cards">
                       {viewingProfilePinnedWorkouts.map((workout, i) => {
                         const totalSeconds = (workout.exercises.length * 60) + 15;
@@ -1822,8 +1836,7 @@ const StatsPage = ({
                       })}
                     </div>
                 )}
-              </>
-            )}
+            </>
           </div>
         </div>
       )}
