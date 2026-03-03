@@ -528,11 +528,12 @@
 
 /* Standalone PWA */
 .standalone-pwa .tab-bar {
+  bottom: 10px;
   padding: 4px 0 9px 0;
 }
 
 .standalone-pwa .tab-content {
-  padding-bottom: 70px;
+  padding-bottom: 80px;
 }
 
 /* Hide tab bar in landscape - timer page only */
