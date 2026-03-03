@@ -281,25 +281,28 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     const current = userReactions[postId] || [];
     const hasEmoji = current.includes(emoji);
     const next = hasEmoji ? current.filter(e => e !== emoji) : [...current, emoji];
+    // Save original post for rollback
+    const originalPost = posts.find(p => p.id === postId);
     // Optimistic update
     setUserReactions(prev => ({ ...prev, [postId]: next }));
     setPosts(prev => prev.map(p => {
       if (p.id !== postId) return p;
       const counts = { ...(p.reactionCounts || {}) };
       counts[emoji] = Math.max(0, (counts[emoji] || 0) + (hasEmoji ? -1 : 1));
-      return { ...p, reactionCounts: counts };
+      let emojiOrder = [...(p.emojiOrder || [])];
+      if (!hasEmoji && !emojiOrder.includes(emoji)) {
+        emojiOrder = [...emojiOrder, emoji];
+      } else if (hasEmoji && counts[emoji] === 0) {
+        emojiOrder = emojiOrder.filter(e => e !== emoji);
+      }
+      return { ...p, reactionCounts: counts, emojiOrder };
     }));
     try {
       await toggleReaction(postId, user.uid, emoji, user.displayName);
     } catch (err) {
       // Revert on error
       setUserReactions(prev => ({ ...prev, [postId]: current }));
-      setPosts(prev => prev.map(p => {
-        if (p.id !== postId) return p;
-        const counts = { ...(p.reactionCounts || {}) };
-        counts[emoji] = Math.max(0, (counts[emoji] || 0) + (hasEmoji ? 1 : -1));
-        return { ...p, reactionCounts: counts };
-      }));
+      if (originalPost) setPosts(prev => prev.map(p => p.id !== postId ? p : originalPost));
     }
   };
 
@@ -743,9 +746,9 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                         onClick={e => e.stopPropagation()}
                       >
                         <div className="feed-reactions-inner">
-                          {Object.entries(post.reactionCounts || {})
-                            .filter(([, count]) => count > 0)
-                            .map(([emoji, count]) => (
+                          {(post.emojiOrder || Object.keys(post.reactionCounts || {}))
+                            .filter(emoji => (post.reactionCounts?.[emoji] || 0) > 0)
+                            .map(emoji => { const count = post.reactionCounts[emoji]; return (
                               <button
                                 key={emoji}
                                 className={`feed-reaction-chip${(userReactions[post.id] || []).includes(emoji) ? ' active' : ''}`}
@@ -770,7 +773,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                                 <span>{emoji}</span>
                                 <span className="feed-reaction-count">{count}</span>
                               </button>
-                            ))}
+                            ); })}
                         </div>
                       </div>
                     );

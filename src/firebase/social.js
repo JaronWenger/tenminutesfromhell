@@ -14,7 +14,9 @@ import {
   writeBatch,
   serverTimestamp,
   increment,
-  deleteField
+  deleteField,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -635,15 +637,28 @@ export const toggleReaction = async (postId, userId, emoji, displayName) => {
 
   const batch = writeBatch(db);
   if (snap.exists()) {
-    // Already reacted with this emoji — remove it
+    // Removing — check if this is the last reaction for this emoji
+    const postSnap = await getDoc(postRef);
+    const currentCount = postSnap.data()?.reactionCounts?.[emoji] || 0;
     batch.delete(reactionRef);
-    batch.update(postRef, { [`reactionCounts.${emoji}`]: increment(-1) });
+    if (currentCount <= 1) {
+      // Last one — remove from order too
+      batch.update(postRef, {
+        [`reactionCounts.${emoji}`]: increment(-1),
+        emojiOrder: arrayRemove(emoji)
+      });
+    } else {
+      batch.update(postRef, { [`reactionCounts.${emoji}`]: increment(-1) });
+    }
     await batch.commit();
     return false;
   } else {
-    // Add this emoji reaction
+    // Adding — arrayUnion keeps order stable and avoids duplicates
     batch.set(reactionRef, { emoji, userId, displayName: displayName || null, createdAt: serverTimestamp() });
-    batch.update(postRef, { [`reactionCounts.${emoji}`]: increment(1) });
+    batch.update(postRef, {
+      [`reactionCounts.${emoji}`]: increment(1),
+      emojiOrder: arrayUnion(emoji)
+    });
     await batch.commit();
     return true;
   }

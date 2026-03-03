@@ -528,8 +528,8 @@
 
 /* Standalone PWA */
 .standalone-pwa .tab-bar {
-  bottom: 10px;
-  padding: 4px 0 9px 0;
+  bottom: 0;
+  padding: 4px 0 19px 0;
 }
 
 .standalone-pwa .tab-content {
