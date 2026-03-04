@@ -58,6 +58,7 @@ export const getAllPreferences = async (userId) => {
       prepTime: 15,
       restTime: 15,
       activeLastMinute: true,
+      shuffleExercises: false,
       selectedWorkout: null,
       showCardPhotos: true,
       pinnedWorkouts: [],
@@ -75,6 +76,7 @@ export const getAllPreferences = async (userId) => {
     prepTime: data.prepTime ?? 15,
     restTime: data.restTime ?? 15,
     activeLastMinute: data.activeLastMinute ?? true,
+    shuffleExercises: data.shuffleExercises ?? false,
     selectedWorkout: data.selectedWorkout || null,
     showCardPhotos: data.showCardPhotos ?? true,
     pinnedWorkouts: data.pinnedWorkouts || [],
@@ -155,6 +157,13 @@ export const setShowCardPhotosPreference = async (userId, value) => {
 export const setActiveLastMinutePreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     activeLastMinute: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setShuffleExercisesPreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    shuffleExercises: value,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };

@@ -180,6 +180,49 @@ const Home = ({
   const swipingIndexRef = useRef(null);
   const titleInputRef = useRef(null);
 
+  // ── Edge swipe to open settings (left) / bell (right) ──
+  const edgeSwipeRef = useRef({ active: false, edge: null, startX: 0, startY: 0, triggered: false });
+  const EDGE_ZONE = 28;
+  const EDGE_SWIPE_THRESHOLD = 60;
+
+  const handleEdgeTouchStart = useCallback((e) => {
+    if (!e.touches || detailWorkout || isDragging) return;
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    const screenW = window.innerWidth;
+    if (x <= EDGE_ZONE) {
+      edgeSwipeRef.current = { active: true, edge: 'left', startX: x, startY: y, triggered: false };
+    } else if (x >= screenW - EDGE_ZONE) {
+      edgeSwipeRef.current = { active: true, edge: 'right', startX: x, startY: y, triggered: false };
+    } else {
+      edgeSwipeRef.current = { active: false, edge: null, startX: 0, startY: 0, triggered: false };
+    }
+  }, [detailWorkout, isDragging]);
+
+  const handleEdgeTouchMove = useCallback((e) => {
+    const es = edgeSwipeRef.current;
+    if (!es.active || es.triggered || !e.touches) return;
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    if (Math.abs(y - es.startY) > Math.abs(x - es.startX)) {
+      es.active = false;
+      return;
+    }
+    const deltaX = x - es.startX;
+    if (es.edge === 'left' && deltaX >= EDGE_SWIPE_THRESHOLD) {
+      es.triggered = true;
+      if (user) onProfileClick();
+      else onLoginClick();
+    } else if (es.edge === 'right' && deltaX <= -EDGE_SWIPE_THRESHOLD) {
+      es.triggered = true;
+      if (user) onBellClick();
+    }
+  }, [user, onProfileClick, onLoginClick, onBellClick]);
+
+  const handleEdgeTouchEnd = useCallback(() => {
+    edgeSwipeRef.current = { active: false, edge: null, startX: 0, startY: 0, triggered: false };
+  }, []);
+
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -876,7 +919,12 @@ const Home = ({
 
   const handleSwipeStart = (index, e) => {
     if (!user || isDragging || !e.touches) return;
-    touchStartX.current = e.touches[0].clientX;
+    const x = e.touches[0].clientX;
+    // If touch started in edge zone, skip card swipe — let edge swipe handle it
+    if (x <= EDGE_ZONE || x >= window.innerWidth - EDGE_ZONE) return;
+    // Cancel any edge swipe — this is a card swipe
+    edgeSwipeRef.current.active = false;
+    touchStartX.current = x;
     touchStartY.current = e.touches[0].clientY;
     isSwiping.current = false;
     swipeTouchIndexRef.current = index;
@@ -1138,7 +1186,12 @@ const Home = ({
   crossPageDragRef.current = { perPage: effectivePerPage, totalPages, currentPage: safePage, exerciseCount: activeExercises.length };
 
   return (
-    <div className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''} ${isDragging ? 'home-reordering' : ''}`}>
+    <div
+      className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''} ${isDragging ? 'home-reordering' : ''}`}
+      onTouchStart={handleEdgeTouchStart}
+      onTouchMove={handleEdgeTouchMove}
+      onTouchEnd={handleEdgeTouchEnd}
+    >
       <div className="home-sparks-bg">
         <img src={Sparks} alt="" className="home-sparks-img" />
       </div>

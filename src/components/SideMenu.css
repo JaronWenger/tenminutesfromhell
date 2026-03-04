@@ -19,8 +19,7 @@
   flex-direction: column;
   padding: 0;
   padding-top: env(safe-area-inset-top, 0);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   animation: sidemenu-slide-in 0.28s ease forwards;
   position: relative;
   z-index: 2;
@@ -40,10 +39,12 @@
   to { transform: translateX(-100%); }
 }
 
-/* ── Backdrop (the visible strip on the right) ── */
+/* ── Backdrop (fullscreen behind panel, fades in/out) ── */
 .sidemenu-backdrop {
-  flex: 1;
+  position: absolute;
+  inset: 0;
   background: rgba(0, 0, 0, 0.5);
+  z-index: 1;
   animation: sidemenu-fade-in 0.28s ease forwards;
 }
 
@@ -67,6 +68,7 @@
   align-items: center;
   gap: 14px;
   padding: 20px 20px 8px;
+  flex-shrink: 0;
 }
 
 .sidemenu-avatar img,
@@ -226,15 +228,23 @@
 
 /* ── Menu Items ── */
 .sidemenu-items {
-  padding: 8px 0;
+  padding: 8px 0 100px;
   flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidemenu-items::-webkit-scrollbar {
+  display: none;
 }
 
 .sidemenu-item {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 20px;
+  padding: 10px 20px;
   cursor: pointer;
   color: rgba(255, 255, 255, 0.7);
   transition: background 0.15s ease;
@@ -254,7 +264,7 @@
 .sidemenu-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.06);
-  margin: 8px 20px;
+  margin: 4px 20px;
 }
 
 /* ── Toggle Switch ── */
@@ -269,7 +279,7 @@
 }
 
 .sidemenu-toggle.on {
-  background: rgba(255, 59, 48, 0.7);
+  background: #8c0f1d;
 }
 
 .sidemenu-toggle-knob {
@@ -335,7 +345,7 @@
 
 /* ── Color Picker ── */
 .sidemenu-color-section {
-  padding: 8px 20px 12px;
+  padding: 4px 20px 8px;
 }
 
 .sidemenu-color-header {
@@ -345,14 +355,14 @@
   color: rgba(255, 255, 255, 0.35);
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .sidemenu-color-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .sidemenu-color-label {
@@ -396,19 +406,23 @@
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  padding: 18px 20px;
+  padding: 18px 12px;
+  width: calc(100% - 24px);
+  max-width: 400px;
   background: #1c1c1e;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   animation: sidemenu-popup-scale-in 0.15s ease forwards;
+  box-sizing: border-box;
 }
 
 .sidemenu-color-popup-swatches {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
   justify-content: center;
+  width: 100%;
 }
 
 @keyframes sidemenu-popup-fade-in {
@@ -422,14 +436,15 @@
 }
 
 .sidemenu-swatch {
-  width: 28px;
-  height: 28px;
+  flex: 1 1 0;
+  aspect-ratio: 1;
+  max-width: 36px;
+  min-width: 0;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid transparent;
   transition: border-color 0.15s ease, transform 0.15s ease;
   box-sizing: border-box;
-  flex-shrink: 0;
 }
 
 .sidemenu-swatch:active {

@@ -14,7 +14,7 @@ import ProfilePopup from './ProfilePopup';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, updateWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, setNewWorkoutsPublicPreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, setNewWorkoutsPublicPreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -63,6 +63,7 @@ const Main = () => {
   const [prepTime, setPrepTime] = useState(15);
   const [restTime, setRestTime] = useState(15);
   const [activeLastMinute, setActiveLastMinute] = useState(true);
+  const [shuffleExercises, setShuffleExercises] = useState(false);
 
   // Calculate total time from exercise count
   const calculateTotalTime = useCallback((workoutName) => {
@@ -322,6 +323,7 @@ const Main = () => {
         setPrepTime(prefs.prepTime);
         setRestTime(prefs.restTime);
         setActiveLastMinute(prefs.activeLastMinute);
+        setShuffleExercises(prefs.shuffleExercises);
         if (prefs.weeklySchedule) setWeeklyScheduleState(prefs.weeklySchedule);
         // Auto-select today's scheduled workout, or fall back to saved selection
         const todayDay = new Date().getDay();
@@ -544,6 +546,14 @@ const Main = () => {
       setActiveLastMinutePreference(user.uid, newValue).catch(err => console.error('Failed to save active last minute:', err));
     }
   }, [user, activeLastMinute]);
+
+  const handleToggleShuffleExercises = useCallback(async () => {
+    const newValue = !shuffleExercises;
+    setShuffleExercises(newValue);
+    if (user) {
+      setShuffleExercisesPreference(user.uid, newValue).catch(err => console.error('Failed to save shuffle exercises:', err));
+    }
+  }, [user, shuffleExercises]);
 
   const handleRestTimeChange = useCallback(async (newValue) => {
     setRestTime(newValue);
@@ -1496,6 +1506,7 @@ const Main = () => {
             return selectedW?.restTime != null ? selectedW.restTime : restTime;
           })()}
           activeLastMinute={activeLastMinute}
+          shuffleExercises={shuffleExercises}
           initialLoad={initialLoad}
           workoutReady={workoutReady}
           onInitialLoadDone={() => setInitialLoad(false)}
@@ -1670,6 +1681,8 @@ const Main = () => {
         onRestTimeChange={handleRestTimeChange}
         activeLastMinute={activeLastMinute}
         onToggleActiveLastMinute={handleToggleActiveLastMinute}
+        shuffleExercises={shuffleExercises}
+        onToggleShuffleExercises={handleToggleShuffleExercises}
         activeColor={activeColor}
         restColor={restColor}
         onColorChange={handleColorChange}

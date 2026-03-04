@@ -18,6 +18,7 @@ const Timer = ({
   sidePlankAlertEnabled = true,
   restTime = 15,
   activeLastMinute = true,
+  shuffleExercises = false,
   initialLoad = false,
   workoutReady = true,
   onInitialLoadDone,
@@ -38,8 +39,10 @@ const Timer = ({
     "Boat hold leg flutters"
   ];
 
-  const workoutList = workouts.length > 0 ? workouts : defaultWorkouts;
-  
+  const baseWorkoutList = workouts.length > 0 ? workouts : defaultWorkouts;
+  const [shuffledList, setShuffledList] = useState(null);
+  const workoutList = shuffledList || baseWorkoutList;
+
   // Calculate total time dynamically: (workoutList.length * 60) + prepTime
   const calculateTotalTime = () => (workoutList.length * 60) + prepTime;
   
@@ -118,6 +121,7 @@ const Timer = ({
   useEffect(() => {
     setSetCount(1);
     setCompletedSets(0);
+    setShuffledList(null);
   }, [selectedWorkoutName]);
 
 
@@ -141,6 +145,15 @@ const Timer = ({
 
   const startTimer = () => {
     if (timeLeft > 0) {
+      // Shuffle exercises on first set start if enabled
+      if (shuffleExercises && !shuffledList) {
+        const arr = [...baseWorkoutList];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        setShuffledList(arr);
+      }
       setIsRunning(true);
       updateParentState({ isRunning: true });
     }
