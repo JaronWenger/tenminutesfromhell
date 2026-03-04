@@ -5,7 +5,7 @@ import './SideMenu.css';
 
 const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
-const OTHER_COLORS = ['#5AC8D4', '#DBF9B8', '#ADA8B6', '#C47A6E', '#8FAD88', '#6E9E9E', '#F4845F'];
+const OTHER_COLORS = ['#5AC8D4', '#DBF9B8', '#C4B5E0', '#C47A6E', '#2D7D6B', '#FF6B2B'];
 
 const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, newWorkoutsPublic, onToggleNewWorkoutsPublic, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
   const { user } = useAuth();
