@@ -362,7 +362,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
       )}
 
       {/* Tap outside to close */}
-      <div className="sidemenu-backdrop" ref={backdropElRef} onClick={handleOverlayClick} />
+      <div className="sidemenu-backdrop" ref={backdropElRef} onClick={handleOverlayClick} onTouchStart={handleSwipeStart} onTouchMove={handleSwipeMove} onTouchEnd={handleSwipeEnd} />
     </div>
   );
 };
