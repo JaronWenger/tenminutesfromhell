@@ -1517,6 +1517,8 @@ const Main = () => {
       {!currentEditPage && currentEditLevel !== 'exercise-edit' && (
         <TabBar
           activeTab={activeTab}
+          isTimerRunning={timerState.isRunning}
+          activeColor={activeColor}
           onTabChange={(tab) => {
             if (tab === 'home' && activeTab === 'home') {
               setHomeDetailCloseRequested(true);

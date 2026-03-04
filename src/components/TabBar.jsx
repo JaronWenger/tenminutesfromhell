@@ -4,7 +4,8 @@ import Tab1 from '../assets/Tab1.jpg';
 import Tab2 from '../assets/Tab2.jpg';
 import Tab4 from '../assets/Tab4.jpg';
 
-const TabBar = ({ activeTab, onTabChange }) => {
+const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor }) => {
+  const useGreyscale = isTimerRunning && activeTab === 'timer' && activeColor && activeColor !== '#ff3b30';
   const [orientation, setOrientation] = useState('portrait');
 
   useEffect(() => {
@@ -32,7 +33,7 @@ const TabBar = ({ activeTab, onTabChange }) => {
   }, []);
 
   return (
-    <div className={`tab-bar ${orientation}`}>
+    <div className={`tab-bar ${orientation}${useGreyscale ? ' tab-bar-greyscale' : ''}`}>
       <button
         className={`tab-item ${activeTab === 'home' ? 'active' : ''}`}
         onClick={() => onTabChange('home')}
