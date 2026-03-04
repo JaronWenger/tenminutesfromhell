@@ -31,6 +31,32 @@ const Main = () => {
   const [initialLoad, setInitialLoad] = useState(true);
   const [workoutReady, setWorkoutReady] = useState(false);
 
+  // PWA install banner — show on mobile browsers only
+  const [showPwaBanner, setShowPwaBanner] = useState(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const dismissed = localStorage.getItem('pwa_banner_dismissed');
+    return isMobile && !isStandalone && !dismissed;
+  });
+
+  const pwaBannerRef = useRef(null);
+  useEffect(() => {
+    if (!showPwaBanner) return;
+    const t = setTimeout(() => {
+      const wrap = pwaBannerRef.current;
+      if (wrap) {
+        wrap.style.animation = 'none';
+        // Force reflow so animation:none takes effect
+        void wrap.offsetHeight;
+        wrap.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 1, 1), opacity 0.4s ease';
+        wrap.style.transform = 'translateY(calc(-100% - 40px))';
+        wrap.style.opacity = '0';
+      }
+      setTimeout(() => { setShowPwaBanner(false); localStorage.setItem('pwa_banner_dismissed', '1'); }, 400);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [showPwaBanner]);
+
   // If not logged in (auth resolved, no user), workout is ready immediately
   // If logged in, wait for preferences to load (setWorkoutReady called after prefs load)
   // Safety timeout: if prefs take too long, show content anyway after 2.5s
@@ -1488,6 +1514,53 @@ const Main = () => {
         '--color-rest-rgb': hexToRgb(restColor),
       }}
     >
+      {showPwaBanner && (
+        <div className="pwa-banner-wrap" ref={pwaBannerRef}>
+          <div className="pwa-banner-pill" />
+          <div
+            className="pwa-banner"
+            ref={(el) => {
+              if (!el || el._swipeAttached) return;
+              el._swipeAttached = true;
+              let startY = 0, dy = 0;
+              el.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; dy = 0; el.style.transition = 'none'; }, { passive: true });
+              el.addEventListener('touchmove', (e) => {
+                dy = e.touches[0].clientY - startY;
+                if (dy < 0) el.style.transform = `translateY(${dy}px)`;
+              }, { passive: true });
+              el.addEventListener('touchend', () => {
+                if (dy < -40) {
+                  el.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                  el.style.transform = 'translateY(-100%)';
+                  el.style.opacity = '0';
+                  setTimeout(() => { setShowPwaBanner(false); localStorage.setItem('pwa_banner_dismissed', '1'); }, 200);
+                } else {
+                  el.style.transition = 'transform 0.2s ease';
+                  el.style.transform = 'translateY(0)';
+                }
+              });
+            }}
+          >
+            <div className="pwa-banner-icon">
+              <img src="/logo192.png" alt="HIITem" />
+            </div>
+            <div className="pwa-banner-text">
+              <div className="pwa-banner-title-row">
+                <span className="pwa-banner-title">HIITem</span>
+                <span className="pwa-banner-now">now</span>
+              </div>
+              <span className="pwa-banner-body">{(() => {
+                const ua = navigator.userAgent;
+                const isIOS = /iPhone|iPad|iPod/i.test(ua);
+                if (!isIOS) return 'Tap ⋮ → "Add to Home Screen"';
+                const isSafari = !(/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua));
+                if (isSafari) return <>Tap Share <svg className="pwa-share-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> then "Add to Home Screen"</>;
+                return <>Open in Safari, tap Share <svg className="pwa-share-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> then "Add to Home Screen"</>;
+              })()}</span>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: activeTab === 'timer' && !currentEditPage ? 'block' : 'none' }}>
         <Timer
           timeLeft={timerState.timeLeft}
