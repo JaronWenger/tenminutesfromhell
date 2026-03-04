@@ -543,9 +543,14 @@ const StatsPage = ({
     setScrubIndex(getScrubIndex(clientX));
   }, [getScrubIndex]);
 
+  const [pinnedFadeIn, setPinnedFadeIn] = useState(false);
   const handleScrubEnd = useCallback(() => {
+    if (scrubIndex !== null) {
+      setPinnedFadeIn(true);
+      setTimeout(() => setPinnedFadeIn(false), 400);
+    }
     setScrubIndex(null);
-  }, []);
+  }, [scrubIndex]);
 
   // All workouts
   const allWorkouts = useMemo(() => {
@@ -1393,20 +1398,67 @@ const StatsPage = ({
             </div>
           </div>
 
-          {/* Pinned Workouts */}
-          <div className="stats-section">
-            <h3 className="stats-section-title">Pinned Workouts <span className="stats-section-title-detail">{user ? pinnedWorkoutObjects.length : 3}/3</span></h3>
-            <div className="stats-workout-cards">
-              {(user ? pinnedWorkoutObjects : DEFAULT_TIMER_WORKOUTS.slice(0, 3)).map(renderPinnedCard)}
-              <div className="stats-pin-add" onClick={openPinPicker}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/>
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                <span>Pin Workout</span>
+          {/* Pinned Workouts / Completed Workouts (swaps on chart scrub) */}
+          {scrubIndex !== null ? (
+            displayWeekChart[scrubIndex]?.workouts?.length > 0 ? (
+            <div className="stats-section">
+              <h3 className="stats-section-title">Completed</h3>
+              <div className="stats-workout-cards">
+                {[...new Set(displayWeekChart[scrubIndex].workouts)].map(name => {
+                  const workout = allWorkouts.find(w => w.name === name);
+                  const exercises = workout ? workout.exercises : [];
+                  const totalSeconds = (exercises.length * 60) + prepTime;
+                  const count = displayWeekChart[scrubIndex].workouts.filter(n => n === name).length;
+                  return (
+                    <div key={name} className="stats-workout-card stats-completed-card">
+                      <div className="stats-card-left">
+                        <div className="stats-card-name-row">
+                          <span className="stats-card-name">{name}</span>
+                          {workout && (workout.tags || (workout.tag ? [workout.tag] : [])).map(t => (
+                            <span key={t} className="stats-card-tag">{t.toUpperCase()}</span>
+                          ))}
+                        </div>
+                        <div className="stats-card-detail">
+                          {exercises.length > 0 && (
+                            <>
+                              <span className="stats-card-time">{formatTime(totalSeconds)}</span>
+                              <span className="stats-card-dot">&middot;</span>
+                              <span>{exercises.length} exercises</span>
+                            </>
+                          )}
+                          {count > 1 && (
+                            <>
+                              {exercises.length > 0 && <span className="stats-card-dot">&middot;</span>}
+                              <span className="stats-card-completions">{count}x</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
+            ) : (
+              <div className="stats-section">
+                <h3 className="stats-section-title">Completed</h3>
+              </div>
+            )
+          ) : (
+            <div className={`stats-section${pinnedFadeIn ? ' stats-pinned-fade-in' : ''}`}>
+              <h3 className="stats-section-title">Pinned Workouts <span className="stats-section-title-detail">{user ? pinnedWorkoutObjects.length : 3}/3</span></h3>
+              <div className="stats-workout-cards">
+                {(user ? pinnedWorkoutObjects : DEFAULT_TIMER_WORKOUTS.slice(0, 3)).map(renderPinnedCard)}
+                <div className="stats-pin-add" onClick={openPinPicker}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  <span>Pin Workout</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Pin Picker Popup */}
           {showPinPicker && (

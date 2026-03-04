@@ -7,6 +7,8 @@
 
   position: relative;
   width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
   height: calc(100vh - env(safe-area-inset-top, 0px));
   overflow: hidden;
   color: #fff;
@@ -851,6 +853,31 @@
   color: rgba(255, 255, 255, 0.5);
   border-color: rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Pinned fade-in after scrub release ── */
+.stats-pinned-fade-in .stats-section-title,
+.stats-pinned-fade-in .stats-workout-card,
+.stats-pinned-fade-in .stats-pin-add {
+  animation: stats-pinned-in 0.35s ease forwards;
+  opacity: 0;
+}
+
+.stats-pinned-fade-in .stats-section-title { animation-delay: 0s; }
+.stats-pinned-fade-in .stats-workout-card:nth-child(1) { animation-delay: 0.04s; }
+.stats-pinned-fade-in .stats-workout-card:nth-child(2) { animation-delay: 0.08s; }
+.stats-pinned-fade-in .stats-workout-card:nth-child(3) { animation-delay: 0.12s; }
+.stats-pinned-fade-in .stats-pin-add { animation-delay: 0.16s; }
+
+@keyframes stats-pinned-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Completed Card (chart scrub) ── */
+.stats-completed-card {
+  cursor: default;
+  pointer-events: none;
 }
 
 /* ── Pin Picker Popup ── */

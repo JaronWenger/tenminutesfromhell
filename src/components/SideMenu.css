@@ -455,3 +455,16 @@
   border-color: #ffffff;
   box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
 }
+
+/* ── Desktop: fade instead of slide ── */
+@media (min-width: 600px) {
+  .sidemenu-panel {
+    max-width: 500px;
+    margin: 0 auto;
+    animation: sidemenu-fade-in 0.25s ease forwards;
+  }
+
+  .sidemenu-panel-closing {
+    animation: sidemenu-fade-out 0.22s ease forwards;
+  }
+}

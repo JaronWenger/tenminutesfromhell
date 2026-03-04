@@ -115,26 +115,38 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     }
   }, [requestClose, isOpen, isClosing]);
 
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 600;
+
   const triggerClose = () => {
     if (isClosing) return;
     const panel = panelElRef.current;
     const backdrop = backdropElRef.current;
-    // Use inline transition (same as swipe close) — no CSS animation swap
-    if (panel) {
-      panel.style.transition = 'transform 0.26s ease';
-      panel.style.transform = 'translateX(-100%)';
-    }
-    if (backdrop) {
-      backdrop.style.transition = 'opacity 0.26s ease';
-      backdrop.style.opacity = '0';
+    if (isDesktop) {
+      if (panel) {
+        panel.style.transition = 'opacity 0.22s ease';
+        panel.style.opacity = '0';
+      }
+      if (backdrop) {
+        backdrop.style.transition = 'opacity 0.22s ease';
+        backdrop.style.opacity = '0';
+      }
+    } else {
+      if (panel) {
+        panel.style.transition = 'transform 0.26s ease';
+        panel.style.transform = 'translateX(-100%)';
+      }
+      if (backdrop) {
+        backdrop.style.transition = 'opacity 0.26s ease';
+        backdrop.style.opacity = '0';
+      }
     }
     setIsClosing(true);
     setTimeout(() => {
-      if (panel) { panel.style.transform = ''; panel.style.transition = ''; panel.style.willChange = ''; panel.style.animation = ''; }
+      if (panel) { panel.style.transform = ''; panel.style.transition = ''; panel.style.willChange = ''; panel.style.animation = ''; panel.style.opacity = ''; }
       if (backdrop) { backdrop.style.opacity = ''; backdrop.style.transition = ''; backdrop.style.animation = ''; }
       setIsClosing(false);
       onClose();
-    }, 260);
+    }, isDesktop ? 220 : 260);
   };
 
   const handleOverlayClick = () => {
