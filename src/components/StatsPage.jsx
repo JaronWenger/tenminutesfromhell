@@ -67,7 +67,8 @@ const StatsPage = ({
   onProfileClick,
   openProfilePopup,
   onProfilePopupOpened,
-  onShareWorkout
+  onShareWorkout,
+  onFindPeople
 }) => {
   const calendarScrollRef = useRef(null);
 
@@ -873,6 +874,24 @@ const StatsPage = ({
 
   const openVpFollowList = async (type) => {
     if (!viewingProfile) return;
+    // Own profile: pre-fetch like main follow list (no loading flash)
+    if (viewingProfile.uid === user?.uid) {
+      setVpFollowListClosing(false);
+      setVpFollowListSearch('');
+      try {
+        const ids = type === 'following' ? followingIds : followerIds;
+        const profiles = await getUserProfiles(ids);
+        setVpFollowListType(type);
+        setVpFollowListLoading(false);
+        setVpFollowListProfiles(profiles);
+      } catch (err) {
+        console.error('Failed to load profiles:', err);
+        setVpFollowListType(type);
+        setVpFollowListLoading(false);
+        setVpFollowListProfiles([]);
+      }
+      return;
+    }
     setVpFollowListType(type);
     setVpFollowListLoading(true);
     setVpFollowListClosing(false);
@@ -910,9 +929,9 @@ const StatsPage = ({
     setVpFollowListType(type);
     setVpFollowListSearch('');
     try {
-      const ids = type === 'following'
-        ? await getFollowing(viewingProfile.uid)
-        : await getFollowers(viewingProfile.uid);
+      const ids = viewingProfile.uid === user?.uid
+        ? (type === 'following' ? followingIds : followerIds)
+        : (type === 'following' ? await getFollowing(viewingProfile.uid) : await getFollowers(viewingProfile.uid));
       const profiles = await getUserProfiles(ids);
       setVpFollowListProfiles(profiles);
       // Animate after React renders new content
@@ -1729,6 +1748,12 @@ const StatsPage = ({
                   </div>
                 ))
               )}
+              {onFindPeople && followListType === 'following' && (
+                <div className="stats-follow-find-people" style={{ animationDelay: `${(followListProfiles.length) * 40}ms` }} onClick={() => { closeFollowList(); onFindPeople(); }}>
+                  <div className="stats-follow-find-people-icon">+</div>
+                  <span>Find People</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1961,6 +1986,16 @@ const StatsPage = ({
                     <span className="stats-follow-panel-name">{p.displayName}</span>
                   </div>
                 ))
+              )}
+              {onFindPeople && viewingProfile?.uid === user?.uid && vpFollowListType === 'following' && (
+                <div className="stats-follow-find-people" style={{ animationDelay: `${(vpFollowListProfiles.length) * 40}ms` }} onClick={() => {
+                  setVpFollowListType(null); setVpFollowListClosing(false); setVpFollowListProfiles([]);
+                  setViewingProfile(null); setViewingProfileClosing(false); setViewingProfileStats(null); setViewingProfileCalendar(null); setViewingProfilePinnedWorkouts([]);
+                  onFindPeople();
+                }}>
+                  <div className="stats-follow-find-people-icon">+</div>
+                  <span>Find People</span>
+                </div>
               )}
             </div>
           </div>

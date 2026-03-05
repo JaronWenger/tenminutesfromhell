@@ -55,7 +55,7 @@ const getHeatColor = (count, isFuture) => {
   return 'var(--heat-4)';
 };
 
-const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, onFollowChanged, prepTime = 15, globalRestTime = 15, pendingFollowRequests = {}, onPendingFollowRequestsChange }) => {
+const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, onFollowChanged, prepTime = 15, globalRestTime = 15, pendingFollowRequests = {}, onPendingFollowRequestsChange, onFindPeople }) => {
   const [activeProfile, setActiveProfile] = useState(profile);
   const [profileFollowing, setProfileFollowing] = useState(0);
   const [profileFollowers, setProfileFollowers] = useState(0);
@@ -871,6 +871,12 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                     <span className="stats-follow-panel-name">{p.displayName}</span>
                   </div>
                 ))
+              )}
+              {onFindPeople && profile?.uid === user?.uid && followListType === 'following' && (
+                <div className="stats-follow-find-people" style={{ animationDelay: `${(followListProfiles.length) * 40}ms` }} onClick={() => { closeFollowList(); onClose(); onFindPeople(); }}>
+                  <div className="stats-follow-find-people-icon">+</div>
+                  <span>Find People</span>
+                </div>
               )}
             </div>
           </div>

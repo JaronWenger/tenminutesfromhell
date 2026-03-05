@@ -26,7 +26,7 @@ const APP_URL = 'https://hiitem.com';
 const REACTION_EMOJIS = ['🏆', '🦍', '🦧', '🐦‍🔥', '🦦', '🔥'];
 const INVITE_TEXT = `Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress! ${APP_URL}`;
 
-const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt, externalFollowedUid, pendingFollowRequests = {}, onPendingFollowRequestsChange }) => {
+const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt, externalFollowedUid, pendingFollowRequests = {}, onPendingFollowRequestsChange, initialTab, onFollowCountChanged }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('feed');
   const [posts, setPosts] = useState([]);
@@ -48,6 +48,11 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
   const [peopleSubTab, setPeopleSubTab] = useState('suggested');
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestedUsers, setSuggestedUsers] = useState([]);
+
+  // Switch to initial tab when specified (e.g. opening directly to People tab)
+  useEffect(() => {
+    if (initialTab && isOpen) setActiveTab(initialTab);
+  }, [initialTab, isOpen]);
 
   // Sync external follow actions (e.g. from ProfilePopup) into local followingIds
   useEffect(() => {
@@ -281,6 +286,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
       }
       await followUser(user.uid, targetUid);
       setFollowingIds(prev => [...prev, targetUid]);
+      onFollowCountChanged?.();
     } catch (err) {
       console.error('Failed to follow:', err);
     }
@@ -314,6 +320,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     try {
       await unfollowUser(user.uid, targetUid);
       setFollowingIds(prev => prev.filter(id => id !== targetUid));
+      onFollowCountChanged?.();
     } catch (err) {
       console.error('Failed to unfollow:', err);
     }
@@ -419,6 +426,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     setRequestActions(prev => ({ ...prev, [post.id]: 'accepted' }));
     try {
       await acceptFollowRequest(post.id, post.userId, user.uid, user.displayName, user.photoURL);
+      onFollowCountChanged?.();
     } catch (err) {
       console.error('Failed to accept follow request:', err);
       setRequestActions(prev => { const n = { ...prev }; delete n[post.id]; return n; });

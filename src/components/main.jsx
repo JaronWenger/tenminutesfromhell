@@ -141,6 +141,7 @@ const Main = () => {
   const [feedLastViewed, setFeedLastViewed] = useState(null); // snapshot of last viewed time for highlight
   const [showFeedPage, setShowFeedPage] = useState(false);
   const [feedCloseRequested, setFeedCloseRequested] = useState(false);
+  const [feedInitialTab, setFeedInitialTab] = useState(null);
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [sideMenuCloseRequested, setSideMenuCloseRequested] = useState(false);
   const [showSharePrompt, setShowSharePrompt] = useState(false);
@@ -377,6 +378,21 @@ const Main = () => {
     loadSocialProfile();
     return () => { cancelled = true; };
   }, [user]);
+
+  // Refresh follow counts when a follow/unfollow happens
+  const refreshFollowData = useCallback(() => {
+    if (!user) return;
+    Promise.all([getFollowing(user.uid), getFollowers(user.uid)])
+      .then(([following, followers]) => {
+        setFollowingIds(following);
+        setFollowerIds(followers);
+      })
+      .catch(err => console.error('Failed to refresh follow data:', err));
+  }, [user]);
+
+  useEffect(() => {
+    if (lastFollowedUid) refreshFollowData();
+  }, [lastFollowedUid, refreshFollowData]);
 
   // Check for unread notifications (on load, tab change, and every 60s)
   const checkUnread = useCallback(() => {
@@ -1347,6 +1363,7 @@ const Main = () => {
           openProfilePopup={openProfilePopup}
           onProfilePopupOpened={() => setOpenProfilePopup(false)}
           onShareWorkout={openSendWorkout}
+          onFindPeople={() => { setFeedInitialTab('people'); setShowFeedPage(true); }}
         />
       );
     }
@@ -1431,6 +1448,7 @@ const Main = () => {
             openProfilePopup={openProfilePopup}
             onProfilePopupOpened={() => setOpenProfilePopup(false)}
             onShareWorkout={openSendWorkout}
+            onFindPeople={() => { setFeedInitialTab('people'); setShowFeedPage(true); }}
           />
         );
       default:
@@ -1566,7 +1584,7 @@ const Main = () => {
       )}
       <FeedPage
         isOpen={showFeedPage}
-        onClose={() => { setShowFeedPage(false); setFeedCloseRequested(false); }}
+        onClose={() => { setShowFeedPage(false); setFeedCloseRequested(false); setFeedInitialTab(null); }}
         requestClose={feedCloseRequested}
         onViewProfile={(profile) => {
           setViewUserProfile(profile);
@@ -1581,6 +1599,8 @@ const Main = () => {
         externalFollowedUid={lastFollowedUid}
         pendingFollowRequests={pendingFollowRequests}
         onPendingFollowRequestsChange={setPendingFollowRequests}
+        initialTab={feedInitialTab}
+        onFollowCountChanged={refreshFollowData}
       />
       {viewUserProfile && (
         <ProfilePopup
@@ -1596,6 +1616,7 @@ const Main = () => {
           globalRestTime={restTime}
           pendingFollowRequests={pendingFollowRequests}
           onPendingFollowRequestsChange={setPendingFollowRequests}
+          onFindPeople={() => { setFeedInitialTab('people'); setShowFeedPage(true); }}
         />
       )}
       {feedDetailPost && (
