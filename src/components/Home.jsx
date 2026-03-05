@@ -26,7 +26,6 @@ const Home = ({
   onDetailSave,
   onStartWorkout,
   defaultWorkoutNames = [],
-  onVisibilityToggle,
   requestCloseDetail = false,
   showCardPhotos = true,
   onShareWorkout,
@@ -332,17 +331,6 @@ const Home = ({
       setActiveFilter(null);
     }
   }, [activeFilter, filterChips]);
-
-  // Sync detailWorkout snapshot with live timerWorkoutData (e.g. isPublic set after creation)
-  useEffect(() => {
-    if (!detailWorkout) return;
-    const updated = detailWorkout.id
-      ? timerWorkoutData.find(w => w.id === detailWorkout.id)
-      : (detailWorkout.name ? timerWorkoutData.find(w => w.name === detailWorkout.name) : null);
-    if (updated && updated.isPublic !== detailWorkout.isPublic) {
-      setDetailWorkout(prev => ({ ...prev, isPublic: updated.isPublic }));
-    }
-  }, [timerWorkoutData, detailWorkout?.id, detailWorkout?.name, detailWorkout?.isPublic]);
 
   // ── Detail overlay ──
   const openDetail = useCallback((workout) => {
@@ -1539,30 +1527,6 @@ const Home = ({
                       {displayRestTime}s rest between exercises
                     </span>
                   </div>
-                  {user && !isDefaultWorkout && !(detailWorkout.creatorUid && detailWorkout.creatorUid !== user.uid) && (
-                    <button
-                      className="home-detail-visibility-btn"
-                      onClick={() => {
-                        const newVal = !detailWorkout.isPublic;
-                        onVisibilityToggle(detailWorkout.name, newVal);
-                        setDetailWorkout(prev => ({ ...prev, isPublic: newVal }));
-                      }}
-                    >
-                      <span className={`home-detail-visibility-icon ${detailWorkout.isPublic ? 'hidden' : ''}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                      </span>
-                      <span className={`home-detail-visibility-icon ${detailWorkout.isPublic ? '' : 'hidden'}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"/>
-                          <line x1="2" y1="12" x2="22" y2="12"/>
-                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/>
-                        </svg>
-                      </span>
-                    </button>
-                  )}
                 </div>
                 <div className={`home-detail-meta-edit ${isEditing ? '' : 'hidden'}`}>
                   <span

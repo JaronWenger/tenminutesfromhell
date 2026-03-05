@@ -7,7 +7,7 @@ const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
 const OTHER_COLORS = ['#5AC8D4', '#DBF9B8', '#C4B5E0', '#C47A6E', '#2D7D6B', '#FF6B2B'];
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, newWorkoutsPublic, onToggleNewWorkoutsPublic, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
@@ -202,11 +202,24 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
 
           <div className="sidemenu-divider" />
 
-          <div className="sidemenu-item" onClick={() => { /* TODO: link to Google Form */ }}>
+          <div className="sidemenu-item" onClick={() => { window.open('https://forms.gle/9A23uv92efj2FVAcA', '_blank'); }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
             <span className="sidemenu-item-label">Developer Feedback</span>
+          </div>
+
+          <div className="sidemenu-divider" />
+
+          <div className="sidemenu-item" onClick={onTogglePrivate}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span className="sidemenu-item-label">Private account</span>
+            <div className={`sidemenu-toggle ${isPrivate === true ? 'on' : ''}`}>
+              <div className="sidemenu-toggle-knob" />
+            </div>
           </div>
 
           <div className="sidemenu-divider" />
@@ -219,20 +232,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             </svg>
             <span className="sidemenu-item-label">Auto-Share Workouts</span>
             <div className={`sidemenu-toggle ${autoShareEnabled === true ? 'on' : ''}`}>
-              <div className="sidemenu-toggle-knob" />
-            </div>
-          </div>
-
-          <div className="sidemenu-divider" />
-
-          <div className="sidemenu-item" onClick={onToggleNewWorkoutsPublic}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="2" y1="12" x2="22" y2="12"/>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/>
-            </svg>
-            <span className="sidemenu-item-label">New workouts are public</span>
-            <div className={`sidemenu-toggle ${newWorkoutsPublic !== false ? 'on' : ''}`}>
               <div className="sidemenu-toggle-knob" />
             </div>
           </div>

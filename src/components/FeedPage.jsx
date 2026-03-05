@@ -12,7 +12,12 @@ import {
   batchCheckReactions,
   getEmojiReactors,
   updateNotificationStatus,
-  joinPost
+  joinPost,
+  createFollowRequest,
+  acceptFollowRequest,
+  denyFollowRequest,
+  cancelFollowRequest,
+  getUserProfiles
 } from '../firebase/social';
 import { saveUserWorkout, recordWorkoutHistory } from '../firebase/firestore';
 import './FeedPage.css';
@@ -21,7 +26,7 @@ const APP_URL = 'https://hiitem.com';
 const REACTION_EMOJIS = ['🏆', '🦍', '🦧', '🐦‍🔥', '🦦', '🔥'];
 const INVITE_TEXT = `Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress! ${APP_URL}`;
 
-const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt, externalFollowedUid }) => {
+const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt, externalFollowedUid, pendingFollowRequests = {}, onPendingFollowRequestsChange }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('feed');
   const [posts, setPosts] = useState([]);
@@ -36,6 +41,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
   const [loading, setLoading] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [shareActions, setShareActions] = useState({}); // notifId → 'accepting' | 'accepted' | 'denied'
+  const [requestActions, setRequestActions] = useState({}); // notifId → 'accepted' | 'denied'
   const [expandedTogetherId, setExpandedTogetherId] = useState(null);
 
   // People sub-tab state
@@ -258,10 +264,48 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
   const handleFollow = async (targetUid) => {
     if (!user) return;
     try {
+      // Check if target has a private account
+      const [targetProfile] = await getUserProfiles([targetUid]);
+      if (targetProfile?.isPrivate) {
+        // Send follow request instead of immediate follow
+        const notifId = await createFollowRequest({
+          requesterUid: user.uid,
+          requesterName: user.displayName,
+          requesterPhotoURL: user.photoURL,
+          targetUid
+        });
+        if (notifId && onPendingFollowRequestsChange) {
+          onPendingFollowRequestsChange(prev => ({ ...prev, [targetUid]: notifId }));
+        }
+        return;
+      }
       await followUser(user.uid, targetUid);
       setFollowingIds(prev => [...prev, targetUid]);
     } catch (err) {
       console.error('Failed to follow:', err);
+    }
+  };
+
+  const handleCancelFollowRequest = async (targetUid) => {
+    if (!user) return;
+    const notifId = pendingFollowRequests[targetUid];
+    if (!notifId) return;
+    // Optimistic update
+    if (onPendingFollowRequestsChange) {
+      onPendingFollowRequestsChange(prev => {
+        const next = { ...prev };
+        delete next[targetUid];
+        return next;
+      });
+    }
+    try {
+      await cancelFollowRequest(notifId, user.uid);
+    } catch (err) {
+      console.error('Failed to cancel follow request:', err);
+      // Revert on failure
+      if (onPendingFollowRequestsChange) {
+        onPendingFollowRequestsChange(prev => ({ ...prev, [targetUid]: notifId }));
+      }
     }
   };
 
@@ -367,6 +411,28 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     } catch (err) {
       console.error('Failed to deny shared workout:', err);
       setShareActions(prev => { const n = { ...prev }; delete n[post.id]; return n; });
+    }
+  };
+
+  const handleAcceptFollowRequest = async (post) => {
+    if (!user || requestActions[post.id]) return;
+    setRequestActions(prev => ({ ...prev, [post.id]: 'accepted' }));
+    try {
+      await acceptFollowRequest(post.id, post.userId, user.uid, user.displayName, user.photoURL);
+    } catch (err) {
+      console.error('Failed to accept follow request:', err);
+      setRequestActions(prev => { const n = { ...prev }; delete n[post.id]; return n; });
+    }
+  };
+
+  const handleDenyFollowRequest = async (post) => {
+    if (!user || requestActions[post.id]) return;
+    setRequestActions(prev => ({ ...prev, [post.id]: 'denied' }));
+    try {
+      await denyFollowRequest(post.id);
+    } catch (err) {
+      console.error('Failed to deny follow request:', err);
+      setRequestActions(prev => { const n = { ...prev }; delete n[post.id]; return n; });
     }
   };
 
@@ -487,15 +553,96 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                       <span className="feed-post-subtitle">Started following you</span>
                     </div>
                     <button
-                      className={`feed-follow-btn ${followingIds.includes(post.userId) ? 'following' : ''}`}
+                      className={`feed-follow-btn ${followingIds.includes(post.userId) ? 'following' : pendingFollowRequests[post.userId] ? 'following' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (pendingFollowRequests[post.userId]) { handleCancelFollowRequest(post.userId); return; }
                         followingIds.includes(post.userId) ? handleUnfollow(post.userId) : handleFollow(post.userId);
                       }}
                     >
-                      {followingIds.includes(post.userId) ? 'Following' : 'Follow'}
+                      {followingIds.includes(post.userId) ? 'Following' : pendingFollowRequests[post.userId] ? 'Requested' : 'Follow'}
                     </button>
                   </div>
+                </div>
+                );
+                if (post.type === 'follow_request_accepted') return (
+                <div
+                  key={post.id}
+                  className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL })}
+                >
+                  <div className="feed-post-header">
+                    <div className="feed-post-avatar">
+                      {post.photoURL ? (
+                        <img src={post.photoURL} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="feed-post-avatar-placeholder">
+                          {(post.displayName || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="feed-post-meta">
+                      <span className="feed-post-name">{post.displayName}</span>
+                      <span className="feed-post-time">
+                        {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                        {post.createdAt ? ` at ${post.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                      </span>
+                      <span className="feed-post-subtitle">Accepted your follow request</span>
+                    </div>
+                  </div>
+                </div>
+                );
+                if (post.type === 'follow_request') return (
+                <div
+                  key={post.id}
+                  className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL })}
+                >
+                  <div className="feed-post-header">
+                    <div className="feed-post-avatar">
+                      {post.photoURL ? (
+                        <img src={post.photoURL} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="feed-post-avatar-placeholder">
+                          {(post.displayName || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="feed-post-meta">
+                      <span className="feed-post-name">{post.displayName}</span>
+                      <span className="feed-post-time">
+                        {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                        {post.createdAt ? ` at ${post.createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                      </span>
+                      <span className="feed-post-subtitle">Wants to follow you</span>
+                    </div>
+                  </div>
+                  {(requestActions[post.id] === 'accepted' || post.status === 'accepted') ? (
+                    <div className="feed-share-actions">
+                      <span className="feed-share-status accepted">Accepted</span>
+                    </div>
+                  ) : (requestActions[post.id] === 'denied' || post.status === 'denied') ? (
+                    <div className="feed-share-actions">
+                      <span className="feed-share-status denied">Denied</span>
+                    </div>
+                  ) : (
+                    <div className="feed-share-actions">
+                      <button
+                        className="feed-share-deny-btn"
+                        onClick={(e) => { e.stopPropagation(); handleDenyFollowRequest(post); }}
+                      >
+                        Deny
+                      </button>
+                      <button
+                        className="feed-share-accept-btn"
+                        onClick={(e) => { e.stopPropagation(); handleAcceptFollowRequest(post); }}
+                      >
+                        Accept
+                      </button>
+                    </div>
+                  )}
                 </div>
                 );
                 if (post.type === 'workout_saved') return (
@@ -877,10 +1024,13 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                         </span>
                       </div>
                       <button
-                        className={`feed-follow-btn ${u.isFollowing ? 'following' : ''}`}
-                        onClick={() => u.isFollowing ? handleUnfollow(u.uid) : handleFollow(u.uid)}
+                        className={`feed-follow-btn ${u.isFollowing ? 'following' : pendingFollowRequests[u.uid] ? 'following' : ''}`}
+                        onClick={() => {
+                          if (pendingFollowRequests[u.uid]) { handleCancelFollowRequest(u.uid); return; }
+                          u.isFollowing ? handleUnfollow(u.uid) : handleFollow(u.uid);
+                        }}
                       >
-                        {u.isFollowing ? 'Following' : 'Follow'}
+                        {u.isFollowing ? 'Following' : pendingFollowRequests[u.uid] ? 'Requested' : 'Follow'}
                       </button>
                     </div>
                   ))

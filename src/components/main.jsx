@@ -14,7 +14,7 @@ import ProfilePopup from './ProfilePopup';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, updateWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, setNewWorkoutsPublicPreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -146,7 +146,8 @@ const Main = () => {
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [pendingShareData, setPendingShareData] = useState(null);
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
-  const [newWorkoutsPublic, setNewWorkoutsPublic] = useState(true); // default ON
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [pendingFollowRequests, setPendingFollowRequests] = useState({}); // { targetUid: notificationId }
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
   const [homeDetailCloseRequested, setHomeDetailCloseRequested] = useState(false);
@@ -177,7 +178,6 @@ const Main = () => {
   const [sendWorkoutSearch, setSendWorkoutSearch] = useState('');
   const [sentTo, setSentTo] = useState({});
   const sendWorkoutPanelRef = useRef(null);
-  const [privateShareWorkout, setPrivateShareWorkout] = useState(null);
 
   // Weekly schedule state
   const [weeklySchedule, setWeeklyScheduleState] = useState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
@@ -221,11 +221,6 @@ const Main = () => {
   }, [user, scheduleDraft, closeSchedulePopup]);
 
   const openSendWorkout = useCallback(async (workout) => {
-    const isOwnWorkout = !workout.creatorUid || workout.creatorUid === user?.uid;
-    if (isOwnWorkout && workout.isPublic === false) {
-      setPrivateShareWorkout(workout);
-      return;
-    }
     setSendWorkoutClosing(false);
     setSendWorkoutSearch('');
     setSentTo({});
@@ -333,6 +328,10 @@ const Main = () => {
     const loadSocialProfile = async () => {
       try {
         await ensureUserProfile(user);
+        const [myProfile] = await getUserProfiles([user.uid]);
+        if (!cancelled && myProfile) {
+          setIsPrivate(myProfile.isPrivate === true);
+        }
       } catch (err) {
         console.error('Failed to ensure user profile:', err);
       }
@@ -340,7 +339,6 @@ const Main = () => {
         const prefs = await getAllPreferences(user.uid);
         if (cancelled) return;
         setAutoShareEnabled(prefs.autoShare);
-        setNewWorkoutsPublic(prefs.newWorkoutsPublic);
         if (prefs.activeColor) setActiveColor(prefs.activeColor);
         if (prefs.restColor) setRestColor(prefs.restColor);
         setSidePlankAlertEnabled(prefs.sidePlankAlert);
@@ -360,12 +358,13 @@ const Main = () => {
           setTimerSelectedWorkout(prefs.selectedWorkout);
         }
         setWorkoutReady(true);
-        // Load follow data in background (non-blocking)
-        Promise.all([getFollowing(user.uid), getFollowers(user.uid)])
-          .then(([following, followers]) => {
+        // Load follow data + account privacy + pending requests in background (non-blocking)
+        Promise.all([getFollowing(user.uid), getFollowers(user.uid), getPendingFollowRequests(user.uid)])
+          .then(([following, followers, pendingReqs]) => {
             if (!cancelled) {
               setFollowingIds(following);
               setFollowerIds(followers);
+              setPendingFollowRequests(pendingReqs);
             }
           })
           .catch(err => console.error('Failed to load follow data:', err));
@@ -528,12 +527,12 @@ const Main = () => {
     await setAutoSharePreference(user.uid, newValue);
   }, [user, autoShareEnabled]);
 
-  const handleToggleNewWorkoutsPublic = useCallback(async () => {
+  const handleTogglePrivate = useCallback(async () => {
     if (!user) return;
-    const newValue = newWorkoutsPublic !== true;
-    setNewWorkoutsPublic(newValue);
-    await setNewWorkoutsPublicPreference(user.uid, newValue);
-  }, [user, newWorkoutsPublic]);
+    const newValue = !isPrivate;
+    setIsPrivate(newValue);
+    await setAccountPrivate(user.uid, newValue);
+  }, [user, isPrivate]);
 
   const handleToggleSidePlankAlert = useCallback(async () => {
     const newValue = !sidePlankAlertEnabled;
@@ -711,28 +710,26 @@ const Main = () => {
             .catch(err => console.error('Failed to update history:', err));
         }
 
-        if (selectedWorkoutObj?.isPublic !== false) {
-          const shareData = {
-            workoutName: timerSelectedWorkout,
-            workoutId: selectedWorkoutObj?.id || null,
-            workoutType: 'timer',
-            duration: timerState.targetTime,
-            exercises,
-            exerciseCount: exercises.length
-          };
-          if (autoShareEnabled === true) {
-            if (setsCompleted === 1 || !sessionPostIdRef.current) {
-              handleShareWorkout({ ...shareData, isPublic: true, setsCompleted }).then(postId => {
-                if (postId) sessionPostIdRef.current = postId;
-              });
-            } else {
-              updatePostSetsCompleted(sessionPostIdRef.current, setsCompleted)
-                .catch(err => console.error('Failed to update post sets:', err));
-            }
-          } else if (autoShareEnabled === null && setsCompleted === 1) {
-            setPendingShareData({ ...shareData, isPublic: true, setsCompleted });
-            setShowSharePrompt(true);
+        const shareData = {
+          workoutName: timerSelectedWorkout,
+          workoutId: selectedWorkoutObj?.id || null,
+          workoutType: 'timer',
+          duration: timerState.targetTime,
+          exercises,
+          exerciseCount: exercises.length
+        };
+        if (autoShareEnabled === true) {
+          if (setsCompleted === 1 || !sessionPostIdRef.current) {
+            handleShareWorkout({ ...shareData, setsCompleted }).then(postId => {
+              if (postId) sessionPostIdRef.current = postId;
+            });
+          } else {
+            updatePostSetsCompleted(sessionPostIdRef.current, setsCompleted)
+              .catch(err => console.error('Failed to update post sets:', err));
           }
+        } else if (autoShareEnabled === null && setsCompleted === 1) {
+          setPendingShareData({ ...shareData, setsCompleted });
+          setShowSharePrompt(true);
         }
       }
     }
@@ -842,14 +839,12 @@ const Main = () => {
       recordWorkoutHistory(user.uid, workoutData)
         .catch(err => console.error('Failed to record history:', err));
 
-      // Social sharing logic — only public workouts
-      if (selectedWorkoutObj?.isPublic !== false) {
-        if (autoShareEnabled === true) {
-          handleShareWorkout({ ...workoutData, isPublic: true });
-        } else if (autoShareEnabled === null) {
-          setPendingShareData({ ...workoutData, isPublic: true });
-          setShowSharePrompt(true);
-        }
+      // Social sharing logic
+      if (autoShareEnabled === true) {
+        handleShareWorkout(workoutData);
+      } else if (autoShareEnabled === null) {
+        setPendingShareData(workoutData);
+        setShowSharePrompt(true);
       }
     }
     handleStopwatchStateChange({ time: 0, isRunning: false, laps: [] });
@@ -936,16 +931,11 @@ const Main = () => {
     const isNew = workoutName === 'New Workout';
     const finalName = newTitle || workoutName;
 
-    // New/default workouts follow "new workouts are public" setting; existing custom workouts preserve their visibility
-    const currentData = workoutType === 'timer' ? timerWorkoutData : stopwatchWorkoutData;
-    const existingWorkout = currentData.find(w => w.name === workoutName);
-    const isPublic = existingWorkout?.isPublic != null ? existingWorkout.isPublic : (newWorkoutsPublic !== false);
-
     // Optimistic local update
     const setData = workoutType === 'timer' ? setTimerWorkoutData : setStopwatchWorkoutData;
     setData(prev => {
       if (isNew) {
-        return [...prev, { name: finalName, type: workoutType, exercises: updatedExercises, isPublic }];
+        return [...prev, { name: finalName, type: workoutType, exercises: updatedExercises, isPublic: true }];
       }
       return prev.map(w =>
         w.name === workoutName
@@ -979,7 +969,7 @@ const Main = () => {
         type: workoutType,
         exercises: updatedExercises,
         isDefault,
-        isPublic,
+        isPublic: true,
         defaultName: isDefault && newTitle ? workoutName : null,
         creatorUid: null,
         creatorName: null,
@@ -994,11 +984,9 @@ const Main = () => {
     const isNew = !workoutName;
     const safeTags = tags && tags.length > 0 ? tags : null;
 
-    // Fork: if original was public, the remix stays public; otherwise follow "new workouts are public" setting
+    // Fork: remix of another user's workout
     if (!isOwned && !isNew) {
-      const originalWorkout = timerWorkoutData.find(w => w.name === workoutName);
-      const isPublic = originalWorkout?.isPublic === true ? true : (newWorkoutsPublic !== false);
-      const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true, forked: true, isPublic };
+      const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true, forked: true, isPublic: true };
       setTimerWorkoutData(prev =>
         prev.map(w => w.name === workoutName ? forked : w)
       );
@@ -1018,13 +1006,11 @@ const Main = () => {
       return;
     }
 
-    // New/default workouts follow "new workouts are public" setting; existing custom workouts preserve their visibility
     const existingWorkout = timerWorkoutData.find(w => w.name === workoutName);
-    const isPublic = existingWorkout?.isPublic != null ? existingWorkout.isPublic : (newWorkoutsPublic !== false);
 
     // Optimistic local update
     if (isNew && finalName) {
-      setTimerWorkoutData(prev => [...prev, { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isPublic }]);
+      setTimerWorkoutData(prev => [...prev, { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isPublic: true }]);
       setTimerSelectedWorkout(finalName);
     } else {
       setTimerWorkoutData(prev =>
@@ -1049,7 +1035,7 @@ const Main = () => {
         type: 'timer',
         exercises,
         isDefault: isNew ? false : isDefault,
-        isPublic,
+        isPublic: true,
         defaultName: isDefault && newTitle ? workoutName : null,
         restTime: newRestTime ?? null,
         tags: safeTags,
@@ -1058,33 +1044,7 @@ const Main = () => {
         creatorPhotoURL: null,
       }).catch(err => console.error('Failed to save workout:', err));
     }
-  }, [user, timerSelectedWorkout, timerWorkoutData, newWorkoutsPublic]);
-
-  const handleVisibilityToggle = useCallback((workoutName, isPublic) => {
-    setTimerWorkoutData(prev =>
-      prev.map(w => w.name === workoutName ? { ...w, isPublic } : w)
-    );
-    if (user) {
-      const workout = timerWorkoutData.find(w => w.name === workoutName);
-      // Unpin if making private
-      if (!isPublic && workout?.id && pinnedWorkouts.includes(workout.id)) {
-        handlePinnedWorkoutsChange(pinnedWorkouts.filter(n => n !== workout.id));
-      }
-      if (workout) {
-        saveUserWorkout(user.uid, { ...workout, isPublic }).catch(err =>
-          console.error('Failed to save visibility:', err)
-        );
-      }
-    }
-  }, [user, timerWorkoutData, pinnedWorkouts, handlePinnedWorkoutsChange]);
-
-  const handleMakePublicAndShare = useCallback(() => {
-    if (!privateShareWorkout) return;
-    const workout = privateShareWorkout;
-    setPrivateShareWorkout(null);
-    handleVisibilityToggle(workout.name, true);
-    openSendWorkout({ ...workout, isPublic: true });
-  }, [privateShareWorkout, handleVisibilityToggle, openSendWorkout]);
+  }, [user, timerSelectedWorkout, timerWorkoutData]);
 
   const handleHomeStartWorkout = useCallback((workoutName) => {
     setTimerSelectedWorkout(workoutName);
@@ -1444,7 +1404,7 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
-            onVisibilityToggle={handleVisibilityToggle}
+
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
             onShareWorkout={openSendWorkout}
@@ -1493,7 +1453,7 @@ const Main = () => {
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
-            onVisibilityToggle={handleVisibilityToggle}
+
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
             onShareWorkout={openSendWorkout}
@@ -1619,6 +1579,8 @@ const Main = () => {
         allWorkouts={[...timerWorkoutData, ...stopwatchWorkoutData]}
         lastViewedAt={feedLastViewed}
         externalFollowedUid={lastFollowedUid}
+        pendingFollowRequests={pendingFollowRequests}
+        onPendingFollowRequestsChange={setPendingFollowRequests}
       />
       {viewUserProfile && (
         <ProfilePopup
@@ -1632,6 +1594,8 @@ const Main = () => {
           onFollowChanged={(uid) => setLastFollowedUid(uid)}
           prepTime={prepTime}
           globalRestTime={restTime}
+          pendingFollowRequests={pendingFollowRequests}
+          onPendingFollowRequestsChange={setPendingFollowRequests}
         />
       )}
       {feedDetailPost && (
@@ -1746,8 +1710,8 @@ const Main = () => {
         requestClose={sideMenuCloseRequested}
         autoShareEnabled={autoShareEnabled}
         onToggleAutoShare={handleToggleAutoShare}
-        newWorkoutsPublic={newWorkoutsPublic}
-        onToggleNewWorkoutsPublic={handleToggleNewWorkoutsPublic}
+        isPrivate={isPrivate}
+        onTogglePrivate={handleTogglePrivate}
         sidePlankAlertEnabled={sidePlankAlertEnabled}
         onToggleSidePlankAlert={handleToggleSidePlankAlert}
         prepTime={prepTime}
@@ -1779,32 +1743,6 @@ const Main = () => {
           onShare={handleSharePromptAccept}
           onDismiss={handleSharePromptDismiss}
         />
-      )}
-      {privateShareWorkout && (
-        <div
-          className="stats-follow-overlay"
-          style={{ zIndex: 710 }}
-          onClick={(e) => { if (e.target === e.currentTarget) setPrivateShareWorkout(null); }}
-        >
-          <div className="private-share-prompt">
-            <div className="private-share-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-            </div>
-            <p className="private-share-title">This workout is private</p>
-            <p className="private-share-desc">Make it public to share with others</p>
-            <div className="private-share-actions">
-              <button className="private-share-public-btn" onClick={handleMakePublicAndShare}>
-                Make Public & Share
-              </button>
-              <button className="private-share-cancel-btn" onClick={() => setPrivateShareWorkout(null)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
       )}
       {sendWorkout && (
         <div

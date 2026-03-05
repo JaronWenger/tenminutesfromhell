@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser } from '../firebase/social';
+import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser, createFollowRequest, cancelFollowRequest } from '../firebase/social';
 import { getUserHistory, getUserWorkouts, saveUserWorkout } from '../firebase/firestore';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './StatsPage.css';
@@ -55,7 +55,7 @@ const getHeatColor = (count, isFuture) => {
   return 'var(--heat-4)';
 };
 
-const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, onFollowChanged, prepTime = 15, globalRestTime = 15 }) => {
+const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, onFollowChanged, prepTime = 15, globalRestTime = 15, pendingFollowRequests = {}, onPendingFollowRequestsChange }) => {
   const [activeProfile, setActiveProfile] = useState(profile);
   const [profileFollowing, setProfileFollowing] = useState(0);
   const [profileFollowers, setProfileFollowers] = useState(0);
@@ -171,14 +171,19 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
     setLoading(true);
     (async () => {
       try {
-        const [following, followers, userHistory, workouts, prefs] = await Promise.all([
+        const [following, followers, userHistory, workouts, prefs, [fullProfile]] = await Promise.all([
           getFollowing(activeProfile.uid),
           getFollowers(activeProfile.uid),
           getUserHistory(activeProfile.uid),
           getUserWorkouts(activeProfile.uid),
-          getAllPreferences(activeProfile.uid)
+          getAllPreferences(activeProfile.uid),
+          getUserProfiles([activeProfile.uid])
         ]);
         if (cancelled) return;
+        // Merge full profile data (including isPrivate) into activeProfile
+        if (fullProfile) {
+          setActiveProfile(prev => ({ ...prev, ...fullProfile }));
+        }
         setProfileFollowing(following.length);
         setProfileFollowers(followers.length);
         setIsFollowingProfile(followers.includes(user?.uid));
@@ -472,6 +477,43 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
 
   const handleFollowToggle = async () => {
     if (!user || isFollowingProfile) return;
+    // Cancel pending follow request
+    if (pendingFollowRequests[activeProfile.uid]) {
+      const notifId = pendingFollowRequests[activeProfile.uid];
+      if (onPendingFollowRequestsChange) {
+        onPendingFollowRequestsChange(prev => {
+          const next = { ...prev };
+          delete next[activeProfile.uid];
+          return next;
+        });
+      }
+      try {
+        await cancelFollowRequest(notifId, user.uid);
+      } catch (err) {
+        console.error('Cancel follow request failed:', err);
+        if (onPendingFollowRequestsChange) {
+          onPendingFollowRequestsChange(prev => ({ ...prev, [activeProfile.uid]: notifId }));
+        }
+      }
+      return;
+    }
+    // Check if target has a private account
+    if (activeProfile.isPrivate) {
+      try {
+        const notifId = await createFollowRequest({
+          requesterUid: user.uid,
+          requesterName: user.displayName,
+          requesterPhotoURL: user.photoURL,
+          targetUid: activeProfile.uid
+        });
+        if (notifId && onPendingFollowRequestsChange) {
+          onPendingFollowRequestsChange(prev => ({ ...prev, [activeProfile.uid]: notifId }));
+        }
+      } catch (err) {
+        console.error('Follow request failed:', err);
+      }
+      return;
+    }
     if (ppPanelRef.current) {
       panelHeightRef.current = ppPanelRef.current.offsetHeight;
     }
@@ -522,8 +564,11 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
             </div>
             <div className="stats-pp-header-right">
               {!loading && activeProfile.uid !== user?.uid && !isFollowingProfile ? (
-                <button className="stats-pp-follow-action-btn" onClick={handleFollowToggle}>
-                  Follow
+                <button
+                  className={`stats-pp-follow-action-btn ${pendingFollowRequests[activeProfile.uid] ? 'requested' : ''}`}
+                  onClick={handleFollowToggle}
+                >
+                  {pendingFollowRequests[activeProfile.uid] ? 'Requested' : 'Follow'}
                 </button>
               ) : !loading && stats ? (
                 <div className="stats-pp-time">

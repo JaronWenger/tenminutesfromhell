@@ -32,6 +32,7 @@ export const ensureUserProfile = async (user) => {
       photoURL: user.photoURL || null,
       workoutCount: 0,
       autoShare: null,
+      isPrivate: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -68,7 +69,6 @@ export const getAllPreferences = async (userId) => {
   const data = snap.data();
   return {
     autoShare: data.autoShare ?? null,
-    newWorkoutsPublic: data.newWorkoutsPublic ?? true,
     activeColor: data.activeColor || null,
     restColor: data.restColor || null,
     workoutOrder: data.workoutOrder || null,
@@ -93,13 +93,6 @@ export const getWorkoutOrder = async (userId) => {
 export const setAutoSharePreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     autoShare: value,
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-};
-
-export const setNewWorkoutsPublicPreference = async (userId, value) => {
-  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
-    newWorkoutsPublic: value,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };
@@ -180,6 +173,140 @@ export const setPinnedWorkouts = async (userId, pinnedArray) => {
     pinnedWorkouts: pinnedArray,
     updatedAt: serverTimestamp()
   }, { merge: true });
+};
+
+// ── Account Privacy ──
+
+export const setAccountPrivate = async (userId, isPrivate) => {
+  await setDoc(doc(db, 'userProfiles', userId), {
+    isPrivate,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+// ── Follow Requests ──
+
+export const createFollowRequest = async ({ requesterUid, requesterName, requesterPhotoURL, targetUid }) => {
+  if (!targetUid || targetUid === requesterUid) return;
+  // Check for existing request (pending or cancelled) to reuse instead of creating duplicates
+  const existing = await getDocs(query(
+    collection(db, 'notifications'),
+    where('actorUid', '==', requesterUid),
+    where('type', '==', 'follow_request'),
+    where('recipientUid', '==', targetUid)
+  ));
+  const reusable = existing.docs.find(d => {
+    const s = d.data().status;
+    return s === 'pending' || s === 'cancelled';
+  });
+  if (reusable) {
+    // Reactivate existing doc
+    await setDoc(doc(db, 'notifications', reusable.id), { status: 'pending', createdAt: serverTimestamp() }, { merge: true });
+    return reusable.id;
+  }
+  const ref = await addDoc(collection(db, 'notifications'), {
+    type: 'follow_request',
+    actorUid: requesterUid,
+    actorName: requesterName || 'Someone',
+    actorPhotoURL: requesterPhotoURL || null,
+    recipientUid: targetUid,
+    status: 'pending',
+    createdAt: serverTimestamp()
+  });
+  return ref.id;
+};
+
+export const acceptFollowRequest = async (notificationId, requesterUid, myUid, myName, myPhotoURL) => {
+  // NOTE: Requires following/{userId} write rule to allow any authenticated user
+  // (same as followers rule) so we can write to following/{requesterUid}
+  await followUser(requesterUid, myUid);
+  await updateNotificationStatus(notificationId, 'accepted');
+  // Notify the requester that their request was accepted (shows as a follow notification)
+  await addDoc(collection(db, 'notifications'), {
+    type: 'follow_request_accepted',
+    recipientUid: requesterUid,
+    actorUid: myUid,
+    actorName: myName || 'Someone',
+    actorPhotoURL: myPhotoURL || null,
+    createdAt: serverTimestamp()
+  });
+};
+
+export const denyFollowRequest = async (notificationId) => {
+  await updateNotificationStatus(notificationId, 'denied');
+};
+
+export const cancelFollowRequest = async (notificationId, actorUid) => {
+  // Actor cancels their own request — update status.
+  // NOTE: Default rules only allow recipientUid to update. You must add to notification rules:
+  //   allow update: if request.auth != null && (resource.data.recipientUid == request.auth.uid || resource.data.actorUid == request.auth.uid);
+  await setDoc(doc(db, 'notifications', notificationId), { status: 'cancelled' }, { merge: true });
+};
+
+export const getPendingFollowRequests = async (userId) => {
+  const q = query(
+    collection(db, 'notifications'),
+    where('actorUid', '==', userId),
+    where('type', '==', 'follow_request'),
+    where('status', '==', 'pending')
+  );
+  const snapshot = await getDocs(q);
+  const result = {};
+  snapshot.docs.forEach(d => {
+    result[d.data().recipientUid] = d.id;
+  });
+  return result;
+};
+
+export const getFollowRequestNotifications = async (userId) => {
+  const q = query(
+    collection(db, 'notifications'),
+    where('recipientUid', '==', userId),
+    where('type', '==', 'follow_request'),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  const snapshot = await getDocs(q);
+  const seen = new Set();
+  const results = [];
+  snapshot.docs.forEach(d => {
+    const data = d.data();
+    if (data.status === 'cancelled') return; // hide cancelled requests
+    if (seen.has(data.actorUid)) return; // deduplicate per user
+    seen.add(data.actorUid);
+    results.push({
+      id: d.id,
+      type: 'follow_request',
+      userId: data.actorUid,
+      displayName: data.actorName,
+      photoURL: data.actorPhotoURL,
+      status: data.status,
+      createdAt: data.createdAt?.toDate?.() || null
+    });
+  });
+  return results;
+};
+
+export const getFollowRequestAcceptedNotifications = async (userId) => {
+  const q = query(
+    collection(db, 'notifications'),
+    where('recipientUid', '==', userId),
+    where('type', '==', 'follow_request_accepted'),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => {
+    const data = d.data();
+    return {
+      id: d.id,
+      type: 'follow_request_accepted',
+      userId: data.actorUid,
+      displayName: data.actorName,
+      photoURL: data.actorPhotoURL,
+      createdAt: data.createdAt?.toDate?.() || null
+    };
+  });
 };
 
 // ── Users (People tab) ──
@@ -460,7 +587,7 @@ export const createPost = async (userId, workoutData, profile) => {
     duration: workoutData.duration,
     exerciseCount: workoutData.exercises.length,
     exercises: workoutData.exercises,
-    isPublic: workoutData.isPublic !== false,
+    isPublic: true,
     setsCompleted: workoutData.setsCompleted || 1,
     joinedUsers: {},
     likeCount: 0,
@@ -536,6 +663,20 @@ export const hasNewNotifications = async (userId, sinceDate, followingIds = []) 
       collection(db, 'posts'),
       where('userId', '==', userId),
       orderBy('createdAt', 'desc'), limit(1)
+    )),
+    // Follow request notifications (recipientUid + type + createdAt index)
+    getDocs(query(
+      collection(db, 'notifications'),
+      where('recipientUid', '==', userId),
+      where('type', '==', 'follow_request'),
+      orderBy('createdAt', 'desc'), limit(1)
+    )),
+    // Follow request accepted notifications
+    getDocs(query(
+      collection(db, 'notifications'),
+      where('recipientUid', '==', userId),
+      where('type', '==', 'follow_request_accepted'),
+      orderBy('createdAt', 'desc'), limit(1)
     ))
   ];
 
@@ -607,22 +748,30 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
     return post.createdAt && post.createdAt <= cutoff; // only keep posts from before unfollow
   });
 
-  // Hide private posts from other users (keep own private posts)
+  // Hide posts from private accounts where viewer is not a follower
+  const activeFollowIds = followSnapshot.docs.filter(d => d.data().active !== false).map(d => d.id);
+  const otherUserIds = [...new Set(allPosts.filter(p => p.userId !== userId).map(p => p.userId))];
+  let privateUserIds = new Set();
+  if (otherUserIds.length > 0) {
+    const profiles = await getUserProfiles(otherUserIds);
+    profiles.forEach(p => { if (p.isPrivate && !activeFollowIds.includes(p.uid)) privateUserIds.add(p.uid); });
+  }
   allPosts = allPosts.filter(post => {
-    if (post.type) return true; // notifications, not workout posts
-    if (post.userId === userId) return true; // own posts always visible
-    return post.isPublic !== false; // hide other users' private posts
+    if (post.userId === userId) return true;
+    return !privateUserIds.has(post.userId);
   });
 
-  // Merge follow + save + share + sent notifications
+  // Merge follow + save + share + sent + follow request notifications
   try {
-    const [followNotifs, saveNotifs, shareNotifs, sentNotifs] = await Promise.all([
+    const [followNotifs, saveNotifs, shareNotifs, sentNotifs, followRequestNotifs, followAcceptedNotifs] = await Promise.all([
       getFollowerNotifications(userId),
       getSaveNotifications(userId).catch(err => { console.error('Save notifications failed:', err); return []; }),
       getShareNotifications(userId).catch(err => { console.error('Share notifications failed:', err.message, err); return []; }),
-      getSentShareNotifications(userId).catch(err => { console.error('Sent notifications failed:', err.message, err); return []; })
+      getSentShareNotifications(userId).catch(err => { console.error('Sent notifications failed:', err.message, err); return []; }),
+      getFollowRequestNotifications(userId).catch(err => { console.error('Follow request notifications failed:', err); return []; }),
+      getFollowRequestAcceptedNotifications(userId).catch(err => { console.error('Follow accepted notifications failed:', err); return []; })
     ]);
-    allPosts = allPosts.concat(followNotifs, saveNotifs, shareNotifs, sentNotifs);
+    allPosts = allPosts.concat(followNotifs, saveNotifs, shareNotifs, sentNotifs, followRequestNotifs, followAcceptedNotifs);
   } catch (err) {
     console.error('Notification merge failed:', err.message);
     // Still try follow notifications alone
