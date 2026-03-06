@@ -1190,10 +1190,16 @@ const Main = () => {
       backdrop.style.transition = 'opacity 0.2s ease';
       backdrop.style.opacity = '1';
       setTimeout(() => {
+        // Clear all inline styles so CSS takes over cleanly
         panel.style.transition = '';
+        panel.style.transform = '';
+        panel.style.animation = '';
         panel.style.willChange = '';
         backdrop.style.transition = '';
-      }, 200);
+        backdrop.style.opacity = '';
+        backdrop.style.animation = '';
+        backdrop.style.background = '';
+      }, 220);
     } else {
       // Snap closed with transition
       panel.style.transition = 'transform 0.2s ease';
