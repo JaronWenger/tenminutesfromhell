@@ -21,8 +21,7 @@ const Home = ({
   hasUnread = false,
   onLoginClick,
   onProfileClick,
-  onEdgeDragProgress,
-  onEdgeDragEnd,
+  onSettingsOpen,
   prepTime = 15,
   globalRestTime = 15,
   onDetailSave,
@@ -191,7 +190,6 @@ const Home = ({
   const edgeSwipeRef = useRef({ active: false, edge: null, startX: 0, startY: 0, triggered: false, locked: null });
   const EDGE_ZONE = 28;
   const EDGE_SWIPE_THRESHOLD = 60;
-  const PANEL_WIDTH = Math.min(window.innerWidth * 0.8, 340);
 
   const handleEdgeTouchStart = useCallback((e) => {
     if (!e.touches || detailWorkout || isDragging) return;
@@ -209,7 +207,14 @@ const Home = ({
 
   const handleEdgeTouchMove = useCallback((e) => {
     const es = edgeSwipeRef.current;
-    if (!es.active || es.triggered || !e.touches) return;
+    if (!es.active || !e.touches) return;
+
+    // Keep blocking scroll even after trigger
+    if (es.locked === 'h') {
+      e.preventDefault();
+      if (es.triggered) return;
+    }
+
     const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
     const dx = x - es.startX;
@@ -220,35 +225,22 @@ const Home = ({
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       es.locked = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
       if (es.locked === 'v') { es.active = false; return; }
-    }
-
-    // Block scroll while dragging settings/bell edge
-    if (es.locked === 'h') {
       e.preventDefault();
     }
 
-    if (es.edge === 'left' && dx > 0) {
-      if (user) {
-        // Progressive drag — report 0-1 progress
-        const progress = Math.min(1, dx / PANEL_WIDTH);
-        if (onEdgeDragProgress) onEdgeDragProgress(progress);
-      } else if (dx >= EDGE_SWIPE_THRESHOLD) {
-        es.triggered = true;
-        onLoginClick();
-      }
+    if (es.edge === 'left' && dx >= EDGE_SWIPE_THRESHOLD) {
+      es.triggered = true;
+      if (user && onSettingsOpen) onSettingsOpen();
+      else if (!user) onLoginClick();
     } else if (es.edge === 'right' && dx <= -EDGE_SWIPE_THRESHOLD) {
       es.triggered = true;
       if (user) onBellClick();
     }
-  }, [user, onEdgeDragProgress, onBellClick, PANEL_WIDTH]);
+  }, [user, onSettingsOpen, onBellClick]);
 
   const handleEdgeTouchEnd = useCallback(() => {
-    const es = edgeSwipeRef.current;
-    if (es.active && es.edge === 'left' && !es.triggered && user) {
-      if (onEdgeDragEnd) onEdgeDragEnd();
-    }
     edgeSwipeRef.current = { active: false, edge: null, startX: 0, startY: 0, triggered: false, locked: null };
-  }, [user, onEdgeDragEnd]);
+  }, []);
 
   // Attach edge touchmove as non-passive so we can preventDefault to block scroll
   useEffect(() => {

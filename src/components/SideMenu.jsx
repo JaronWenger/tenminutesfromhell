@@ -7,7 +7,7 @@ const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
 const OTHER_COLORS = ['#5AC8D4', '#DBF9B8', '#C4B5E0', '#C47A6E', '#2D7D6B', '#FF6B2B'];
 
-const SideMenu = ({ isOpen, onClose, requestClose, domRefsRef, skipEntryAnimation, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
@@ -161,23 +161,13 @@ const SideMenu = ({ isOpen, onClose, requestClose, domRefsRef, skipEntryAnimatio
     }
   };
 
-  // Register DOM refs with parent for direct manipulation during edge drag
-  useEffect(() => {
-    if (domRefsRef && isOpen) {
-      domRefsRef.current = { panel: panelElRef.current, backdrop: backdropElRef.current };
-      animClearedRef.current = true; // swipe-to-close works immediately after drag-open
-    }
-    return () => { if (domRefsRef) domRefsRef.current = { panel: null, backdrop: null }; };
-  }, [isOpen, domRefsRef]);
-
   if (!isOpen || !user) return null;
 
   return (
-    <div className={`sidemenu-overlay ${isClosing ? 'sidemenu-overlay-closing' : ''}`} style={skipEntryAnimation ? { pointerEvents: 'none' } : undefined}>
+    <div className={`sidemenu-overlay ${isClosing ? 'sidemenu-overlay-closing' : ''}`}>
       <div
         className={`sidemenu-panel ${isClosing ? 'sidemenu-panel-closing' : ''}`}
         ref={panelElRef}
-        style={skipEntryAnimation ? { animation: 'none', transform: 'translateX(-100%)' } : undefined}
         onTouchStart={handleSwipeStart}
         onTouchMove={handleSwipeMove}
         onTouchEnd={handleSwipeEnd}
@@ -366,7 +356,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, domRefsRef, skipEntryAnimatio
         onTouchStart={handleSwipeStart}
         onTouchMove={handleSwipeMove}
         onTouchEnd={handleSwipeEnd}
-        style={skipEntryAnimation ? { animation: 'none', opacity: 0, background: 'transparent' } : undefined}
       />
     </div>
   );

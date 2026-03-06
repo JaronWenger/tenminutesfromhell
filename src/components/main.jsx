@@ -143,9 +143,6 @@ const Main = () => {
   const [feedInitialTab, setFeedInitialTab] = useState(null);
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [sideMenuCloseRequested, setSideMenuCloseRequested] = useState(false);
-  const sideMenuDragRef = useRef(null); // { progress } during drag, null otherwise
-  const sideMenuRefsRef = useRef({ panel: null, backdrop: null }); // direct DOM refs from SideMenu
-  const [sideMenuViaDrag, setSideMenuViaDrag] = useState(false);
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [pendingShareData, setPendingShareData] = useState(null);
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
@@ -1143,80 +1140,6 @@ const Main = () => {
   }, []);
 
   // Edge drag to open side menu (direct DOM manipulation for smooth 60fps)
-  const handleEdgeDragProgress = useCallback((progress) => {
-    if (!showSideMenu) {
-      setSideMenuViaDrag(true);
-      setShowSideMenu(true);
-    }
-    sideMenuDragRef.current = { progress };
-    // Wait one frame for SideMenu to mount and register refs
-    requestAnimationFrame(() => {
-      const { panel, backdrop } = sideMenuRefsRef.current;
-      if (panel) {
-        panel.style.animation = 'none';
-        panel.style.transition = 'none';
-        panel.style.transform = `translateX(${-100 + (progress * 100)}%)`;
-      }
-      if (backdrop) {
-        backdrop.style.animation = 'none';
-        backdrop.style.transition = 'none';
-        backdrop.style.background = '';
-        backdrop.style.opacity = `${progress}`;
-      }
-    });
-  }, [showSideMenu]);
-
-  const handleEdgeDragEnd = useCallback(() => {
-    const drag = sideMenuDragRef.current;
-    sideMenuDragRef.current = null;
-    const { panel, backdrop } = sideMenuRefsRef.current;
-
-    // If refs aren't mounted yet, just clean up state
-    if (!panel || !backdrop) {
-      setShowSideMenu(false);
-      setSideMenuViaDrag(false);
-      return;
-    }
-
-    const progress = drag ? drag.progress : 0;
-
-    if (progress >= 0.2) {
-      // Snap open with transition
-      const overlay = panel.parentElement;
-      if (overlay) overlay.style.pointerEvents = '';
-      backdrop.style.background = '';
-      panel.style.transition = 'transform 0.2s ease';
-      panel.style.transform = 'translateX(0)';
-      backdrop.style.transition = 'opacity 0.2s ease';
-      backdrop.style.opacity = '1';
-      setTimeout(() => {
-        // Clear transition/transform but keep animation: none to prevent CSS entry replay
-        panel.style.transition = '';
-        panel.style.transform = '';
-        panel.style.willChange = '';
-        backdrop.style.transition = '';
-        backdrop.style.opacity = '';
-        backdrop.style.background = '';
-      }, 220);
-    } else {
-      // Snap closed with transition
-      panel.style.transition = 'transform 0.2s ease';
-      panel.style.transform = 'translateX(-100%)';
-      backdrop.style.transition = 'opacity 0.2s ease';
-      backdrop.style.opacity = '0';
-      setTimeout(() => {
-        panel.style.transform = '';
-        panel.style.transition = '';
-        panel.style.animation = '';
-        backdrop.style.opacity = '';
-        backdrop.style.transition = '';
-        backdrop.style.animation = '';
-        setShowSideMenu(false);
-        setSideMenuViaDrag(false);
-      }, 200);
-    }
-  }, []);
-
   const handleFeedDetailTake = useCallback(async () => {
     if (!user || !feedDetailPost || feedDetailSaving) return;
     if (feedDetailTaken) {
@@ -1497,8 +1420,7 @@ const Main = () => {
             hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
-            onEdgeDragProgress={handleEdgeDragProgress}
-            onEdgeDragEnd={handleEdgeDragEnd}
+            onSettingsOpen={() => setShowSideMenu(true)}
             prepTime={prepTime}
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
@@ -1549,8 +1471,7 @@ const Main = () => {
             hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
-            onEdgeDragProgress={handleEdgeDragProgress}
-            onEdgeDragEnd={handleEdgeDragEnd}
+            onSettingsOpen={() => setShowSideMenu(true)}
             prepTime={prepTime}
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
@@ -1816,10 +1737,8 @@ const Main = () => {
       )}
       <SideMenu
         isOpen={showSideMenu}
-        onClose={() => { setShowSideMenu(false); setSideMenuCloseRequested(false); setSideMenuViaDrag(false); }}
+        onClose={() => { setShowSideMenu(false); setSideMenuCloseRequested(false); }}
         requestClose={sideMenuCloseRequested}
-        domRefsRef={sideMenuRefsRef}
-        skipEntryAnimation={sideMenuViaDrag}
         autoShareEnabled={autoShareEnabled}
         onToggleAutoShare={handleToggleAutoShare}
         isPrivate={isPrivate}
