@@ -154,7 +154,11 @@ const StatsPage = ({
       const d = e.completedAt || e.date;
       if (!d) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      map[key] = (map[key] || 0) + (e.duration || 0);
+      if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
+        map[key] = (map[key] || 0) + (e.exercises.length * 60);
+      } else {
+        map[key] = (map[key] || 0) + (e.duration || 0);
+      }
     });
     return map;
   }, [history]);
@@ -187,7 +191,12 @@ const StatsPage = ({
   const stats = useMemo(() => {
     const entries = history || [];
 
-    const totalSeconds = entries.reduce((sum, e) => sum + (e.duration || 0), 0);
+    const totalSeconds = entries.reduce((sum, e) => {
+      if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
+        return sum + (e.exercises.length * 60);
+      }
+      return sum + (e.duration || 0);
+    }, 0);
     const totalHours = Math.floor(totalSeconds / 3600);
     const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
 
@@ -816,8 +825,13 @@ const StatsPage = ({
       setViewingProfileFollowers(followers.length);
       setIsFollowingViewingProfile(followers.includes(user?.uid));
 
-      // Compute stats from history
-      const totalSeconds = userHistory.reduce((sum, e) => sum + (e.duration || 0), 0);
+      // Compute stats from history (active time only, no prep/rest)
+      const totalSeconds = userHistory.reduce((sum, e) => {
+        if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
+          return sum + (e.exercises.length * 60);
+        }
+        return sum + (e.duration || 0);
+      }, 0);
       const totalHours = Math.floor(totalSeconds / 3600);
       const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
       const dailyMap = {};
@@ -1294,22 +1308,28 @@ const StatsPage = ({
                   ))}
                 </div>
                 <div className="calendar-cells">
-                  {displayCalendar.weeks.map((week, wi) => (
-                    <div
-                      key={wi}
-                      className={`calendar-week ${week[0]?.sundayKey === highlightedWeek ? 'selected' : ''}`}
-                      onClick={() => week[0]?.sundayKey && handleCellClick(week[0].sundayKey)}
-                    >
-                      {week.map((day, di) => (
-                        <div
-                          key={di}
-                          className="calendar-cell"
-                          style={{ backgroundColor: getHeatColor(day.count, day.isFuture) }}
-                          title={`${day.date}: ${day.count} workout${day.count !== 1 ? 's' : ''}`}
-                        />
-                      ))}
-                    </div>
-                  ))}
+                  {(() => {
+                    const scrubDate = scrubIndex != null && displayWeekChart[scrubIndex]?.date;
+                    const scrubDayKey = scrubDate
+                      ? `${scrubDate.getFullYear()}-${String(scrubDate.getMonth() + 1).padStart(2, '0')}-${String(scrubDate.getDate()).padStart(2, '0')}`
+                      : null;
+                    return displayCalendar.weeks.map((week, wi) => (
+                      <div
+                        key={wi}
+                        className={`calendar-week ${week[0]?.sundayKey === highlightedWeek ? 'selected' : ''}`}
+                        onClick={() => week[0]?.sundayKey && handleCellClick(week[0].sundayKey)}
+                      >
+                        {week.map((day, di) => (
+                          <div
+                            key={di}
+                            className={`calendar-cell${day.date === scrubDayKey ? ' scrub-highlight' : ''}`}
+                            style={{ backgroundColor: getHeatColor(day.count, day.isFuture) }}
+                            title={`${day.date}: ${day.count} workout${day.count !== 1 ? 's' : ''}`}
+                          />
+                        ))}
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             </div>
@@ -1637,11 +1657,15 @@ const StatsPage = ({
             <button
               className="stats-detail-start-btn"
               onClick={() => {
-                closeDetail();
-                if (onStartWorkout) onStartWorkout(detailWorkout.name);
+                if (viewingProfile && viewingProfile.uid !== user?.uid && !takenWorkouts[detailWorkout.name]) {
+                  handleTakeWorkout(detailWorkout);
+                } else {
+                  closeDetail();
+                  if (onStartWorkout) onStartWorkout(detailWorkout.name);
+                }
               }}
             >
-              Start Workout
+              {viewingProfile && viewingProfile.uid !== user?.uid && !takenWorkouts[detailWorkout.name] ? 'Add Workout' : 'Start Workout'}
             </button>
 
             {showUnpinConfirm && (

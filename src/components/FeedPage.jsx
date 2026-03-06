@@ -13,6 +13,7 @@ import {
   getEmojiReactors,
   updateNotificationStatus,
   joinPost,
+  leavePost,
   createFollowRequest,
   acceptFollowRequest,
   denyFollowRequest,
@@ -125,7 +126,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
   const [, forceGraceTick] = useState(0);
   useEffect(() => {
     const workoutPosts = posts.filter(p => !p.type && p.lastCompletedAt);
-    const anyActive = workoutPosts.some(p => Date.now() - p.lastCompletedAt.getTime() < 60000);
+    const anyActive = workoutPosts.some(p => Date.now() - p.lastCompletedAt.getTime() < 300000);
     if (!anyActive) return;
     const id = setInterval(() => forceGraceTick(n => n + 1), 1000);
     return () => clearInterval(id);
@@ -133,7 +134,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
 
   const isGraceActive = (post) => {
     if (!post.lastCompletedAt) return false;
-    return Date.now() - post.lastCompletedAt.getTime() < 60000;
+    return Date.now() - post.lastCompletedAt.getTime() < 300000;
   };
 
 
@@ -159,6 +160,23 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
       console.error('Failed to join workout:', err);
     }
   }, [user, onWorkoutAdded]);
+
+  const handleLeave = useCallback(async (e, post) => {
+    e.stopPropagation();
+    if (!user) return;
+    // Optimistic update — remove self from joinedUsers
+    setPosts(prev => prev.map(p => {
+      if (p.id !== post.id) return p;
+      const { [user.uid]: _, ...rest } = p.joinedUsers || {};
+      return { ...p, joinedUsers: rest };
+    }));
+    setExpandedTogetherId(null);
+    try {
+      await leavePost(post.id, user.uid);
+    } catch (err) {
+      console.error('Failed to leave workout:', err);
+    }
+  }, [user]);
 
   const loadFeed = useCallback(async () => {
     if (!user) return;
@@ -828,7 +846,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                     <div className="feed-post-actions" onClick={e => e.stopPropagation()}>
                       {user && post.userId !== user.uid &&
                         post.lastCompletedAt &&
-                        (Date.now() - post.lastCompletedAt.getTime()) < 61500 &&
+                        (Date.now() - post.lastCompletedAt.getTime()) < 301500 &&
                         !(post.joinedUsers && post.joinedUsers[user.uid]) && (
                         <button
                           className={`feed-join-btn${!isGraceActive(post) ? ' feed-join-fading' : ''}`}
@@ -890,6 +908,12 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                         </span>
                         <span className="feed-together-label">completed together</span>
                       </div>
+                      {expandedTogetherId === post.id && user && post.joinedUsers?.[user.uid] && isGraceActive(post) && (
+                        <button
+                          className="feed-leave-btn"
+                          onClick={(e) => handleLeave(e, post)}
+                        >Leave</button>
+                      )}
                     </div>
                   )}
                   {/* Reactions footer — always rendered, CSS drives expand/collapse */}

@@ -386,11 +386,16 @@
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
-  padding: 4px 8px;
+  padding: 6px 10px;
   color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
   transition: background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
+}
+
+.feed-reaction-add svg {
+  width: 16px;
+  height: 16px;
 }
 
 .feed-reaction-add:active {
@@ -529,6 +534,26 @@
   color: rgba(255, 59, 48, 0.65);
   font-weight: 500;
   letter-spacing: 0.2px;
+}
+
+.feed-leave-btn {
+  margin-left: auto;
+  background: rgba(255, 59, 48, 0.12);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  color: #ff3b30;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease;
+}
+
+.feed-leave-btn:active {
+  background: rgba(255, 59, 48, 0.25);
 }
 
 

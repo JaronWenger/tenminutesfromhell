@@ -441,6 +441,10 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+.workout-card-menu-item.delete {
+  color: #ff3b30;
+}
+
 /* ── Swipe Actions ── */
 .workout-card-action {
   position: absolute;
@@ -1610,4 +1614,5 @@
   padding-left: 16px;
   padding-right: 16px;
 }
+
 

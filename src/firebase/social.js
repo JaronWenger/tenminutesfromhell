@@ -618,6 +618,15 @@ export const joinPost = async (postId, joinerUid, joinerProfile) => {
       displayName: joinerProfile.displayName || 'Anonymous',
       photoURL: joinerProfile.photoURL || null,
     },
+    joinedUserIds: arrayUnion(joinerUid),
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const leavePost = async (postId, joinerUid) => {
+  await updateDoc(doc(db, 'posts', postId), {
+    [`joinedUsers.${joinerUid}`]: deleteField(),
+    joinedUserIds: arrayRemove(joinerUid),
     updatedAt: serverTimestamp()
   });
 };
@@ -701,12 +710,17 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
     collection(db, 'following', userId, 'userFollowing')
   );
   const unfollowCutoffs = {}; // userId → unfollowedAt Date (only for inactive follows)
+  const followStartCutoffs = {}; // userId -> followedAt Date (for active follows)
   const allFollowIds = [];
   followSnapshot.docs.forEach(d => {
     const data = d.data();
     allFollowIds.push(d.id);
     if (data.active === false && data.unfollowedAt) {
       unfollowCutoffs[d.id] = data.unfollowedAt.toDate ? data.unfollowedAt.toDate() : data.unfollowedAt;
+    }
+    // Track when each follow started (active or not)
+    if (data.followedAt) {
+      followStartCutoffs[d.id] = data.followedAt.toDate ? data.followedAt.toDate() : data.followedAt;
     }
   });
   // Include own posts
@@ -721,6 +735,17 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
   }
 
   let allPosts = [];
+  const seenIds = new Set();
+  const mapPost = (d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      createdAt: data.createdAt?.toDate?.() || null,
+      lastCompletedAt: data.lastCompletedAt?.toDate?.() || null
+    };
+  };
+
   for (const chunk of chunks) {
     const q = query(
       collection(db, 'posts'),
@@ -729,23 +754,62 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
       limit(pageSize)
     );
     const snapshot = await getDocs(q);
-    const posts = snapshot.docs.map(d => {
-      const data = d.data();
-      return {
-        id: d.id,
-        ...data,
-        createdAt: data.createdAt?.toDate?.() || null,
-        lastCompletedAt: data.lastCompletedAt?.toDate?.() || null
-      };
+    snapshot.docs.forEach(d => {
+      if (!seenIds.has(d.id)) {
+        seenIds.add(d.id);
+        allPosts.push(mapPost(d));
+      }
     });
-    allPosts = allPosts.concat(posts);
   }
+
+  // Also fetch posts where a followed user joined (tagged on)
+  if (allFollowIds.length > 0) {
+    try {
+      const joinChunks = [];
+      for (let i = 0; i < allFollowIds.length; i += 30) {
+        joinChunks.push(allFollowIds.slice(i, i + 30));
+      }
+      for (const chunk of joinChunks) {
+        const q = query(
+          collection(db, 'posts'),
+          where('joinedUserIds', 'array-contains-any', chunk),
+          orderBy('createdAt', 'desc'),
+          limit(pageSize)
+        );
+        const snapshot = await getDocs(q);
+        snapshot.docs.forEach(d => {
+          if (!seenIds.has(d.id)) {
+            seenIds.add(d.id);
+            allPosts.push(mapPost(d));
+          }
+        });
+      }
+    } catch (err) {
+      console.error('[Feed] joinedUserIds query failed (index may be needed):', err);
+    }
+  }
+
+  // Helper: check if any followed user joined this post
+  const hasFollowedJoiner = (post) => {
+    const joinedIds = post.joinedUserIds || [];
+    return joinedIds.some(id => allFollowIds.includes(id));
+  };
 
   // Filter out posts from unfollowed users that were created after the unfollow
   allPosts = allPosts.filter(post => {
+    if (hasFollowedJoiner(post)) return true; // visible via a followed joiner
     const cutoff = unfollowCutoffs[post.userId];
     if (!cutoff) return true; // active follow or own post — keep all
     return post.createdAt && post.createdAt <= cutoff; // only keep posts from before unfollow
+  });
+
+  // Only show posts created after the user started following that person
+  allPosts = allPosts.filter(post => {
+    if (post.userId === userId) return true; // own posts always visible
+    if (hasFollowedJoiner(post)) return true; // visible via a followed joiner
+    const startCutoff = followStartCutoffs[post.userId];
+    if (!startCutoff) return true; // no followedAt data — keep (safety fallback)
+    return post.createdAt && post.createdAt >= startCutoff;
   });
 
   // Hide posts from private accounts where viewer is not a follower
@@ -758,7 +822,8 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
   }
   allPosts = allPosts.filter(post => {
     if (post.userId === userId) return true;
-    return !privateUserIds.has(post.userId);
+    if (privateUserIds.has(post.userId) && !hasFollowedJoiner(post)) return false;
+    return true;
   });
 
   // Merge follow + save + share + sent + follow request notifications

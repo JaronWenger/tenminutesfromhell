@@ -21,6 +21,8 @@ const Home = ({
   hasUnread = false,
   onLoginClick,
   onProfileClick,
+  onEdgeDragProgress,
+  onEdgeDragEnd,
   prepTime = 15,
   globalRestTime = 15,
   onDetailSave,
@@ -39,6 +41,11 @@ const Home = ({
   const isDraggingRef = useRef(false);
   const [cardMenuIndex, setCardMenuIndex] = useState(null);
   const [activeFilter, setActiveFilter] = useState(null); // null | 'Recent' | tag string
+  const [deleteConfirmWorkout, setDeleteConfirmWorkout] = useState(null); // workout to confirm delete
+
+  // Long-press refs for delete (mobile only)
+  const longPressTimer = useRef(null);
+  const longPressTriggered = useRef(false);
 
   // Detail overlay state
   const [detailWorkout, setDetailWorkout] = useState(null);
@@ -180,9 +187,10 @@ const Home = ({
   const titleInputRef = useRef(null);
 
   // ── Edge swipe to open settings (left) / bell (right) ──
-  const edgeSwipeRef = useRef({ active: false, edge: null, startX: 0, startY: 0, triggered: false });
+  const edgeSwipeRef = useRef({ active: false, edge: null, startX: 0, startY: 0, triggered: false, locked: null });
   const EDGE_ZONE = 28;
   const EDGE_SWIPE_THRESHOLD = 60;
+  const PANEL_WIDTH = Math.min(window.innerWidth * 0.8, 340);
 
   const handleEdgeTouchStart = useCallback((e) => {
     if (!e.touches || detailWorkout || isDragging) return;
@@ -190,11 +198,11 @@ const Home = ({
     const y = e.touches[0].clientY;
     const screenW = window.innerWidth;
     if (x <= EDGE_ZONE) {
-      edgeSwipeRef.current = { active: true, edge: 'left', startX: x, startY: y, triggered: false };
+      edgeSwipeRef.current = { active: true, edge: 'left', startX: x, startY: y, triggered: false, locked: null };
     } else if (x >= screenW - EDGE_ZONE) {
-      edgeSwipeRef.current = { active: true, edge: 'right', startX: x, startY: y, triggered: false };
+      edgeSwipeRef.current = { active: true, edge: 'right', startX: x, startY: y, triggered: false, locked: null };
     } else {
-      edgeSwipeRef.current = { active: false, edge: null, startX: 0, startY: 0, triggered: false };
+      edgeSwipeRef.current = { active: false, edge: null, startX: 0, startY: 0, triggered: false, locked: null };
     }
   }, [detailWorkout, isDragging]);
 
@@ -203,24 +211,38 @@ const Home = ({
     if (!es.active || es.triggered || !e.touches) return;
     const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
-    if (Math.abs(y - es.startY) > Math.abs(x - es.startX)) {
-      es.active = false;
-      return;
+    const dx = x - es.startX;
+    const dy = y - es.startY;
+
+    // Lock direction on first significant movement
+    if (!es.locked) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      es.locked = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+      if (es.locked === 'v') { es.active = false; return; }
     }
-    const deltaX = x - es.startX;
-    if (es.edge === 'left' && deltaX >= EDGE_SWIPE_THRESHOLD) {
-      es.triggered = true;
-      if (user) onProfileClick();
-      else onLoginClick();
-    } else if (es.edge === 'right' && deltaX <= -EDGE_SWIPE_THRESHOLD) {
+
+    if (es.edge === 'left' && dx > 0) {
+      if (user) {
+        // Progressive drag — report 0-1 progress
+        const progress = Math.min(1, dx / PANEL_WIDTH);
+        if (onEdgeDragProgress) onEdgeDragProgress(progress);
+      } else if (dx >= EDGE_SWIPE_THRESHOLD) {
+        es.triggered = true;
+        onLoginClick();
+      }
+    } else if (es.edge === 'right' && dx <= -EDGE_SWIPE_THRESHOLD) {
       es.triggered = true;
       if (user) onBellClick();
     }
-  }, [user, onProfileClick, onLoginClick, onBellClick]);
+  }, [user, onEdgeDragProgress, onBellClick, PANEL_WIDTH]);
 
   const handleEdgeTouchEnd = useCallback(() => {
-    edgeSwipeRef.current = { active: false, edge: null, startX: 0, startY: 0, triggered: false };
-  }, []);
+    const es = edgeSwipeRef.current;
+    if (es.active && es.edge === 'left' && !es.triggered && user) {
+      if (onEdgeDragEnd) onEdgeDragEnd();
+    }
+    edgeSwipeRef.current = { active: false, edge: null, startX: 0, startY: 0, triggered: false, locked: null };
+  }, [user, onEdgeDragEnd]);
 
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -555,7 +577,7 @@ const Home = ({
   }, [requestCloseDetail]);
 
   const handleRowClick = (workout) => {
-    if (isSwiping.current || isDragging) return;
+    if (isSwiping.current || isDragging || longPressTriggered.current) return;
     onWorkoutSelect('timer', workout.name);
     openDetail(workout);
   };
@@ -922,6 +944,8 @@ const Home = ({
     const wrapper = workout ? cardRefs.current[workout.name] : null;
     swipeWrapperElRef.current = wrapper;
     swipeCardElRef.current = wrapper ? wrapper.querySelector('.workout-card') : null;
+
+    longPressTriggered.current = false;
   };
 
   // Attached via ref with { passive: false } so we can preventDefault to block scroll
@@ -958,6 +982,7 @@ const Home = ({
 
   const handleSwipeEnd = () => {
     if (isDragging) return;
+    if (longPressTriggered.current) { longPressTriggered.current = false; return; }
     const endOffset = swipeOffsetRef.current;
     const endIndex = swipeTouchIndexRef.current;
     swipeTouchIndexRef.current = null;
@@ -1259,7 +1284,43 @@ const Home = ({
                         <div
                           className={`workout-card ${isSelected ? 'selected' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
                           onClick={() => handleRowClick(workout)}
-                          onTouchStart={(e) => handleSwipeStart(index, e)}
+                          onTouchStart={(e) => {
+                            handleSwipeStart(index, e);
+                            // Long-press for delete (mobile only)
+                            if (!user || !e.touches) return;
+                            const tx = e.touches[0].clientX;
+                            const ty = e.touches[0].clientY;
+                            if (tx <= EDGE_ZONE || tx >= window.innerWidth - EDGE_ZONE) return;
+                            longPressTriggered.current = false;
+                            clearTimeout(longPressTimer.current);
+                            const onMove = (ev) => {
+                              if (!ev.touches) return;
+                              if (Math.abs(ev.touches[0].clientX - tx) > 5 || Math.abs(ev.touches[0].clientY - ty) > 5) {
+                                clearTimeout(longPressTimer.current);
+                                window.removeEventListener('touchmove', onMove);
+                                window.removeEventListener('touchend', onEnd);
+                              }
+                            };
+                            const onEnd = () => {
+                              clearTimeout(longPressTimer.current);
+                              window.removeEventListener('touchmove', onMove);
+                              window.removeEventListener('touchend', onEnd);
+                            };
+                            window.addEventListener('touchmove', onMove, { passive: true });
+                            window.addEventListener('touchend', onEnd, { passive: true });
+                            longPressTimer.current = setTimeout(() => {
+                              window.removeEventListener('touchmove', onMove);
+                              window.removeEventListener('touchend', onEnd);
+                              longPressTriggered.current = true;
+                              // Cancel any in-progress DnD drag
+                              if (isDraggingRef.current) {
+                                setIsDragging(false);
+                                isDraggingRef.current = false;
+                              }
+                              if (navigator.vibrate) navigator.vibrate(20);
+                              setDeleteConfirmWorkout(workout);
+                            }, 600);
+                          }}
                           onTouchEnd={() => handleSwipeEnd()}
                         >
                           {showCardPhotos && (
@@ -1371,6 +1432,20 @@ const Home = ({
                                 <polygon points="5 3 19 12 5 21 5 3"/>
                               </svg>
                               Start
+                            </button>
+                            <button
+                              className="workout-card-menu-item delete"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCardMenuIndex(null);
+                                setDeleteConfirmWorkout(workout);
+                              }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                              </svg>
+                              Delete
                             </button>
                           </div>
                         )}
@@ -1824,6 +1899,37 @@ const Home = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Long-press / Menu Delete Confirmation ── */}
+      {deleteConfirmWorkout && (
+        <div className="home-detail-delete-confirm">
+          <div
+            className="home-detail-delete-confirm-backdrop"
+            onClick={() => setDeleteConfirmWorkout(null)}
+          />
+          <div className="home-detail-delete-confirm-box">
+            <p className="home-detail-delete-confirm-title">Delete Workout?</p>
+            <p className="home-detail-delete-confirm-msg">This can't be undone.</p>
+            <div className="home-detail-delete-confirm-actions">
+              <button
+                className="home-detail-delete-confirm-cancel"
+                onClick={() => setDeleteConfirmWorkout(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="home-detail-delete-confirm-delete"
+                onClick={() => {
+                  onDeleteWorkout(deleteConfirmWorkout.name);
+                  setDeleteConfirmWorkout(null);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -35,8 +35,7 @@ const Main = () => {
   const [showPwaBanner, setShowPwaBanner] = useState(() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const dismissed = localStorage.getItem('pwa_banner_dismissed');
-    return isMobile && !isStandalone && !dismissed;
+    return isMobile && !isStandalone;
   });
 
   const pwaBannerRef = useRef(null);
@@ -52,7 +51,7 @@ const Main = () => {
         wrap.style.transform = 'translateY(calc(-100% - 40px))';
         wrap.style.opacity = '0';
       }
-      setTimeout(() => { setShowPwaBanner(false); localStorage.setItem('pwa_banner_dismissed', '1'); }, 400);
+      setTimeout(() => { setShowPwaBanner(false); }, 400);
     }, 6000);
     return () => clearTimeout(t);
   }, [showPwaBanner]);
@@ -144,6 +143,9 @@ const Main = () => {
   const [feedInitialTab, setFeedInitialTab] = useState(null);
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [sideMenuCloseRequested, setSideMenuCloseRequested] = useState(false);
+  const sideMenuDragRef = useRef(null); // { progress } during drag, null otherwise
+  const sideMenuRefsRef = useRef({ panel: null, backdrop: null }); // direct DOM refs from SideMenu
+  const [sideMenuViaDrag, setSideMenuViaDrag] = useState(false);
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [pendingShareData, setPendingShareData] = useState(null);
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
@@ -713,7 +715,9 @@ const Main = () => {
             workoutType: 'timer',
             duration: timerState.targetTime,
             setCount: 1,
-            exercises
+            exercises,
+            restTime: selectedWorkoutObj?.restTime ?? restTime,
+            prepTime
           }).then(historyId => {
             if (historyId) sessionHistoryIdRef.current = historyId;
             refreshHistory();
@@ -850,7 +854,9 @@ const Main = () => {
         workoutType: 'stopwatch',
         duration: Math.round(stopwatchState.time / 1000),
         setCount: stopwatchState.laps.length,
-        exercises
+        exercises,
+        restTime: selectedWorkoutObj?.restTime ?? restTime,
+        prepTime
       };
       recordWorkoutHistory(user.uid, workoutData)
         .catch(err => console.error('Failed to record history:', err));
@@ -1136,6 +1142,70 @@ const Main = () => {
     }, 200);
   }, []);
 
+  // Edge drag to open side menu (direct DOM manipulation for smooth 60fps)
+  const handleEdgeDragProgress = useCallback((progress) => {
+    if (!showSideMenu) {
+      setSideMenuViaDrag(true);
+      setShowSideMenu(true);
+    }
+    sideMenuDragRef.current = { progress };
+    // Wait one frame for SideMenu to mount and register refs
+    requestAnimationFrame(() => {
+      const { panel, backdrop } = sideMenuRefsRef.current;
+      if (panel) {
+        panel.style.animation = 'none';
+        panel.style.transition = 'none';
+        panel.style.transform = `translateX(${-100 + (progress * 100)}%)`;
+      }
+      if (backdrop) {
+        backdrop.style.animation = 'none';
+        backdrop.style.transition = 'none';
+        backdrop.style.background = '';
+        backdrop.style.opacity = `${progress}`;
+      }
+    });
+  }, [showSideMenu]);
+
+  const handleEdgeDragEnd = useCallback(() => {
+    const drag = sideMenuDragRef.current;
+    sideMenuDragRef.current = null;
+    const { panel, backdrop } = sideMenuRefsRef.current;
+    if (drag && drag.progress >= 0.05) {
+      // Snap open with transition
+      const overlay = panel?.parentElement;
+      if (overlay) overlay.style.pointerEvents = '';
+      if (backdrop) backdrop.style.background = '';
+      if (panel) {
+        panel.style.transition = 'transform 0.2s ease';
+        panel.style.transform = 'translateX(0)';
+      }
+      if (backdrop) {
+        backdrop.style.transition = 'opacity 0.2s ease';
+        backdrop.style.opacity = '1';
+      }
+      setTimeout(() => {
+        if (panel) { panel.style.transition = ''; panel.style.willChange = ''; }
+        if (backdrop) { backdrop.style.transition = ''; }
+      }, 200);
+    } else {
+      // Snap closed with transition
+      if (panel) {
+        panel.style.transition = 'transform 0.2s ease';
+        panel.style.transform = 'translateX(-100%)';
+      }
+      if (backdrop) {
+        backdrop.style.transition = 'opacity 0.2s ease';
+        backdrop.style.opacity = '0';
+      }
+      setTimeout(() => {
+        if (panel) { panel.style.transform = ''; panel.style.transition = ''; panel.style.animation = ''; }
+        if (backdrop) { backdrop.style.opacity = ''; backdrop.style.transition = ''; backdrop.style.animation = ''; }
+        setShowSideMenu(false);
+        setSideMenuViaDrag(false);
+      }, 200);
+    }
+  }, []);
+
   const handleFeedDetailTake = useCallback(async () => {
     if (!user || !feedDetailPost || feedDetailSaving) return;
     if (feedDetailTaken) {
@@ -1416,6 +1486,8 @@ const Main = () => {
             hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
+            onEdgeDragProgress={handleEdgeDragProgress}
+            onEdgeDragEnd={handleEdgeDragEnd}
             prepTime={prepTime}
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
@@ -1466,6 +1538,8 @@ const Main = () => {
             hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
+            onEdgeDragProgress={handleEdgeDragProgress}
+            onEdgeDragEnd={handleEdgeDragEnd}
             prepTime={prepTime}
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
@@ -1511,7 +1585,7 @@ const Main = () => {
                   el.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
                   el.style.transform = 'translateY(-100%)';
                   el.style.opacity = '0';
-                  setTimeout(() => { setShowPwaBanner(false); localStorage.setItem('pwa_banner_dismissed', '1'); }, 200);
+                  setTimeout(() => { setShowPwaBanner(false); }, 200);
                 } else {
                   el.style.transition = 'transform 0.2s ease';
                   el.style.transform = 'translateY(0)';
@@ -1714,21 +1788,27 @@ const Main = () => {
             <button
               className="stats-detail-start-btn"
               onClick={() => {
-                closeFeedDetail();
-                setShowFeedPage(false);
-                setFeedCloseRequested(false);
-                handleHomeStartWorkout(feedDetailPost.workoutName);
+                if (!feedDetailIsOwn && !feedDetailTaken) {
+                  handleFeedDetailTake();
+                } else {
+                  closeFeedDetail();
+                  setShowFeedPage(false);
+                  setFeedCloseRequested(false);
+                  handleHomeStartWorkout(feedDetailPost.workoutName);
+                }
               }}
             >
-              Start Workout
+              {!feedDetailIsOwn && !feedDetailTaken ? 'Add Workout' : 'Start Workout'}
             </button>
           </div>
         </div>
       )}
       <SideMenu
         isOpen={showSideMenu}
-        onClose={() => { setShowSideMenu(false); setSideMenuCloseRequested(false); }}
+        onClose={() => { setShowSideMenu(false); setSideMenuCloseRequested(false); setSideMenuViaDrag(false); }}
         requestClose={sideMenuCloseRequested}
+        domRefsRef={sideMenuRefsRef}
+        skipEntryAnimation={sideMenuViaDrag}
         autoShareEnabled={autoShareEnabled}
         onToggleAutoShare={handleToggleAutoShare}
         isPrivate={isPrivate}

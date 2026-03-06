@@ -793,12 +793,16 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
             <button
               className="stats-detail-start-btn"
               onClick={() => {
-                closeDetail();
-                handleClose();
-                if (onStartWorkout) onStartWorkout(detailWorkout.name);
+                if (activeProfile.uid !== user?.uid && !takenWorkouts[detailWorkout.name]) {
+                  handleTakeWorkout(detailWorkout);
+                } else {
+                  closeDetail();
+                  handleClose();
+                  if (onStartWorkout) onStartWorkout(detailWorkout.name);
+                }
               }}
             >
-              Start Workout
+              {activeProfile.uid !== user?.uid && !takenWorkouts[detailWorkout.name] ? 'Add Workout' : 'Start Workout'}
             </button>
           </div>
         </div>

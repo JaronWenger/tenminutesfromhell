@@ -7,11 +7,10 @@ const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
 const OTHER_COLORS = ['#5AC8D4', '#DBF9B8', '#C4B5E0', '#C47A6E', '#2D7D6B', '#FF6B2B'];
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, domRefsRef, skipEntryAnimation, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, sidePlankAlertEnabled, onToggleSidePlankAlert, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, onOpenProfile }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
-
   // ── Swipe left to close ──
   const swipeRef = useRef({ startX: 0, startY: 0, locked: null });
   const panelElRef = useRef(null);
@@ -162,13 +161,23 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     }
   };
 
+  // Register DOM refs with parent for direct manipulation during edge drag
+  useEffect(() => {
+    if (domRefsRef && isOpen) {
+      domRefsRef.current = { panel: panelElRef.current, backdrop: backdropElRef.current };
+      animClearedRef.current = true; // swipe-to-close works immediately after drag-open
+    }
+    return () => { if (domRefsRef) domRefsRef.current = { panel: null, backdrop: null }; };
+  }, [isOpen, domRefsRef]);
+
   if (!isOpen || !user) return null;
 
   return (
-    <div className={`sidemenu-overlay ${isClosing ? 'sidemenu-overlay-closing' : ''}`}>
+    <div className={`sidemenu-overlay ${isClosing ? 'sidemenu-overlay-closing' : ''}`} style={skipEntryAnimation ? { pointerEvents: 'none' } : undefined}>
       <div
         className={`sidemenu-panel ${isClosing ? 'sidemenu-panel-closing' : ''}`}
         ref={panelElRef}
+        style={skipEntryAnimation ? { animation: 'none', transform: 'translateX(-100%)' } : undefined}
         onTouchStart={handleSwipeStart}
         onTouchMove={handleSwipeMove}
         onTouchEnd={handleSwipeEnd}
@@ -324,17 +333,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             </div>
           </div>
 
-          <div className="sidemenu-divider" />
-
-          <div className="sidemenu-item" onClick={onToggleSidePlankAlert}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-            </svg>
-            <span className="sidemenu-item-label">Side plank switch side alert</span>
-            <div className={`sidemenu-toggle ${sidePlankAlertEnabled === true ? 'on' : ''}`}>
-              <div className="sidemenu-toggle-knob" />
-            </div>
-          </div>
         </div>
 
       </div>
@@ -361,7 +359,15 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
       )}
 
       {/* Tap outside to close */}
-      <div className="sidemenu-backdrop" ref={backdropElRef} onClick={handleOverlayClick} onTouchStart={handleSwipeStart} onTouchMove={handleSwipeMove} onTouchEnd={handleSwipeEnd} />
+      <div
+        className="sidemenu-backdrop"
+        ref={backdropElRef}
+        onClick={handleOverlayClick}
+        onTouchStart={handleSwipeStart}
+        onTouchMove={handleSwipeMove}
+        onTouchEnd={handleSwipeEnd}
+        style={skipEntryAnimation ? { animation: 'none', opacity: 0, background: 'transparent' } : undefined}
+      />
     </div>
   );
 };

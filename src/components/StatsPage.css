@@ -803,6 +803,11 @@
   transition: outline-color 0s;
 }
 
+.calendar-cell.scrub-highlight {
+  outline-color: rgba(231, 76, 60, 0.6);
+  transition: outline-color 0s;
+}
+
 /* ── Workout Cards ── */
 .stats-workout-cards {
   display: flex;
