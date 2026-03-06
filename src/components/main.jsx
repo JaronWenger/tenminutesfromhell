@@ -173,6 +173,7 @@ const Main = () => {
   const [toastMessage, setToastMessage] = useState(null);
   const [toastClosing, setToastClosing] = useState(false);
   const toastTimerRef = useRef(null);
+  const toastSwipeRef = useRef({ startY: 0, currentY: 0, swiped: false });
   const [pinnedWorkouts, setPinnedWorkoutsState] = useState([]);
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
@@ -1550,7 +1551,6 @@ const Main = () => {
     >
       {showPwaBanner && (
         <div className="pwa-banner-wrap" ref={pwaBannerRef}>
-          <div className="pwa-banner-pill" />
           <div
             className="pwa-banner"
             ref={(el) => {
@@ -2038,10 +2038,47 @@ const Main = () => {
       {toastMessage && (
         <div
           className={`app-toast-wrap ${toastClosing ? 'app-toast-closing' : ''}`}
-          onClick={() => {
+          onTouchStart={(e) => {
+            const ts = toastSwipeRef.current;
+            ts.startY = e.touches[0].clientY;
+            ts.currentY = ts.startY;
+            ts.swiped = false;
+            // Kill CSS animation so inline transform works
+            e.currentTarget.style.animation = 'none';
+            e.currentTarget.style.transition = 'none';
+          }}
+          onTouchMove={(e) => {
+            const ts = toastSwipeRef.current;
+            const dy = e.touches[0].clientY - ts.startY;
+            ts.currentY = e.touches[0].clientY;
+            if (dy < 0) {
+              e.currentTarget.style.transform = `translateY(${dy}px)`;
+            }
+          }}
+          onTouchEnd={(e) => {
+            const ts = toastSwipeRef.current;
+            const dy = ts.currentY - ts.startY;
+            if (dy < -40) {
+              ts.swiped = true;
+              e.currentTarget.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+              e.currentTarget.style.transform = 'translateY(calc(-100% - 40px))';
+              e.currentTarget.style.opacity = '0';
+              if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+              setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 200);
+            } else {
+              e.currentTarget.style.transition = 'transform 0.2s ease';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }
+          }}
+          onClick={(e) => {
+            if (toastSwipeRef.current.swiped) return;
             if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-            setToastClosing(true);
-            setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 400);
+            const wrap = e.currentTarget;
+            wrap.style.animation = 'none';
+            wrap.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+            wrap.style.transform = 'translateY(calc(-100% - 40px))';
+            wrap.style.opacity = '0';
+            setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 250);
             if (user) {
               setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null);
               localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString());
@@ -2050,7 +2087,6 @@ const Main = () => {
             setShowFeedPage(true);
           }}
         >
-          <div className="app-toast-pill" />
           <div className="app-toast">
             <div className="app-toast-icon">
               <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" />
