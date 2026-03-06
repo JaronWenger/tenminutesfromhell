@@ -151,6 +151,8 @@ const Main = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
   const [homeDetailCloseRequested, setHomeDetailCloseRequested] = useState(false);
+  const [timerDetailWorkout, setTimerDetailWorkout] = useState(null);
+  const [timerDetailEditMode, setTimerDetailEditMode] = useState(false);
   const [openProfilePopup, setOpenProfilePopup] = useState(false);
   const [viewUserProfile, setViewUserProfile] = useState(null);
   const [lastFollowedUid, setLastFollowedUid] = useState(null);
@@ -1568,8 +1570,54 @@ const Main = () => {
           workoutReady={workoutReady}
           onInitialLoadDone={() => setInitialLoad(false)}
           isVisible={activeTab === 'timer' && !currentEditPage}
+          hasNoExercises={(() => {
+            const w = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+            return w ? w.exercises.length === 0 : false;
+          })()}
+          onWorkoutLabelClick={(openInEdit) => {
+            const workout = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+            if (workout) {
+              setTimerDetailEditMode(!!openInEdit);
+              setTimerDetailWorkout(workout);
+            }
+          }}
         />
       </div>
+      {/* Timer workout detail — opens Home detail overlay on top of Timer */}
+      {timerDetailWorkout && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 150 }}>
+          <Home
+            detailOnly
+            timerWorkoutData={timerWorkoutData}
+            timerSelectedWorkout={timerSelectedWorkout}
+            workoutHistory={workoutHistory}
+            onWorkoutSelect={handleWorkoutSelection}
+            onArrowClick={handleEditWorkoutSelect}
+            onNavigateToTab={handleNavigateToTab}
+            onDeleteWorkout={handleDeleteWorkout}
+            onReorder={handleReorderWorkouts}
+            onBellClick={() => {}}
+            hasUnread={false}
+            onLoginClick={() => {}}
+            onProfileClick={() => {}}
+            onSettingsOpen={() => {}}
+            prepTime={prepTime}
+            globalRestTime={restTime}
+            onDetailSave={handleDetailSave}
+            onStartWorkout={(name) => { setTimerDetailWorkout(null); handleHomeStartWorkout(name); }}
+            defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+            requestCloseDetail={false}
+            showCardPhotos={showCardPhotos}
+            onShareWorkout={openSendWorkout}
+            onScheduleWorkout={openSchedulePopup}
+            weeklySchedule={weeklySchedule}
+            requestOpenDetail={timerDetailWorkout}
+            requestOpenInEdit={timerDetailEditMode}
+            onOpenDetailConsumed={() => { setTimerDetailEditMode(false); }}
+            onDetailClosed={() => setTimerDetailWorkout(null)}
+          />
+        </div>
+      )}
       {renderContent()}
       {!currentEditPage && currentEditLevel !== 'exercise-edit' && (
         <TabBar

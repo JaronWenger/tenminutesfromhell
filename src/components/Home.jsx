@@ -28,10 +28,15 @@ const Home = ({
   onStartWorkout,
   defaultWorkoutNames = [],
   requestCloseDetail = false,
+  requestOpenDetail = null,
+  requestOpenInEdit = false,
+  onOpenDetailConsumed,
+  onDetailClosed,
   showCardPhotos = true,
   onShareWorkout,
   onScheduleWorkout,
-  weeklySchedule = {}
+  weeklySchedule = {},
+  detailOnly = false
 }) => {
   const { user } = useAuth();
   const [swipingIndex, setSwipingIndex] = useState(null);
@@ -523,6 +528,7 @@ const Home = ({
       setDetailWorkout(null);
       setDetailRect(null);
       setDetailPhase(null);
+      if (onDetailClosed) onDetailClosed();
       return;
     }
 
@@ -542,6 +548,7 @@ const Home = ({
         setIsEditing(false);
         setIsEditingTitle(false);
         setShowAddPopup(false);
+        if (onDetailClosed) onDetailClosed();
       }, 280);
       return;
     }
@@ -571,8 +578,9 @@ const Home = ({
       setIsEditing(false);
       setIsEditingTitle(false);
       setShowAddPopup(false);
+      if (onDetailClosed) onDetailClosed();
     }, 230);
-  }, [detailPhase, detailWorkout, detailRect]);
+  }, [detailPhase, detailWorkout, detailRect, onDetailClosed]);
 
   // Allow parent to close the detail overlay (e.g. tab bar tap)
   useEffect(() => {
@@ -581,6 +589,19 @@ const Home = ({
       if (activeFilter !== null) setActiveFilter(null);
     }
   }, [requestCloseDetail]);
+
+  // Allow parent to open a workout detail (e.g. timer label tap)
+  useEffect(() => {
+    if (requestOpenDetail) {
+      openDetail(requestOpenDetail);
+      onWorkoutSelect('timer', requestOpenDetail.name);
+      if (requestOpenInEdit) {
+        setTimeout(() => setIsEditing(true), 350);
+      }
+      if (onOpenDetailConsumed) onOpenDetailConsumed();
+    }
+  }, [requestOpenDetail]);
+
 
   const handleRowClick = (workout) => {
     if (isSwiping.current || isDragging || longPressTriggered.current) return;
@@ -1206,16 +1227,16 @@ const Home = ({
 
   return (
     <div
-      ref={containerRef}
-      className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''} ${isDragging ? 'home-reordering' : ''}`}
-      onTouchStart={handleEdgeTouchStart}
-      onTouchEnd={handleEdgeTouchEnd}
+      ref={detailOnly ? undefined : containerRef}
+      className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''} ${isDragging ? 'home-reordering' : ''} ${detailOnly ? 'home-detail-only' : ''}`}
+      onTouchStart={detailOnly ? undefined : handleEdgeTouchStart}
+      onTouchEnd={detailOnly ? undefined : handleEdgeTouchEnd}
     >
-      <div className="home-sparks-bg">
+      {!detailOnly && <div className="home-sparks-bg">
         <img src={Sparks} alt="" className="home-sparks-img" />
-      </div>
+      </div>}
 
-      <div className="home-header">
+      {!detailOnly && <><div className="home-header">
         <div className="home-header-auth">
           <AuthButton onLoginClick={onLoginClick} onProfileClick={onProfileClick} />
         </div>
@@ -1491,7 +1512,7 @@ const Home = ({
             </div>
           )}
         </Droppable>
-      </DragDropContext>
+      </DragDropContext></>}
 
       {/* ── Detail Overlay ── */}
       {detailWorkout && (
@@ -1501,7 +1522,7 @@ const Home = ({
         >
           <div
             ref={panelRef}
-            className="home-detail-panel"
+            className={`home-detail-panel${detailOnly ? ' detail-only-anim' : ''}${detailOnly && detailPhase === 'leaving' ? ' detail-only-leaving' : ''}`}
             style={predictedPanelH !== null ? { height: predictedPanelH } : undefined}
           >
             {/* Content fades in after expand, fades out before collapse */}

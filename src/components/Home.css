@@ -1615,4 +1615,47 @@
   padding-right: 16px;
 }
 
+/* Detail-only mode (rendered on Timer page) */
+.home-container.home-detail-only {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 150;
+}
+
+.home-container.home-detail-only .home-detail-overlay {
+  background: rgba(0, 0, 0, 0.85);
+  padding: 40px 16px 90px;
+}
+
+.home-detail-panel.detail-only-anim {
+  animation: detail-only-enter 0.32s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.home-detail-panel.detail-only-leaving {
+  animation: detail-only-leave 0.22s ease forwards;
+}
+
+@keyframes detail-only-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes detail-only-leave {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92) translateY(20px);
+  }
+}
+
 

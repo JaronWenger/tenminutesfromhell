@@ -22,7 +22,9 @@ const Timer = ({
   initialLoad = false,
   workoutReady = true,
   onInitialLoadDone,
-  isVisible = true
+  isVisible = true,
+  onWorkoutLabelClick,
+  hasNoExercises = false
 }) => {
   // Default workouts if none provided
   const defaultWorkouts = [
@@ -39,7 +41,7 @@ const Timer = ({
     "Boat hold leg flutters"
   ];
 
-  const baseWorkoutList = workouts.length > 0 ? workouts : defaultWorkouts;
+  const baseWorkoutList = hasNoExercises ? [] : (workouts.length > 0 ? workouts : defaultWorkouts);
   const [shuffledList, setShuffledList] = useState(null);
   const workoutList = shuffledList || baseWorkoutList;
 
@@ -79,7 +81,7 @@ const Timer = ({
   // After workout content is shown and animations play, mark initialLoad done
   useEffect(() => {
     if (showWorkoutContent && !animatedIn) {
-      const totalDelay = 150 + (workoutList.length * 40);
+      const totalDelay = Math.max(500, 150 + (workoutList.length * 40));
       const timer = setTimeout(() => {
         setAnimatedIn(true);
         if (onInitialLoadDone) onInitialLoadDone();
@@ -271,11 +273,25 @@ const Timer = ({
             <div
               className={`timer-workout-title ${isRunning ? 'hidden' : ''} ${!animatedIn ? 'fade-in-item' : ''}`}
               style={!animatedIn ? { '--stagger-delay': '0ms' } : undefined}
+              onClick={() => { if (!isRunning && onWorkoutLabelClick) onWorkoutLabelClick(); }}
             >
               {selectedWorkoutName}
             </div>
           )}
 
+          {hasNoExercises ? (
+            <div
+              className={`timer-add-exercises${!animatedIn ? ' fade-in-item' : ''}`}
+              style={!animatedIn ? { '--stagger-delay': '150ms' } : undefined}
+              onClick={() => { if (onWorkoutLabelClick) onWorkoutLabelClick(true); }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Add Exercises</span>
+            </div>
+          ) : (
           <WorkoutList
             workoutList={workoutList}
             workoutIndex={workoutIndex}
@@ -286,6 +302,7 @@ const Timer = ({
             staggerIn={!animatedIn}
             restTime={restTime}
           />
+          )}
         </>
       )}
     </div>
