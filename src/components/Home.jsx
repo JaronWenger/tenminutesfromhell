@@ -177,6 +177,7 @@ const Home = ({
   }, [editExercises, currentPage]);
 
   const addBtnRef = useRef(null);
+  const containerRef = useRef(null);
   const cardRefs = useRef({});
   const panelRef = useRef(null);
   const touchStartX = useRef(0);
@@ -221,6 +222,11 @@ const Home = ({
       if (es.locked === 'v') { es.active = false; return; }
     }
 
+    // Block scroll while dragging settings/bell edge
+    if (es.locked === 'h') {
+      e.preventDefault();
+    }
+
     if (es.edge === 'left' && dx > 0) {
       if (user) {
         // Progressive drag — report 0-1 progress
@@ -243,6 +249,14 @@ const Home = ({
     }
     edgeSwipeRef.current = { active: false, edge: null, startX: 0, startY: 0, triggered: false, locked: null };
   }, [user, onEdgeDragEnd]);
+
+  // Attach edge touchmove as non-passive so we can preventDefault to block scroll
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener('touchmove', handleEdgeTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', handleEdgeTouchMove);
+  }, [handleEdgeTouchMove]);
 
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -1200,9 +1214,9 @@ const Home = ({
 
   return (
     <div
+      ref={containerRef}
       className={`home-container ${detailWorkout && detailPhase !== 'leaving' ? 'home-detail-open' : ''} ${isDragging ? 'home-reordering' : ''}`}
       onTouchStart={handleEdgeTouchStart}
-      onTouchMove={handleEdgeTouchMove}
       onTouchEnd={handleEdgeTouchEnd}
     >
       <div className="home-sparks-bg">
