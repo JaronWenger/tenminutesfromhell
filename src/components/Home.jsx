@@ -50,6 +50,7 @@ const Home = ({
   // Long-press refs for delete (mobile only)
   const longPressTimer = useRef(null);
   const longPressTriggered = useRef(false);
+  const deletePopupShownAt = useRef(0);
 
   // Detail overlay state
   const [detailWorkout, setDetailWorkout] = useState(null);
@@ -1339,12 +1340,12 @@ const Home = ({
                               window.removeEventListener('touchmove', onMove);
                               window.removeEventListener('touchend', onEnd);
                               longPressTriggered.current = true;
-                              // Cancel any in-progress DnD drag
+                              // Cancel any in-progress DnD drag by simulating Escape
                               if (isDraggingRef.current) {
-                                setIsDragging(false);
-                                isDraggingRef.current = false;
+                                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
                               }
                               if (navigator.vibrate) navigator.vibrate(20);
+                              deletePopupShownAt.current = Date.now();
                               setDeleteConfirmWorkout(workout);
                             }, 600);
                           }}
@@ -1934,7 +1935,8 @@ const Home = ({
         <div className="home-detail-delete-confirm">
           <div
             className="home-detail-delete-confirm-backdrop"
-            onClick={() => setDeleteConfirmWorkout(null)}
+            onTouchEnd={(e) => { if (Date.now() - deletePopupShownAt.current < 400) { e.preventDefault(); return; } }}
+            onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmWorkout(null); }}
           />
           <div className="home-detail-delete-confirm-box">
             <p className="home-detail-delete-confirm-title">Delete Workout?</p>
@@ -1942,13 +1944,14 @@ const Home = ({
             <div className="home-detail-delete-confirm-actions">
               <button
                 className="home-detail-delete-confirm-cancel"
-                onClick={() => setDeleteConfirmWorkout(null)}
+                onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmWorkout(null); }}
               >
                 Cancel
               </button>
               <button
                 className="home-detail-delete-confirm-delete"
                 onClick={() => {
+                  if (Date.now() - deletePopupShownAt.current < 400) return;
                   onDeleteWorkout(deleteConfirmWorkout.name);
                   setDeleteConfirmWorkout(null);
                 }}
