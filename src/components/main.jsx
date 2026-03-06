@@ -716,7 +716,8 @@ const Main = () => {
             setCount: 1,
             exercises,
             restTime: selectedWorkoutObj?.restTime ?? restTime,
-            prepTime
+            prepTime,
+            activeLastMinute
           }).then(historyId => {
             if (historyId) sessionHistoryIdRef.current = historyId;
             refreshHistory();

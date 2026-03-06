@@ -155,7 +155,10 @@ const StatsPage = ({
       if (!d) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
-        map[key] = (map[key] || 0) + (e.exercises.length * 60);
+        const rest = e.restTime != null ? e.restTime : 15;
+        const activePerExercise = 60 - rest;
+        const lastMinuteBonus = (e.activeLastMinute !== false) ? rest : 0;
+        map[key] = (map[key] || 0) + ((e.exercises.length * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
       } else {
         map[key] = (map[key] || 0) + (e.duration || 0);
       }
@@ -163,7 +166,7 @@ const StatsPage = ({
     return map;
   }, [history]);
 
-  // Daily workout names map (date key -> array of workout names)
+  // Daily workout entries map (date key -> array of { name, setCount })
   const dailyWorkoutsMap = useMemo(() => {
     const entries = history || [];
     const map = {};
@@ -172,7 +175,7 @@ const StatsPage = ({
       if (!d || !e.workoutName) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       if (!map[key]) map[key] = [];
-      map[key].push(e.workoutName);
+      map[key].push({ name: e.workoutName, setCount: e.setCount || 1 });
     });
     return map;
   }, [history]);
@@ -193,7 +196,10 @@ const StatsPage = ({
 
     const totalSeconds = entries.reduce((sum, e) => {
       if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
-        return sum + (e.exercises.length * 60);
+        const rest = e.restTime != null ? e.restTime : 15;
+        const activePerExercise = 60 - rest;
+        const lastMinuteBonus = (e.activeLastMinute !== false) ? rest : 0;
+        return sum + ((e.exercises.length * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
       }
       return sum + (e.duration || 0);
     }, 0);
@@ -828,7 +834,10 @@ const StatsPage = ({
       // Compute stats from history (active time only, no prep/rest)
       const totalSeconds = userHistory.reduce((sum, e) => {
         if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
-          return sum + (e.exercises.length * 60);
+          const rest = e.restTime != null ? e.restTime : 15;
+          const activePerExercise = 60 - rest;
+          const lastMinuteBonus = (e.activeLastMinute !== false) ? rest : 0;
+          return sum + ((e.exercises.length * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
         }
         return sum + (e.duration || 0);
       }, 0);
@@ -1352,14 +1361,17 @@ const StatsPage = ({
               <span className="stats-section-title-detail">
                 {(() => {
                   if (scrubIndex !== null) {
-                    const m = displayWeekChart[scrubIndex]?.minutes ?? 0;
-                    return `${m}m`;
+                    const s = displayWeekChart[scrubIndex]?.seconds ?? 0;
+                    const m = Math.floor(s / 60);
+                    const sec = s % 60;
+                    return s === 0 ? '' : `${m}:${sec.toString().padStart(2, '0')}`;
                   }
                   const weekSecs = displayWeekChart.reduce((sum, d) => sum + (d.seconds || 0), 0);
                   if (weekSecs === 0) return '';
                   const h = Math.floor(weekSecs / 3600);
                   const m = Math.floor((weekSecs % 3600) / 60);
-                  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                  const sec = weekSecs % 60;
+                  return h > 0 ? `${h}h ${m}m` : `${m}:${sec.toString().padStart(2, '0')}`;
                 })()}
               </span>
             </h3>
@@ -1443,39 +1455,58 @@ const StatsPage = ({
             <div className="stats-section">
               <h3 className="stats-section-title">Completed</h3>
               <div className="stats-workout-cards">
-                {[...new Set(displayWeekChart[scrubIndex].workouts)].map(name => {
-                  const workout = allWorkouts.find(w => w.name === name);
-                  const exercises = workout ? workout.exercises : [];
-                  const totalSeconds = (exercises.length * 60) + prepTime;
-                  const count = displayWeekChart[scrubIndex].workouts.filter(n => n === name).length;
-                  return (
-                    <div key={name} className="stats-workout-card stats-completed-card">
-                      <div className="stats-card-left">
-                        <div className="stats-card-name-row">
-                          <span className="stats-card-name">{name}</span>
-                          {workout && (workout.tags || (workout.tag ? [workout.tag] : [])).map(t => (
-                            <span key={t} className="stats-card-tag">{t.toUpperCase()}</span>
-                          ))}
-                        </div>
-                        <div className="stats-card-detail">
-                          {exercises.length > 0 && (
-                            <>
-                              <span className="stats-card-time">{formatTime(totalSeconds)}</span>
-                              <span className="stats-card-dot">&middot;</span>
-                              <span>{exercises.length} exercises</span>
-                            </>
-                          )}
-                          {count > 1 && (
-                            <>
-                              {exercises.length > 0 && <span className="stats-card-dot">&middot;</span>}
-                              <span className="stats-card-completions">{count}x</span>
-                            </>
+                {(() => {
+                  const entries = displayWeekChart[scrubIndex].workouts;
+                  const grouped = {};
+                  entries.forEach(w => {
+                    const n = typeof w === 'string' ? w : w.name;
+                    const sc = typeof w === 'string' ? 1 : (w.setCount || 1);
+                    const key = `${n}::${sc}`;
+                    if (!grouped[key]) grouped[key] = { name: n, setCount: sc, count: 0 };
+                    grouped[key].count += 1;
+                  });
+                  return Object.values(grouped).map(({ name, setCount, count }) => {
+                    const workout = allWorkouts.find(w => w.name === name);
+                    const exercises = workout ? workout.exercises : [];
+                    const wRestTime = workout?.restTime != null ? workout.restTime : globalRestTime;
+                    const activeSeconds = exercises.length * (60 - wRestTime) + (exercises.length > 0 ? wRestTime : 0);
+                    return (
+                      <div key={`${name}-${setCount}`} className="stats-workout-card stats-completed-card">
+                        <div className="stats-card-left">
+                          <div className="stats-card-name-row">
+                            <span className="stats-card-name">{name}</span>
+                            {workout && (workout.tags || (workout.tag ? [workout.tag] : [])).map(t => (
+                              <span key={t} className="stats-card-tag">{t.toUpperCase()}</span>
+                            ))}
+                          </div>
+                          <div className="stats-card-detail">
+                            {exercises.length > 0 && (
+                              <>
+                                <span className="stats-card-time">{formatTime(activeSeconds)} Active Minute{activeSeconds >= 120 ? 's' : ''}</span>
+                                <span className="stats-card-dot">&middot;</span>
+                                <span>{exercises.length} exercise{exercises.length !== 1 ? 's' : ''}</span>
+                              </>
+                            )}
+                            {count > 1 && (
+                              <>
+                                {exercises.length > 0 && <span className="stats-card-dot">&middot;</span>}
+                                <span className="stats-card-completions">{count}x</span>
+                              </>
+                            )}
+                          </div>
+                          {setCount >= 2 && (
+                            <div className="stats-card-sets">
+                              {Array.from({ length: setCount }).map((_, i) => (
+                                <span key={i} className="stats-card-credit-chip" />
+                              ))}
+                              {setCount} sets
+                            </div>
                           )}
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
             ) : (
