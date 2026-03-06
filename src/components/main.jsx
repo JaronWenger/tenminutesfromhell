@@ -1170,36 +1170,43 @@ const Main = () => {
     const drag = sideMenuDragRef.current;
     sideMenuDragRef.current = null;
     const { panel, backdrop } = sideMenuRefsRef.current;
-    if (drag && drag.progress >= 0.05) {
+
+    // If refs aren't mounted yet, just clean up state
+    if (!panel || !backdrop) {
+      setShowSideMenu(false);
+      setSideMenuViaDrag(false);
+      return;
+    }
+
+    const progress = drag ? drag.progress : 0;
+
+    if (progress >= 0.2) {
       // Snap open with transition
-      const overlay = panel?.parentElement;
+      const overlay = panel.parentElement;
       if (overlay) overlay.style.pointerEvents = '';
-      if (backdrop) backdrop.style.background = '';
-      if (panel) {
-        panel.style.transition = 'transform 0.2s ease';
-        panel.style.transform = 'translateX(0)';
-      }
-      if (backdrop) {
-        backdrop.style.transition = 'opacity 0.2s ease';
-        backdrop.style.opacity = '1';
-      }
+      backdrop.style.background = '';
+      panel.style.transition = 'transform 0.2s ease';
+      panel.style.transform = 'translateX(0)';
+      backdrop.style.transition = 'opacity 0.2s ease';
+      backdrop.style.opacity = '1';
       setTimeout(() => {
-        if (panel) { panel.style.transition = ''; panel.style.willChange = ''; }
-        if (backdrop) { backdrop.style.transition = ''; }
+        panel.style.transition = '';
+        panel.style.willChange = '';
+        backdrop.style.transition = '';
       }, 200);
     } else {
       // Snap closed with transition
-      if (panel) {
-        panel.style.transition = 'transform 0.2s ease';
-        panel.style.transform = 'translateX(-100%)';
-      }
-      if (backdrop) {
-        backdrop.style.transition = 'opacity 0.2s ease';
-        backdrop.style.opacity = '0';
-      }
+      panel.style.transition = 'transform 0.2s ease';
+      panel.style.transform = 'translateX(-100%)';
+      backdrop.style.transition = 'opacity 0.2s ease';
+      backdrop.style.opacity = '0';
       setTimeout(() => {
-        if (panel) { panel.style.transform = ''; panel.style.transition = ''; panel.style.animation = ''; }
-        if (backdrop) { backdrop.style.opacity = ''; backdrop.style.transition = ''; backdrop.style.animation = ''; }
+        panel.style.transform = '';
+        panel.style.transition = '';
+        panel.style.animation = '';
+        backdrop.style.opacity = '';
+        backdrop.style.transition = '';
+        backdrop.style.animation = '';
         setShowSideMenu(false);
         setSideMenuViaDrag(false);
       }, 200);
