@@ -14,7 +14,7 @@ import ProfilePopup from './ProfilePopup';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, updateWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -169,6 +169,10 @@ const Main = () => {
   const [restColor, setRestColor] = useState('#007aff');
   const [sidePlankAlertEnabled, setSidePlankAlertEnabled] = useState(true);
   const [showCardPhotos, setShowCardPhotos] = useState(true);
+  const [inAppNotifications, setInAppNotifications] = useState(true);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [toastClosing, setToastClosing] = useState(false);
+  const toastTimerRef = useRef(null);
   const [pinnedWorkouts, setPinnedWorkoutsState] = useState([]);
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
@@ -345,6 +349,7 @@ const Main = () => {
         if (prefs.restColor) setRestColor(prefs.restColor);
         setSidePlankAlertEnabled(prefs.sidePlankAlert);
         setShowCardPhotos(prefs.showCardPhotos);
+        if (prefs.inAppNotifications !== undefined) setInAppNotifications(prefs.inAppNotifications);
         setPinnedWorkoutsState(prefs.pinnedWorkouts || []);
         setPrepTime(prefs.prepTime);
         setRestTime(prefs.restTime);
@@ -574,6 +579,14 @@ const Main = () => {
     }
   }, [user, showCardPhotos]);
 
+  const handleToggleInAppNotifications = useCallback(async () => {
+    const newValue = !inAppNotifications;
+    setInAppNotifications(newValue);
+    if (user) {
+      setInAppNotificationsPreference(user.uid, newValue).catch(err => console.error('Failed to save in-app notifications:', err));
+    }
+  }, [user, inAppNotifications]);
+
   const handlePrepTimeChange = useCallback(async (newValue) => {
     setPrepTime(newValue);
     if (user) {
@@ -701,6 +714,17 @@ const Main = () => {
         // Increment set counter for this session (always, for all workouts)
         sessionSetCountRef.current += 1;
         const setsCompleted = sessionSetCountRef.current;
+
+      // Show in-app toast notification
+      if (inAppNotifications) {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToastClosing(false);
+        setToastMessage({ sets: setsCompleted, body: autoShareEnabled === true ? 'Shared to activity' : 'Nicely done!' });
+        toastTimerRef.current = setTimeout(() => {
+          setToastClosing(true);
+          setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 400);
+        }, 3000);
+      }
 
         const refreshHistory = () => getUserHistory(user.uid)
           .then(setWorkoutHistory)
@@ -1807,6 +1831,8 @@ const Main = () => {
         onColorChange={handleColorChange}
         showCardPhotos={showCardPhotos}
         onToggleShowCardPhotos={handleToggleShowCardPhotos}
+        inAppNotifications={inAppNotifications}
+        onToggleInAppNotifications={handleToggleInAppNotifications}
         onOpenProfile={() => {
           setSideMenuCloseRequested(true);
           setActiveTab('stats');
@@ -1983,6 +2009,33 @@ const Main = () => {
             >
               Save
             </button>
+          </div>
+        </div>
+      )}
+      {toastMessage && (
+        <div
+          className={`app-toast-wrap ${toastClosing ? 'app-toast-closing' : ''}`}
+          onClick={() => {
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+            setToastClosing(true);
+            setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 400);
+            if (user) {
+              setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null);
+              localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString());
+            }
+            setHasUnread(false);
+            setShowFeedPage(true);
+          }}
+        >
+          <div className="app-toast-pill" />
+          <div className="app-toast">
+            <div className="app-toast-icon">
+              <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" />
+            </div>
+            <div className="app-toast-text">
+              <span className="app-toast-title">{toastMessage.sets} set{toastMessage.sets !== 1 ? 's' : ''} completed!</span>
+              <span className="app-toast-body">{toastMessage.body}</span>
+            </div>
           </div>
         </div>
       )}

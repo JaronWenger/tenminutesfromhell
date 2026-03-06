@@ -62,6 +62,7 @@ export const getAllPreferences = async (userId) => {
       shuffleExercises: false,
       selectedWorkout: null,
       showCardPhotos: true,
+      inAppNotifications: true,
       pinnedWorkouts: [],
       weeklySchedule: { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
     };
@@ -79,6 +80,7 @@ export const getAllPreferences = async (userId) => {
     shuffleExercises: data.shuffleExercises ?? false,
     selectedWorkout: data.selectedWorkout || null,
     showCardPhotos: data.showCardPhotos ?? true,
+    inAppNotifications: data.inAppNotifications ?? true,
     pinnedWorkouts: data.pinnedWorkouts || [],
     weeklySchedule: data.weeklySchedule || { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
   };
@@ -143,6 +145,13 @@ export const setRestTimePreference = async (userId, value) => {
 export const setShowCardPhotosPreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     showCardPhotos: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setInAppNotificationsPreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    inAppNotifications: value,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };
