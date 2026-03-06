@@ -9,7 +9,8 @@ const WorkoutList = ({
   onWorkoutSelect,
   showAllWhenPaused,
   staggerIn = false,
-  restTime = 15
+  restTime = 15,
+  activeLastMinute = true
 }) => {
   const workoutListRef = useRef(null);
 
@@ -25,11 +26,12 @@ const WorkoutList = ({
   return (
     <div className="workout-list" ref={workoutListRef}>
       {workoutList.map((workout, index) => {
-        const isActive = index === workoutIndex && isRunning && timeLeft > 0;
-        const isCompleted = index < workoutIndex || (timeLeft === 0 && index < workoutList.length);
+        const isLastRest = !activeLastMinute && isRunning && timeLeft > 0 && timeLeft <= restTime;
+        const isActive = index === workoutIndex && isRunning && timeLeft > 0 && !isLastRest;
+        const isCompleted = index < workoutIndex || (timeLeft === 0 && index < workoutList.length) || (isLastRest && index === workoutIndex);
         const isUpcoming = index > workoutIndex || (index === workoutIndex && !isRunning && timeLeft > 0);
         const currentSeconds = timeLeft % 60;
-        const isWarning = isActive && currentSeconds >= 1 && currentSeconds <= restTime && timeLeft > 60;
+        const isWarning = isActive && currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true);
 
         return (
           <div

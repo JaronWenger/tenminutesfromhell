@@ -651,29 +651,52 @@ const Main = () => {
   const wakeLockRef = useRef(null);
 
   // Timer interval — pure countdown only, no side effects in updater
+  // When activeLastMinute is off, speed up exponentially through the final rest
   useEffect(() => {
-    if (timerState.isRunning) {
-      timerIntervalRef.current = setInterval(() => {
-        setTimerState(prev => {
-          if (prev.timeLeft <= 1) {
-            return { ...prev, timeLeft: 0, isRunning: false };
-          }
-          return { ...prev, timeLeft: prev.timeLeft - 1 };
-        });
-      }, 1000);
-    } else {
+    if (!timerState.isRunning) {
       if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
+        clearTimeout(timerIntervalRef.current);
         timerIntervalRef.current = null;
+      }
+      return;
+    }
+
+    let delay = 1000;
+    // Speed up final rest when activeLastMinute is off
+    // Normal speed for first 2 seconds of rest, then burn through the remainder
+    if (!activeLastMinute && timerState.timeLeft > 0) {
+      const selectedW = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+      const effectiveRestTime = selectedW?.restTime != null ? selectedW.restTime : restTime;
+      if (timerState.timeLeft <= effectiveRestTime) {
+        const s = effectiveRestTime - timerState.timeLeft; // seconds into rest
+        if (s === 1) delay = 700;
+        else if (s === 2) delay = 500;
+        else if (s === 3) delay = 350;
+        else if (s === 4) delay = 250;
+        else if (s === 5) delay = 180;
+        else if (s === 6) delay = 130;
+        else if (s === 7) delay = 100;
+        else if (s === 8) delay = 75;
+        else if (s === 9) delay = 60;
+        else if (s >= 10) delay = 40;
       }
     }
 
+    timerIntervalRef.current = setTimeout(() => {
+      setTimerState(prev => {
+        if (prev.timeLeft <= 1) {
+          return { ...prev, timeLeft: 0, isRunning: false };
+        }
+        return { ...prev, timeLeft: prev.timeLeft - 1 };
+      });
+    }, delay);
+
     return () => {
       if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
+        clearTimeout(timerIntervalRef.current);
       }
     };
-  }, [timerState.isRunning]);
+  }, [timerState.isRunning, timerState.timeLeft, activeLastMinute, restTime, timerWorkoutData, timerSelectedWorkout]);
 
   // Session tracking for set credits, multi-set posts, and history — reset when workout changes
   const sessionPostIdRef = useRef(null);

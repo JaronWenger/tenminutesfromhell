@@ -311,6 +311,7 @@ const Timer = ({
             showAllWhenPaused={!isRunning}
             staggerIn={!animatedIn || shuffleStagger}
             restTime={restTime}
+            activeLastMinute={activeLastMinute}
           />
           )}
         </>
