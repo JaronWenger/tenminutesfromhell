@@ -87,6 +87,16 @@
   cursor: pointer;
 }
 
+.timer-add-exercises.timer-add-pulse {
+  animation: addExercisesPulse 0.5s ease;
+}
+
+@keyframes addExercisesPulse {
+  0% { transform: scale(1); border-color: rgba(255, 255, 255, 0.2); color: rgba(255, 255, 255, 0.45); }
+  50% { transform: scale(1.05); border-color: var(--pulse-color, #ff3b30); color: rgba(255, 255, 255, 0.9); }
+  100% { transform: scale(1); border-color: rgba(255, 255, 255, 0.2); color: rgba(255, 255, 255, 0.45); }
+}
+
 .timer-workout-title.hidden {
   visibility: hidden;
   opacity: 0;
