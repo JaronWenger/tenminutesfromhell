@@ -146,6 +146,7 @@ const Timer = ({
   };
 
   const [addPulse, setAddPulse] = useState(false);
+  const [shuffleStagger, setShuffleStagger] = useState(false);
 
   const startTimer = () => {
     if (hasNoExercises) {
@@ -162,6 +163,8 @@ const Timer = ({
           [arr[i], arr[j]] = [arr[j], arr[i]];
         }
         setShuffledList(arr);
+        setShuffleStagger(true);
+        setTimeout(() => setShuffleStagger(false), 150 + arr.length * 40);
       }
       setIsRunning(true);
       updateParentState({ isRunning: true });
@@ -306,7 +309,7 @@ const Timer = ({
             timeLeft={timeLeft}
             onWorkoutSelect={selectWorkout}
             showAllWhenPaused={!isRunning}
-            staggerIn={!animatedIn}
+            staggerIn={!animatedIn || shuffleStagger}
             restTime={restTime}
           />
           )}
