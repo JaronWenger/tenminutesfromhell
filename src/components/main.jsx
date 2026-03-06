@@ -1190,14 +1190,12 @@ const Main = () => {
       backdrop.style.transition = 'opacity 0.2s ease';
       backdrop.style.opacity = '1';
       setTimeout(() => {
-        // Clear all inline styles so CSS takes over cleanly
+        // Clear transition/transform but keep animation: none to prevent CSS entry replay
         panel.style.transition = '';
         panel.style.transform = '';
-        panel.style.animation = '';
         panel.style.willChange = '';
         backdrop.style.transition = '';
         backdrop.style.opacity = '';
-        backdrop.style.animation = '';
         backdrop.style.background = '';
       }, 220);
     } else {
