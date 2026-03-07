@@ -36,7 +36,8 @@ const Home = ({
   onShareWorkout,
   onScheduleWorkout,
   weeklySchedule = {},
-  detailOnly = false
+  detailOnly = false,
+  onWorkoutTap
 }) => {
   const { user } = useAuth();
   const [swipingIndex, setSwipingIndex] = useState(null);
@@ -369,6 +370,7 @@ const Home = ({
 
   // ── Detail overlay ──
   const openDetail = useCallback((workout) => {
+    if (onWorkoutTap) onWorkoutTap();
     const el = cardRefs.current[workout.name];
     const rect = el ? el.getBoundingClientRect() : null;
     setDetailRect(rect);
@@ -380,7 +382,7 @@ const Home = ({
     setEditTitle(workout.name);
     setEditRestTime(workout.restTime ?? null);
     setEditTags(workout.tags || (workout.tag ? [workout.tag] : []));
-  }, []);
+  }, [onWorkoutTap]);
 
   // FLIP: after panel mounts at final position, snap to card rect then animate to final
   useLayoutEffect(() => {
@@ -612,6 +614,7 @@ const Home = ({
   };
 
   const handleAddWorkout = () => {
+    if (onWorkoutTap) onWorkoutTap();
     const newWorkout = { name: '', type: 'timer', exercises: [], isNew: true };
     const rect = addBtnRef.current ? addBtnRef.current.getBoundingClientRect() : null;
     setDetailWorkout(newWorkout);

@@ -56,7 +56,7 @@ export const getAllPreferences = async (userId) => {
       restColor: null,
       workoutOrder: null,
       sidePlankAlert: true,
-      prepTime: 15,
+      prepTime: 10,
       restTime: 15,
       activeLastMinute: true,
       shuffleExercises: false,
@@ -65,6 +65,7 @@ export const getAllPreferences = async (userId) => {
       inAppNotifications: true,
       pinnedWorkouts: [],
       weeklySchedule: { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
+      onboardingCompleted: { timer: false, home: false, stats: false },
     };
   }
   const data = snap.data();
@@ -74,7 +75,7 @@ export const getAllPreferences = async (userId) => {
     restColor: data.restColor || null,
     workoutOrder: data.workoutOrder || null,
     sidePlankAlert: data.sidePlankAlert ?? true,
-    prepTime: data.prepTime ?? 15,
+    prepTime: data.prepTime ?? 10,
     restTime: data.restTime ?? 15,
     activeLastMinute: data.activeLastMinute ?? true,
     shuffleExercises: data.shuffleExercises ?? false,
@@ -83,6 +84,7 @@ export const getAllPreferences = async (userId) => {
     inAppNotifications: data.inAppNotifications ?? true,
     pinnedWorkouts: data.pinnedWorkouts || [],
     weeklySchedule: data.weeklySchedule || { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
+    onboardingCompleted: data.onboardingCompleted || { timer: false, home: false, stats: false },
   };
 };
 
@@ -182,6 +184,22 @@ export const setPinnedWorkouts = async (userId, pinnedArray) => {
     pinnedWorkouts: pinnedArray,
     updatedAt: serverTimestamp()
   }, { merge: true });
+};
+
+export const setOnboardingCompleted = async (userId, page) => {
+  const ref = doc(db, 'users', userId, 'settings', 'preferences');
+  try {
+    await updateDoc(ref, {
+      [`onboardingCompleted.${page}`]: true,
+      updatedAt: serverTimestamp()
+    });
+  } catch {
+    // Doc doesn't exist yet (new user) — create with nested structure
+    await setDoc(ref, {
+      onboardingCompleted: { [page]: true },
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
 };
 
 // ── Account Privacy ──

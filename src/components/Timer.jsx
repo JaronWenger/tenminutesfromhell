@@ -222,12 +222,16 @@ const Timer = ({
   };
 
   // Calculate which workout should be active
-  const workoutIndex = Math.min(Math.floor((targetTime - timeLeft) / 60), workoutList.length - 1);
+  // Exercise advances when rest starts (active portion done), so next exercise is "staged" during rest
+  const elapsed = targetTime - timeLeft - prepTime;
+  const currentSeconds = timeLeft % 60;
+  const inRestZone = currentSeconds >= 1 && currentSeconds <= restTime && elapsed > 0;
+  const rawIndex = elapsed <= 0 ? 0 : Math.floor(elapsed / 60) + (inRestZone ? 1 : 0);
+  const workoutIndex = Math.min(Math.max(0, rawIndex), workoutList.length - 1);
 
   // Side plank halfway flicker detection
   const currentExercise = workoutList[workoutIndex] || '';
   const isSidePlank = currentExercise.toLowerCase().includes('side plank');
-  const currentSeconds = timeLeft % 60;
   const isRestPhase = currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true);
   const isActivePhase = !isRestPhase;
   const activeSeconds = 60 - restTime;

@@ -1,0 +1,77 @@
+.onb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: transparent;
+}
+
+.onb-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: onb-fade-in 0.25s ease forwards;
+}
+
+.onb-tooltip.onb-closing {
+  animation: onb-fade-out 0.25s ease forwards;
+}
+
+.onb-text {
+  font-family: 'Caveat', cursive;
+  font-size: 36px;
+  font-weight: 700;
+  color: #ff8c00;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  line-height: 1.2;
+}
+
+.onb-arrow svg {
+  display: block;
+}
+
+/* Arrow directions — flex ordering
+   DOM order: text, then arrow.
+   We arrange so the arrow is closest to the target. */
+.onb-tooltip.onb-arrow-up {
+  /* Arrow above text (arrow points up to target above) */
+  flex-direction: column;
+}
+.onb-tooltip.onb-arrow-up .onb-arrow { order: -1; }
+
+.onb-tooltip.onb-arrow-down {
+  /* Text above arrow (arrow points down to target below) */
+  flex-direction: column;
+}
+
+.onb-tooltip.onb-arrow-left {
+  /* Arrow on left, text on right (arrow points left to target) */
+  flex-direction: row;
+}
+.onb-tooltip.onb-arrow-left .onb-arrow { order: -1; }
+
+.onb-tooltip.onb-arrow-right {
+  /* Text on left, arrow on right (arrow points right to target) */
+  flex-direction: row;
+}
+
+.onb-custom-arrow {
+  animation: onb-fade-in 0.25s ease forwards;
+}
+
+.onb-custom-arrow.onb-closing {
+  animation: onb-fade-out 0.25s ease forwards;
+}
+
+@keyframes onb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes onb-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

@@ -129,7 +129,7 @@ const Ring = ({
             ? formatTime(timeLeft).split('').map((char, i) => (
                 <span key={i} className="digit-stagger" style={{ animationDelay: `${i * 60}ms` }}>{char}</span>
               ))
-            : formatTime(timeLeft)
+            : (() => { const t = formatTime(timeLeft); const colonIdx = t.indexOf(':'); return <>{t.slice(0, colonIdx + 1)}<span className="time-seconds">{t.slice(colonIdx + 1)}</span></>; })()
           }
         </div>
       )}

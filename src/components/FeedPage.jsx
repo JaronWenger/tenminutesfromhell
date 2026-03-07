@@ -186,7 +186,14 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
         getFeedPosts(user.uid),
         getFollowing(user.uid)
       ]);
-      setPosts(feedPosts);
+      const welcomePost = {
+        id: 'welcome',
+        type: 'welcome',
+        displayName: 'HIITem',
+        photoURL: null,
+        createdAt: user.metadata?.creationTime ? new Date(user.metadata.creationTime) : new Date(),
+      };
+      setPosts([...feedPosts, welcomePost]);
       setFollowingIds(following);
       const workoutPosts = feedPosts.filter(p => !p.type);
       if (workoutPosts.length > 0) {
@@ -553,6 +560,22 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
               </div>
             ) : (
               posts.map(post => {
+                if (post.type === 'welcome') return (
+                <div key={post.id} className="feed-post-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('people')}>
+                  <div className="feed-post-header">
+                    <div className="feed-post-avatar" style={{ overflow: 'hidden', width: 40, height: 40, borderRadius: '50%' }}>
+                      <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" referrerPolicy="no-referrer" style={{ transform: 'scale(1.15)', border: 'none' }} />
+                    </div>
+                    <div className="feed-post-meta">
+                      <span className="feed-post-name">HIITem</span>
+                      <span className="feed-post-time">
+                        {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                      </span>
+                      <span className="feed-post-subtitle">Welcome{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}! Complete a workout and share with your friends <span style={{ opacity: 1, color: 'white' }}>🔥</span></span>
+                    </div>
+                  </div>
+                </div>
+                );
                 if (post.type === 'follow') return (
                 <div
                   key={post.id}

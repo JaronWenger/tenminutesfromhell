@@ -11,10 +11,11 @@ import SideMenu from './SideMenu';
 import LoginModal from './LoginModal';
 import SharePrompt from './SharePrompt';
 import ProfilePopup from './ProfilePopup';
+import OnboardingTooltip from './OnboardingTooltip';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, updateWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -85,7 +86,7 @@ const Main = () => {
     return found ? found.exercises : [];
   }, [timerWorkoutData, stopwatchWorkoutData]);
 
-  const [prepTime, setPrepTime] = useState(15);
+  const [prepTime, setPrepTime] = useState(10);
   const [restTime, setRestTime] = useState(15);
   const [activeLastMinute, setActiveLastMinute] = useState(true);
   const [shuffleExercises, setShuffleExercises] = useState(false);
@@ -98,7 +99,7 @@ const Main = () => {
 
   // Timer state
   const [timerState, setTimerState] = useState(() => {
-    const initial = (DEFAULT_TIMER_WORKOUTS[0].exercises.length * 60) + 15;
+    const initial = (DEFAULT_TIMER_WORKOUTS[0].exercises.length * 60) + 10;
     return {
       timeLeft: initial,
       isRunning: false,
@@ -135,6 +136,11 @@ const Main = () => {
   const [workoutHistory, setWorkoutHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Test account — always behaves as first-time user
+  const TEST_EMAIL = 'aitakapic@gmail.com';
+  const isTestAccount = user?.email === TEST_EMAIL;
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
+
   // Social / Feed state
   const [hasUnread, setHasUnread] = useState(false);
   const [feedLastViewed, setFeedLastViewed] = useState(null); // snapshot of last viewed time for highlight
@@ -151,6 +157,7 @@ const Main = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
   const [homeDetailCloseRequested, setHomeDetailCloseRequested] = useState(false);
+  const [homeDetailOpen, setHomeDetailOpen] = useState(false);
   const [timerDetailWorkout, setTimerDetailWorkout] = useState(null);
   const [timerDetailEditMode, setTimerDetailEditMode] = useState(false);
   const [openProfilePopup, setOpenProfilePopup] = useState(false);
@@ -177,6 +184,59 @@ const Main = () => {
   const [pinnedWorkouts, setPinnedWorkoutsState] = useState([]);
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
+
+  // Onboarding state
+  const [onboarding, setOnboarding] = useState({
+    timer: { active: false, step: 0, completed: false },
+    home:  { active: false, step: 0, completed: false },
+    stats: { active: false, step: 0, completed: false },
+  });
+
+  // Timer onboarding uses timeLeft-based progression (calculated from prepTime + exercises)
+  const timerOnbBase = timerState.targetTime; // e.g. 490 for 8 exercises + 10s prep
+  const ONBOARDING_STEPS = {
+    timer: [
+      { text: 'Tap play!', target: '.play-btn', arrow: 'right', noOverlay: true },
+      { text: '10 seconds to get ready...', target: '.workout-list', arrowTarget: '.time-seconds', timeBased: true },
+      { text: 'Blue means rest...', target: '.workout-list', timeBased: true, noArrow: true },
+      { text: 'Red means go in', target: '.workout-list', timeBased: true, noArrow: true, countdown: true },
+    ],
+    home: [
+      { text: 'Tap a workout', target: '.workout-card-add', arrow: 'up', arrowScale: 3, textScale: 1.8, offsetY: -100, noOverlay: true },
+      { text: 'Activity', target: '.home-header-bell', arrow: 'up', noArrow: true, noOverlay: true, delay: 200, pendingDetailClose: true, offsetX: -90, offsetY: 50, separateArrowTarget: '.home-header-bell', arrowConfig: { startXPct: 0.6, endXPct: -0.4, endYPct: 0.3, cpX: (sx, ex) => (sx + ex) / 2 - 20, cpY: (sy, ey) => Math.min(sy, ey) - 25 } },
+    ],
+    stats: [],
+  };
+
+  const persistOnboardingCompleted = useCallback((page) => {
+    if (user && !isTestAccount) {
+      setOnboardingCompleted(user.uid, page).catch(() => {});
+    } else if (!user) {
+      const stored = JSON.parse(localStorage.getItem('onboarding_completed') || '{}');
+      stored[page] = true;
+      localStorage.setItem('onboarding_completed', JSON.stringify(stored));
+    }
+  }, [user, isTestAccount]);
+
+  const completeOnboarding = useCallback((page) => {
+    setOnboarding(prev => ({ ...prev, [page]: { active: false, step: 0, completed: true } }));
+    persistOnboardingCompleted(page);
+  }, [persistOnboardingCompleted]);
+
+  const advanceStep = useCallback((page) => {
+    setOnboarding(prev => {
+      const pageState = prev[page];
+      if (!pageState || pageState.completed) return prev;
+      const nextStep = pageState.step + 1;
+      const steps = ONBOARDING_STEPS[page];
+      if (nextStep >= steps.length) {
+        // Will be completed — persist after state update
+        setTimeout(() => persistOnboardingCompleted(page), 0);
+        return { ...prev, [page]: { active: false, step: 0, completed: true } };
+      }
+      return { ...prev, [page]: { ...pageState, step: nextStep } };
+    });
+  }, [persistOnboardingCompleted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Send workout popup state (shared between Home + StatsPage)
   const [sendWorkout, setSendWorkout] = useState(null);
@@ -280,11 +340,26 @@ const Main = () => {
       setPinnedWorkoutsState([]);
       setFollowingIds([]);
       setFollowerIds([]);
-      setPrepTime(15);
+      setPrepTime(10);
       setRestTime(15);
       setActiveLastMinute(true);
       setTimerSelectedWorkout('8-Minute Abs');
       setWeeklyScheduleState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
+      // Load onboarding from localStorage for logged-out users
+      const stored = JSON.parse(localStorage.getItem('onboarding_completed') || '{}');
+      setOnboarding({
+        timer: { active: false, step: 0, completed: !!stored.timer },
+        home:  { active: false, step: 0, completed: !!stored.home },
+        stats: { active: false, step: 0, completed: !!stored.stats },
+      });
+      return;
+    }
+
+    // Test account: skip all Firestore loading, treat as brand new user
+    if (isTestAccount) {
+      ensureUserProfile(user).catch(() => {});
+      setIsFirstTimeUser(true);
+      setWorkoutReady(true);
       return;
     }
 
@@ -366,6 +441,15 @@ const Main = () => {
           setTimerSelectedWorkout(prefs.selectedWorkout);
         }
         setWorkoutReady(true);
+        // Load onboarding state (skip for test account — always reset)
+        if (!isTestAccount && prefs.onboardingCompleted) {
+          const oc = prefs.onboardingCompleted;
+          setOnboarding(prev => ({
+            timer: { ...prev.timer, completed: !!oc.timer },
+            home:  { ...prev.home,  completed: !!oc.home },
+            stats: { ...prev.stats, completed: !!oc.stats },
+          }));
+        }
         // Load follow data + account privacy + pending requests in background (non-blocking)
         Promise.all([getFollowing(user.uid), getFollowers(user.uid), getPendingFollowRequests(user.uid)])
           .then(([following, followers, pendingReqs]) => {
@@ -422,6 +506,52 @@ const Main = () => {
   useEffect(() => {
     if (activeTab === 'home') checkUnread();
   }, [activeTab, checkUnread]);
+
+  // Onboarding: activate timer page after initial load finishes
+  useEffect(() => {
+    if (initialLoad || onboarding.timer.completed || onboarding.timer.active) return;
+    const t = setTimeout(() => {
+      setOnboarding(prev => prev.timer.completed ? prev : { ...prev, timer: { ...prev.timer, active: true } });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [initialLoad, onboarding.timer.completed, onboarding.timer.active]);
+
+  // Onboarding: activate home/stats on first tab visit
+  useEffect(() => {
+    if (activeTab === 'home' && !onboarding.home.completed && !onboarding.home.active) {
+      const t = setTimeout(() => {
+        setOnboarding(prev => prev.home.completed ? prev : { ...prev, home: { ...prev.home, active: true } });
+      }, 200);
+      return () => clearTimeout(t);
+    }
+    if (activeTab === 'stats' && !onboarding.stats.completed && !onboarding.stats.active) {
+      const t = setTimeout(() => {
+        setOnboarding(prev => prev.stats.completed ? prev : { ...prev, stats: { ...prev.stats, active: true } });
+      }, 200);
+      return () => clearTimeout(t);
+    }
+  }, [activeTab, onboarding.home.completed, onboarding.home.active, onboarding.stats.completed, onboarding.stats.active]);
+
+  // Onboarding: timer step 0 auto-advances when timer starts running
+  useEffect(() => {
+    if (onboarding.timer.active && onboarding.timer.step === 0 && timerState.isRunning) {
+      advanceStep('timer');
+    }
+  }, [timerState.isRunning, onboarding.timer.active, onboarding.timer.step, advanceStep]);
+
+  // Onboarding: timer time-based steps advance based on timeLeft
+  useEffect(() => {
+    if (!onboarding.timer.active || onboarding.timer.completed || !timerState.isRunning) return;
+    const step = onboarding.timer.step;
+    const t = timerState.timeLeft;
+    const base = timerState.targetTime;
+    // Step 1: "10 seconds to get ready..." → advance at base - 3
+    if (step === 1 && t <= base - 3) advanceStep('timer');
+    // Step 2: "Blue means rest..." → 8:07 to 8:04
+    else if (step === 2 && t <= base - 6) advanceStep('timer');
+    // Step 3: "Red means go in [countdown]" → 8:04 until prep ends
+    else if (step === 3 && t <= base - 10) advanceStep('timer');
+  }, [timerState.timeLeft, timerState.targetTime, timerState.isRunning, onboarding.timer.active, onboarding.timer.completed, onboarding.timer.step, advanceStep]);
 
   // Merge custom workouts with defaults
   const mergeWorkouts = (customWorkouts) => {
@@ -590,10 +720,14 @@ const Main = () => {
 
   const handlePrepTimeChange = useCallback(async (newValue) => {
     setPrepTime(newValue);
+    // Prep time changed — timer onboarding messages won't match, skip it
+    if (!onboarding.timer.completed) {
+      completeOnboarding('timer');
+    }
     if (user) {
       setPrepTimePreference(user.uid, newValue).catch(err => console.error('Failed to save prep time:', err));
     }
-  }, [user]);
+  }, [user, onboarding.timer.completed, completeOnboarding]);
 
   const handleToggleActiveLastMinute = useCallback(async () => {
     const newValue = !activeLastMinute;
@@ -743,7 +877,7 @@ const Main = () => {
       if (inAppNotifications) {
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
         setToastClosing(false);
-        setToastMessage({ sets: setsCompleted, body: autoShareEnabled === true ? 'Shared to activity' : 'Nicely done!' });
+        setToastMessage({ sets: setsCompleted, workout: timerSelectedWorkout, body: autoShareEnabled === true ? 'Shared to activity' : 'Nicely done!' });
         toastTimerRef.current = setTimeout(() => {
           setToastClosing(true);
           setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 400);
@@ -1118,13 +1252,19 @@ const Main = () => {
 
   const handleHomeStartWorkout = useCallback((workoutName) => {
     setTimerSelectedWorkout(workoutName);
+    // Reset timer to the new workout's total time
+    const allWorkouts = [...timerWorkoutData, ...stopwatchWorkoutData];
+    const workout = allWorkouts.find(w => w.name === workoutName);
+    const exerciseCount = workout ? workout.exercises.length : 0;
+    const newTime = (exerciseCount * 60) + prepTime;
+    setTimerState({ timeLeft: newTime, isRunning: false, targetTime: newTime, selectedWorkoutIndex: 0 });
     if (user) {
       setSelectedWorkout(user.uid, workoutName).catch(err =>
         console.error('Failed to save selected workout:', err)
       );
     }
     setActiveTab('timer');
-  }, [user]);
+  }, [user, timerWorkoutData, stopwatchWorkoutData, prepTime]);
 
   // Feed post detail popup
   const openFeedDetail = useCallback((post) => {
@@ -1467,7 +1607,7 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
-            onBellClick={() => { if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
+            onBellClick={() => { if (onboarding.home.active) { completeOnboarding('home'); } if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
             hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
@@ -1483,6 +1623,8 @@ const Main = () => {
             onShareWorkout={openSendWorkout}
             onScheduleWorkout={openSchedulePopup}
             weeklySchedule={weeklySchedule}
+            onWorkoutTap={() => { setHomeDetailOpen(true); if (onboarding.home.active && onboarding.home.step === 0) advanceStep('home'); }}
+            onDetailClosed={() => setHomeDetailOpen(false)}
           />
         );
       case 'stats':
@@ -1518,7 +1660,7 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
-            onBellClick={() => { if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
+            onBellClick={() => { if (onboarding.home.active) { completeOnboarding('home'); } if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
             hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
@@ -2092,12 +2234,52 @@ const Main = () => {
               <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" />
             </div>
             <div className="app-toast-text">
-              <span className="app-toast-title">{toastMessage.sets} set{toastMessage.sets !== 1 ? 's' : ''} completed!</span>
+              <span className="app-toast-title">{toastMessage.sets} set{toastMessage.sets !== 1 ? 's' : ''} of "{toastMessage.workout}" completed!</span>
               <span className="app-toast-body">{toastMessage.body}</span>
             </div>
           </div>
         </div>
       )}
+      {/* Onboarding tooltips */}
+      {(() => {
+        const pages = ['timer', 'home', 'stats'];
+        for (const page of pages) {
+          const state = onboarding[page];
+          if (!state.active || state.completed) continue;
+          // Only show if on the right tab (timer is always rendered when activeTab==='timer')
+          if (page === 'timer' && (activeTab !== 'timer' || timerDetailWorkout)) continue;
+          if (page === 'home' && (activeTab !== 'home' || showSideMenu || showFeedPage)) continue;
+          if (page === 'stats' && activeTab !== 'stats') continue;
+          const stepConfig = ONBOARDING_STEPS[page][state.step];
+          if (!stepConfig) continue;
+          if (page === 'timer' && stepConfig.timeBased && !timerState.isRunning) continue;
+          if (stepConfig.pendingDetailClose && homeDetailOpen) continue;
+          return (
+            <OnboardingTooltip
+              key={stepConfig.countdown ? `${page}-countdown` : `${page}-${state.step}`}
+              targetSelector={stepConfig.target}
+              text={stepConfig.countdown
+                ? `${stepConfig.text} ${Math.max(1, Math.ceil(timerState.timeLeft - (timerState.targetTime - 10)))}`
+                : stepConfig.text}
+              arrowDirection={stepConfig.arrow}
+              arrowTargetSelector={stepConfig.arrowTarget || null}
+              separateArrowTarget={stepConfig.separateArrowTarget || null}
+              autoDismiss={stepConfig.autoDismiss || null}
+              noOverlay={stepConfig.noOverlay || stepConfig.timeBased || false}
+              noArrow={stepConfig.noArrow || false}
+              delay={stepConfig.delay || 0}
+              offsetX={stepConfig.offsetX || 0}
+              offsetY={stepConfig.offsetY || 0}
+              arrowConfig={stepConfig.arrowConfig}
+              arrowScale={stepConfig.arrowScale || 1}
+              textScale={stepConfig.textScale || 1}
+              visible={true}
+              onDismiss={() => advanceStep(page)}
+            />
+          );
+        }
+        return null;
+      })()}
     </main>
   );
 };
