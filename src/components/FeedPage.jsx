@@ -1032,11 +1032,11 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                   </div>
                 ) : (
                   filterBySearch(peopleList).map(u => (
-                    <div key={u.uid} className="feed-person-card">
+                    <div key={u.uid} className="feed-person-card" style={{ cursor: 'pointer' }}
+                      onClick={() => onViewProfile && onViewProfile({ uid: u.uid, displayName: u.displayName, photoURL: u.photoURL })}
+                    >
                       <div
                         className="feed-person-avatar"
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => onViewProfile && onViewProfile({ uid: u.uid, displayName: u.displayName, photoURL: u.photoURL })}
                       >
                         {u.photoURL ? (
                           <img src={u.photoURL} alt="" referrerPolicy="no-referrer" />
@@ -1057,7 +1057,8 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                       </div>
                       <button
                         className={`feed-follow-btn ${u.isFollowing ? 'following' : pendingFollowRequests[u.uid] ? 'following' : ''}`}
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (pendingFollowRequests[u.uid]) { handleCancelFollowRequest(u.uid); return; }
                           u.isFollowing ? handleUnfollow(u.uid) : handleFollow(u.uid);
                         }}
