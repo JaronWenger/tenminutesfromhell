@@ -84,14 +84,17 @@ const Home = ({
   const [currentPage, setCurrentPage] = useState(0);
   const [viewMetrics, setViewMetrics] = useState(null); // { overhead, rowH, maxPanelH, paginationH }
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const initialHeightRef = useRef(window.innerHeight);
 
   // iOS keyboard: adjust overlay bottom so panel sits above keyboard
   useEffect(() => {
     if (!detailWorkout) { setKeyboardHeight(0); return; }
     const vv = window.visualViewport;
     if (!vv) return;
+    // Capture baseline height when detail opens (keyboard closed)
+    initialHeightRef.current = window.innerHeight;
     const onResize = () => {
-      const kb = window.innerHeight - vv.height;
+      const kb = initialHeightRef.current - vv.height;
       setKeyboardHeight(kb > 50 ? kb : 0);
     };
     vv.addEventListener('resize', onResize);
@@ -1483,7 +1486,7 @@ const Home = ({
         <div
           className={`home-detail-overlay ${detailPhase === 'leaving' ? 'closing' : ''}`}
           onClick={(e) => { if (e.target === e.currentTarget) closeDetail(); }}
-          style={keyboardHeight > 0 ? { bottom: keyboardHeight, paddingTop: 10, paddingBottom: 10 } : undefined}
+          style={keyboardHeight > 0 ? { paddingBottom: keyboardHeight + 10 } : undefined}
         >
           <div
             ref={panelRef}
