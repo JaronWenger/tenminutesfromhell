@@ -83,6 +83,20 @@ const Home = ({
   const [deleteConfirmClosing, setDeleteConfirmClosing] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [viewMetrics, setViewMetrics] = useState(null); // { overhead, rowH, maxPanelH, paginationH }
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+  // iOS keyboard: shift detail overlay up when keyboard opens
+  useEffect(() => {
+    if (!detailWorkout) { setKeyboardOffset(0); return; }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const offset = window.innerHeight - vv.height;
+      setKeyboardOffset(offset > 50 ? offset : 0);
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, [detailWorkout]);
 
   // Predict what the view-mode panel height would be for the current exercise count.
   // As exercises are added/removed in edit mode, the panel grows/shrinks to match view mode.
@@ -625,7 +639,7 @@ const Home = ({
     setIsEditingTitle(true);
     setEditExercises([]);
     setEditTitle('');
-    setEditRestTime(null);
+    setEditRestTime(15);
     setEditTags([]);
   };
 
@@ -1469,6 +1483,7 @@ const Home = ({
         <div
           className={`home-detail-overlay ${detailPhase === 'leaving' ? 'closing' : ''}`}
           onClick={(e) => { if (e.target === e.currentTarget) closeDetail(); }}
+          style={keyboardOffset > 0 ? { transform: `translateY(${-keyboardOffset / 2}px)` } : undefined}
         >
           <div
             ref={panelRef}
