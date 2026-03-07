@@ -131,6 +131,9 @@ export const recordWorkoutHistory = async (userId, entry) => {
     completedAt: serverTimestamp()
   };
   if (entry.workoutId) data.workoutId = entry.workoutId;
+  if (entry.restTime != null) data.restTime = entry.restTime;
+  if (entry.prepTime != null) data.prepTime = entry.prepTime;
+  if (entry.activeLastMinute != null) data.activeLastMinute = entry.activeLastMinute;
   const docRef = await addDoc(collection(db, 'users', userId, 'history'), data);
   return docRef.id;
 };

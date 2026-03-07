@@ -154,6 +154,9 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
         duration: post.duration,
         setCount: 1,
         exercises: post.exercises || [],
+        restTime: post.restTime,
+        prepTime: post.prepTime,
+        activeLastMinute: post.activeLastMinute,
       });
       if (onHistoryRecorded) onHistoryRecorded();
     } catch (err) {
