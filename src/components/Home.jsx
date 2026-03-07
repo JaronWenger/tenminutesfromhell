@@ -1483,7 +1483,7 @@ const Home = ({
         <div
           className={`home-detail-overlay ${detailPhase === 'leaving' ? 'closing' : ''}`}
           onClick={(e) => { if (e.target === e.currentTarget) closeDetail(); }}
-          style={keyboardHeight > 0 ? { paddingBottom: keyboardHeight + 10, alignItems: 'flex-end' } : undefined}
+          style={keyboardHeight > 0 ? { bottom: keyboardHeight, paddingTop: 10, paddingBottom: 10 } : undefined}
         >
           <div
             ref={panelRef}
