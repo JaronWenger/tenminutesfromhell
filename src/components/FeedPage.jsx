@@ -25,7 +25,7 @@ import './FeedPage.css';
 
 const APP_URL = 'https://hiitem.com';
 const REACTION_EMOJIS = ['🏆', '🦍', '🦧', '🐦‍🔥', '🦦', '🔥'];
-const INVITE_TEXT = `Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress! ${APP_URL}`;
+const INVITE_TEXT = 'Join me on HIITem — build and share custom HIIT workouts, follow friends, and track your progress!';
 
 const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout, onViewPostWorkout, onWorkoutAdded, onHistoryRecorded, acceptedPostId, allWorkouts = [], lastViewedAt, externalFollowedUid, pendingFollowRequests = {}, onPendingFollowRequestsChange, initialTab, onFollowCountChanged }) => {
   const { user } = useAuth();
@@ -391,11 +391,11 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
       }
     } else {
       try {
-        await navigator.clipboard.writeText(INVITE_TEXT);
+        await navigator.clipboard.writeText(`${INVITE_TEXT} ${APP_URL}`);
         alert('Invite link copied!');
       } catch {
         // Fallback
-        window.prompt('Copy this invite link:', INVITE_TEXT);
+        window.prompt('Copy this invite link:', `${INVITE_TEXT} ${APP_URL}`);
       }
     }
   };
