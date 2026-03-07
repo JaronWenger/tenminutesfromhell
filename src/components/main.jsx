@@ -507,17 +507,18 @@ const Main = () => {
     if (activeTab === 'home') checkUnread();
   }, [activeTab, checkUnread]);
 
-  // Onboarding: activate timer page after initial load finishes
+  // Onboarding: activate timer page after initial load finishes (signed-in users only)
   useEffect(() => {
-    if (initialLoad || onboarding.timer.completed || onboarding.timer.active) return;
+    if (!user || initialLoad || onboarding.timer.completed || onboarding.timer.active) return;
     const t = setTimeout(() => {
       setOnboarding(prev => prev.timer.completed ? prev : { ...prev, timer: { ...prev.timer, active: true } });
     }, 400);
     return () => clearTimeout(t);
-  }, [initialLoad, onboarding.timer.completed, onboarding.timer.active]);
+  }, [user, initialLoad, onboarding.timer.completed, onboarding.timer.active]);
 
-  // Onboarding: activate home/stats on first tab visit
+  // Onboarding: activate home/stats on first tab visit (signed-in users only)
   useEffect(() => {
+    if (!user) return;
     if (activeTab === 'home' && !onboarding.home.completed && !onboarding.home.active) {
       const t = setTimeout(() => {
         setOnboarding(prev => prev.home.completed ? prev : { ...prev, home: { ...prev.home, active: true } });
@@ -530,7 +531,7 @@ const Main = () => {
       }, 200);
       return () => clearTimeout(t);
     }
-  }, [activeTab, onboarding.home.completed, onboarding.home.active, onboarding.stats.completed, onboarding.stats.active]);
+  }, [user, activeTab, onboarding.home.completed, onboarding.home.active, onboarding.stats.completed, onboarding.stats.active]);
 
   // Onboarding: timer step 0 auto-advances when timer starts running
   useEffect(() => {
