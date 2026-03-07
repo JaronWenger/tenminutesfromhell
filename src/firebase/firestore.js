@@ -87,15 +87,14 @@ export const deleteUserWorkout = async (userId, workoutName, isDefault) => {
   const workoutsRef = collection(db, 'users', userId, 'customWorkouts');
   const snapshot = await getDocs(workoutsRef);
 
-  // Find existing doc by name or defaultName
-  // Skip custom (forked) workouts so deleting a default doesn't wipe a user's fork
-  const existing = snapshot.docs.find(d => {
-    const data = d.data();
-    if (data.isCustom) return false;
-    return data.name === workoutName || data.defaultName === workoutName;
-  });
-
   if (isDefault) {
+    // Find existing doc by name or defaultName
+    // Skip custom (forked) workouts so deleting a default doesn't wipe a user's fork
+    const existing = snapshot.docs.find(d => {
+      const data = d.data();
+      if (data.isCustom) return false;
+      return data.name === workoutName || data.defaultName === workoutName;
+    });
     // For default workouts, save a deletion marker so it stays removed on reload
     if (existing) {
       await setDoc(doc(db, 'users', userId, 'customWorkouts', existing.id), {
@@ -112,7 +111,8 @@ export const deleteUserWorkout = async (userId, workoutName, isDefault) => {
       });
     }
   } else {
-    // For custom workouts, just delete the doc
+    // For custom workouts, find by name and delete the doc
+    const existing = snapshot.docs.find(d => d.data().name === workoutName);
     if (existing) {
       await deleteDoc(doc(db, 'users', userId, 'customWorkouts', existing.id));
     }
