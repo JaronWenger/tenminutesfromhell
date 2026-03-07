@@ -1557,7 +1557,7 @@ const Home = ({
                       )}
                     </button>
                   )}
-                  <button className="home-detail-close-btn" onClick={() => { if (isEditing) { if (isNewWorkout) { closeDetail(); } else { handleSave(); setIsEditing(false); setIsEditingTitle(false); setShowAddPopup(false); setSelectedExerciseIndex(null); } } else { closeDetail(); } }}>
+                  <button className="home-detail-close-btn" onClick={() => { if (isEditing) { if (isNewWorkout) { closeDetail(); } else { setIsEditing(false); setIsEditingTitle(false); setShowAddPopup(false); setSelectedExerciseIndex(null); setEditExercises([...detailWorkout.exercises]); setEditTitle(detailWorkout.name); setEditRestTime(detailWorkout.restTime ?? null); setEditTags(detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : [])); } } else { closeDetail(); } }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"/>
                       <line x1="6" y1="6" x2="18" y2="18"/>
@@ -1634,9 +1634,10 @@ const Home = ({
                               className="home-detail-duplicate-btn"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const insertAt = actualIndex + 1;
-                                setEditExercises(prev => [...prev.slice(0, insertAt), exercise, ...prev.slice(insertAt)]);
-                                setJustAddedIndex(insertAt);
+                                setEditExercises(prev => {
+                                  setJustAddedIndex(prev.length);
+                                  return [...prev, exercise];
+                                });
                                 setTimeout(() => setJustAddedIndex(null), 350);
                               }}
                             >
