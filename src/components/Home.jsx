@@ -83,23 +83,6 @@ const Home = ({
   const [deleteConfirmClosing, setDeleteConfirmClosing] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [viewMetrics, setViewMetrics] = useState(null); // { overhead, rowH, maxPanelH, paginationH }
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const initialHeightRef = useRef(window.innerHeight);
-
-  // iOS keyboard: adjust overlay bottom so panel sits above keyboard
-  useEffect(() => {
-    if (!detailWorkout) { setKeyboardHeight(0); return; }
-    const vv = window.visualViewport;
-    if (!vv) return;
-    // Capture baseline height when detail opens (keyboard closed)
-    initialHeightRef.current = window.innerHeight;
-    const onResize = () => {
-      const kb = initialHeightRef.current - vv.height;
-      setKeyboardHeight(kb > 50 ? kb : 0);
-    };
-    vv.addEventListener('resize', onResize);
-    return () => vv.removeEventListener('resize', onResize);
-  }, [detailWorkout]);
 
   // Predict what the view-mode panel height would be for the current exercise count.
   // As exercises are added/removed in edit mode, the panel grows/shrinks to match view mode.
@@ -1486,7 +1469,6 @@ const Home = ({
         <div
           className={`home-detail-overlay ${detailPhase === 'leaving' ? 'closing' : ''}`}
           onClick={(e) => { if (e.target === e.currentTarget) closeDetail(); }}
-          style={keyboardHeight > 0 ? { paddingBottom: keyboardHeight + 10 } : undefined}
         >
           <div
             ref={panelRef}
@@ -1520,6 +1502,7 @@ const Home = ({
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { setIsEditingTitle(false); e.target.blur(); } }}
+                      onFocus={(e) => { const el = e.target; setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 350); }}
                       className="home-detail-name-input"
                       autoFocus
                     />

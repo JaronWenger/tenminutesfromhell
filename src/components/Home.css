@@ -548,7 +548,6 @@
   padding: calc(80px + env(safe-area-inset-top, 0px)) 16px 90px;
   box-sizing: border-box;
   animation: home-detail-fade-in 0.28s ease forwards;
-  transition: padding-bottom 0.3s ease;
 }
 
 .home-detail-overlay.closing {
