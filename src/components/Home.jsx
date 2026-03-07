@@ -627,9 +627,6 @@ const Home = ({
     setEditTitle('');
     setEditRestTime(15);
     setEditTags([]);
-    setTimeout(() => {
-      if (titleInputRef.current) titleInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 600);
   };
 
   // ── react-beautiful-dnd ──
