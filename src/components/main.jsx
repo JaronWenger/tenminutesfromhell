@@ -575,7 +575,7 @@ const Main = () => {
           c => !c.deleted && (c.defaultName === d.name || (!c.defaultName && c.name === d.name))
         );
         if (override) usedAsOverride.add(override.id || override.name);
-        return override ? { ...d, ...override, exercises: override.exercises } : d;
+        return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
       });
 
     const stopwatchResult = stopwatchDefaults
@@ -585,7 +585,7 @@ const Main = () => {
           c => !c.deleted && (c.defaultName === d.name || (!c.defaultName && c.name === d.name))
         );
         if (override) usedAsOverride.add(override.id || override.name);
-        return override ? { ...d, ...override, exercises: override.exercises } : d;
+        return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
       });
 
     // Add any fully custom workouts (not overriding defaults, not deleted, not already used as override)
@@ -1763,7 +1763,7 @@ const Main = () => {
           isVisible={activeTab === 'timer' && !currentEditPage}
           hasNoExercises={(() => {
             const w = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
-            return w ? w.exercises.length === 0 : false;
+            return w ? (w.exercises || []).length === 0 : false;
           })()}
           onWorkoutLabelClick={(openInEdit) => {
             const workout = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
