@@ -509,16 +509,16 @@ const Main = () => {
 
   // Onboarding: activate timer page after initial load finishes (signed-in users only)
   useEffect(() => {
-    if (!user || initialLoad || onboarding.timer.completed || onboarding.timer.active) return;
+    if (!user || !workoutReady || initialLoad || onboarding.timer.completed || onboarding.timer.active) return;
     const t = setTimeout(() => {
       setOnboarding(prev => prev.timer.completed ? prev : { ...prev, timer: { ...prev.timer, active: true } });
     }, 400);
     return () => clearTimeout(t);
-  }, [user, initialLoad, onboarding.timer.completed, onboarding.timer.active]);
+  }, [user, workoutReady, initialLoad, onboarding.timer.completed, onboarding.timer.active]);
 
   // Onboarding: activate home/stats on first tab visit (signed-in users only)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !workoutReady) return;
     if (activeTab === 'home' && !onboarding.home.completed && !onboarding.home.active) {
       const t = setTimeout(() => {
         setOnboarding(prev => prev.home.completed ? prev : { ...prev, home: { ...prev.home, active: true } });

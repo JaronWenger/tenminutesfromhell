@@ -1112,7 +1112,16 @@ const Home = ({
 
   const handleSave = () => {
     if (!detailWorkout) return;
-    const isOwned = detailWorkout.forked || !defaultWorkoutNames.includes(detailWorkout.name);
+    const origExercises = detailWorkout.exercises || [];
+    const origRestTime = detailWorkout.restTime ?? null;
+    const origTags = detailWorkout.tags || (detailWorkout.tag ? [detailWorkout.tag] : []);
+    const nothingChanged = editTitle === detailWorkout.name
+      && editExercises.length === origExercises.length
+      && editExercises.every((e, i) => e === origExercises[i])
+      && editRestTime === origRestTime
+      && editTags.length === origTags.length
+      && editTags.every((t, i) => t === origTags[i]);
+    const isOwned = nothingChanged || detailWorkout.forked || !defaultWorkoutNames.includes(detailWorkout.name);
     onDetailSave(detailWorkout.name, editExercises, editTitle, editRestTime, editTags, { isOwned });
     if (!isOwned) {
       // Fork: update detail overlay to show the new forked workout
