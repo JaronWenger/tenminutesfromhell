@@ -28,17 +28,14 @@ const Timer = ({
 }) => {
   // Default workouts if none provided
   const defaultWorkouts = [
-    "Russian Twist",
-    "Boat hold or seated in and outs",
-    "Glut boat hold",
-    "Jack knifes",
-    "Sit up twist (weight over head)",
-    "Leg raises (weight in feet)",
-    "Chair sit ups (weight in one arm)",
-    "Plank knees to elbows",
-    "Side planks dips",
-    "Bicycle",
-    "Boat hold leg flutters"
+    "Sit Ups",
+    "Leg Raises",
+    "Alternating Single Leg Raises",
+    "Chair Crunches",
+    "Seated In & Outs",
+    "Planks",
+    "Bicycles",
+    "Russian Twists"
   ];
 
   const baseWorkoutList = hasNoExercises ? [] : (workouts.length > 0 ? workouts : defaultWorkouts);

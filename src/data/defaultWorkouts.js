@@ -1,75 +1,65 @@
 export const DEFAULT_TIMER_WORKOUTS = [
   {
-    id: "default-the-devils-10",
-    name: "The Devils 10",
+    id: "default-hiit-them-abs",
+    name: "8-Minute Abs",
     type: "timer",
+    tags: ["Core"],
+    restTime: 15,
     exercises: [
-      "Russian Twist",
-      "Seated in and outs",
-      "Boat hold",
-      "Jack knifes",
-      "Sit up twist",
-      "Leg raises",
-      "Chair sit ups",
-      "Plank knees to elbows",
-      "Side planks dips",
-      "Bicycle",
-      "Boat hold leg flutters"
-    ]
-  },
-  {
-    id: "default-abs-2",
-    name: "Abs 2",
-    type: "timer",
-    exercises: [
-      "Leg raises",
-      "Single leg raises",
-      "Chair crunches",
-      "In and outs",
-      "Sit ups",
+      "Sit Ups",
+      "Leg Raises",
+      "Alternating Single Leg Raises",
+      "Chair Crunches",
+      "Seated In & Outs",
       "Planks",
       "Bicycles",
-      "Russian twists"
+      "Russian Twists"
     ]
   },
   {
     id: "default-core-blaster",
     name: "Core Blaster",
     type: "timer",
+    tags: ["Core"],
+    restTime: 15,
     exercises: [
-      "Mountain climbers",
-      "Plank to pushup",
-      "Dead bug",
-      "Hollow body hold",
-      "Side plank dips",
-      "Bicycle crunches",
-      "Leg raises",
-      "Russian twists",
-      "Plank jacks",
-      "Sit-up to stand"
+      "Star Crunches",
+      "Russian Twists",
+      "Leg Raises",
+      "Flutter Kicks",
+      "Bicycle Crunches",
+      "Plank Knees to Elbows",
+      "Side Plank Dips",
+      "Chair Sit-Ups",
+      "Seated In & Outs",
+      "Boat Hold Leg Flutters"
     ]
   },
   {
-    id: "default-leg-day-hell",
-    name: "Leg Day Hell",
+    id: "default-100-push-ups",
+    name: "100 Push Ups",
     type: "timer",
+    tags: ["Chest"],
+    restTime: 15,
     exercises: [
-      "Squats",
-      "Jump squats",
-      "Lunges",
-      "Single leg deadlifts",
-      "Wall sits",
-      "Calf raises",
-      "Glute bridges",
-      "Side lunges",
-      "Pistol squats",
-      "Bulgarian split squats"
+      "Push Ups",
+      "Wide Push Ups",
+      "Diamond Push Ups",
+      "Explosive Push Ups",
+      "Side To Side Push Ups",
+      "Clapping Push Ups",
+      "Archer Push Ups",
+      "Open & Closed Push Ups",
+      "Typewriter Push Ups",
+      "Push Up Shoulder Tap"
     ]
   },
   {
-    id: "default-full-body-burn",
-    name: "Full Body Burn",
+    id: "default-cardio-inferno",
+    name: "Cardio Inferno",
     type: "timer",
+    tags: ["Full Body"],
+    restTime: 15,
     exercises: [
       "Burpees",
       "Jumping jacks",
@@ -84,20 +74,38 @@ export const DEFAULT_TIMER_WORKOUTS = [
     ]
   },
   {
-    id: "default-cardio-inferno",
-    name: "Cardio Inferno",
+    id: "default-shoulder-shred",
+    name: "Shoulder Shred",
     type: "timer",
+    tags: ["Shoulders"],
+    restTime: 15,
     exercises: [
-      "Jumping jacks",
-      "High knees",
-      "Butt kicks",
-      "Mountain climbers",
-      "Burpees",
+      "Dumbbell Lateral Raises",
+      "Dumbbell Skis",
+      "Dumbbell Press",
+      "Dumbbell Rear Delt Fly",
+      "Pike Push Ups",
+      "Handstand Hold",
+      "High Side Plank Raises"
+    ]
+  },
+  {
+    id: "default-hiit-leg-day",
+    name: "HIIT Leg Day",
+    type: "timer",
+    tags: ["Legs"],
+    restTime: 15,
+    exercises: [
+      "Squats",
       "Jump squats",
-      "Plank jacks",
-      "Star jumps",
-      "Skaters",
-      "Sprint in place"
+      "Lunges",
+      "Single leg deadlifts",
+      "Wall sits",
+      "Calf raises",
+      "Glute bridges",
+      "Side lunges",
+      "Pistol squats",
+      "Bulgarian split squats"
     ]
   }
 ];

@@ -92,7 +92,7 @@ const Main = () => {
 
   // Calculate total time from exercise count
   const calculateTotalTime = useCallback((workoutName) => {
-    const exercises = getExerciseList(workoutName || 'The Devils 10');
+    const exercises = getExerciseList(workoutName || '8-Minute Abs');
     return (exercises.length * 60) + prepTime;
   }, [getExerciseList, prepTime]);
 
@@ -128,7 +128,7 @@ const Main = () => {
   const [currentEditPage, setCurrentEditPage] = useState(null);
   const [currentEditLevel, setCurrentEditLevel] = useState('categories');
   const [currentEditingWorkout, setCurrentEditingWorkout] = useState(null);
-  const [timerSelectedWorkout, setTimerSelectedWorkout] = useState('The Devils 10');
+  const [timerSelectedWorkout, setTimerSelectedWorkout] = useState('8-Minute Abs');
   const [stopwatchSelectedWorkout, setStopwatchSelectedWorkout] = useState('Back & Bis');
 
   // Stats page state
@@ -283,7 +283,7 @@ const Main = () => {
       setPrepTime(15);
       setRestTime(15);
       setActiveLastMinute(true);
-      setTimerSelectedWorkout('The Devils 10');
+      setTimerSelectedWorkout('8-Minute Abs');
       setWeeklyScheduleState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
       return;
     }
