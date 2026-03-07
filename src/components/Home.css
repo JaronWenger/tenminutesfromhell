@@ -1439,8 +1439,9 @@
   inset: 0;
   z-index: 110;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 25vh;
   animation: popup-fade-in 0.2s ease forwards;
 }
 

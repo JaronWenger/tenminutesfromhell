@@ -1549,7 +1549,7 @@ const StatsPage = ({
                 <div className="stats-pin-picker-list">
                   {ownedWorkouts.length === 0 ? (
                     <div className="stats-pin-picker-empty">
-                      Only your own public workouts can be pinned. Create a custom workout or make one public to pin it.
+                      Pin workouts you've created to show on your profile.
                     </div>
                   ) : (
                     ownedWorkouts.map(w => {
