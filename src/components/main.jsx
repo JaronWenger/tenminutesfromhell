@@ -573,38 +573,48 @@ const Main = () => {
   const mergeWorkouts = (customWorkouts) => {
     const timerDefaults = [...DEFAULT_TIMER_WORKOUTS];
     const stopwatchDefaults = [...DEFAULT_STOPWATCH_WORKOUTS];
+    const allDefaults = [...timerDefaults, ...stopwatchDefaults];
+    const defaultIds = new Set(allDefaults.map(d => d.id));
+    const defaultNames = new Set(allDefaults.map(d => d.name));
 
-    // Collect deleted default names
-    const deletedDefaults = customWorkouts
-      .filter(c => c.deleted)
-      .map(c => c.defaultName)
-      .filter(Boolean);
+    // Collect deleted defaults by ID or name
+    const deletedDefaultIds = new Set();
+    const deletedDefaultNames = new Set();
+    customWorkouts.filter(c => c.deleted).forEach(c => {
+      if (c.defaultId) deletedDefaultIds.add(c.defaultId);
+      if (c.defaultName) deletedDefaultNames.add(c.defaultName);
+    });
 
-    // Track which custom workouts were used as default overrides
+    const isDefaultDeleted = (d) => deletedDefaultIds.has(d.id) || deletedDefaultNames.has(d.name);
+
+    // Find override for a default: match by defaultId first, then legacy defaultName/name fallback
     const usedAsOverride = new Set();
+    const findOverride = (d) => {
+      const override = customWorkouts.find(
+        c => !c.deleted && (
+          (c.defaultId && c.defaultId === d.id) ||
+          (!c.defaultId && (c.defaultName === d.name || (!c.defaultName && !c.isCustom && c.name === d.name)))
+        )
+      );
+      if (override) usedAsOverride.add(override.id || override.name);
+      return override;
+    };
 
     const timerResult = timerDefaults
-      .filter(d => !deletedDefaults.includes(d.name))
+      .filter(d => !isDefaultDeleted(d))
       .map(d => {
-        const override = customWorkouts.find(
-          c => !c.deleted && (c.defaultName === d.name || (!c.defaultName && c.name === d.name))
-        );
-        if (override) usedAsOverride.add(override.id || override.name);
+        const override = findOverride(d);
         return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
       });
 
     const stopwatchResult = stopwatchDefaults
-      .filter(d => !deletedDefaults.includes(d.name))
+      .filter(d => !isDefaultDeleted(d))
       .map(d => {
-        const override = customWorkouts.find(
-          c => !c.deleted && (c.defaultName === d.name || (!c.defaultName && c.name === d.name))
-        );
-        if (override) usedAsOverride.add(override.id || override.name);
+        const override = findOverride(d);
         return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
       });
 
     // Add any fully custom workouts (not overriding defaults, not deleted, not already used as override)
-    const defaultNames = [...timerDefaults, ...stopwatchDefaults].map(d => d.name);
     customWorkouts.forEach(c => {
       if (c.deleted) return;
       if (usedAsOverride.has(c.id || c.name)) return;
@@ -613,11 +623,10 @@ const Main = () => {
         else stopwatchResult.push(c);
         return;
       }
-      const isOverride = defaultNames.includes(c.name) || defaultNames.includes(c.defaultName);
-      if (!isOverride) {
-        if (c.type === 'timer') timerResult.push(c);
-        else stopwatchResult.push(c);
-      }
+      // Legacy docs without defaultId: check if name matches a default (old override behavior)
+      if (!c.defaultId && (defaultNames.has(c.name) || defaultNames.has(c.defaultName))) return;
+      if (c.type === 'timer') timerResult.push(c);
+      else stopwatchResult.push(c);
     });
 
     return { timer: timerResult, stopwatch: stopwatchResult };
@@ -1214,12 +1223,13 @@ const Main = () => {
       if (user && finalName) {
         // Soft-delete the original default first, then save the fork
         // Must be sequential to avoid race where delete overwrites the fork doc
-        const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
+        const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+        const forkDefaultMatch = allDefaults.find(d => d.name === workoutName);
         const persist = async () => {
-          if (defaultNames.includes(workoutName)) {
-            await deleteUserWorkout(user.uid, workoutName, true);
+          if (forkDefaultMatch) {
+            await deleteUserWorkout(user.uid, workoutName, true, forkDefaultMatch.id);
           }
-          await saveUserWorkout(user.uid, { ...forked, isDefault: false, defaultName: null, creatorUid: null, creatorName: null, creatorPhotoURL: null });
+          await saveUserWorkout(user.uid, { ...forked, isDefault: false, defaultName: null, defaultId: null, creatorUid: null, creatorName: null, creatorPhotoURL: null });
         };
         persist().catch(err => console.error('Failed to persist forked workout:', err));
       }
@@ -1247,8 +1257,9 @@ const Main = () => {
 
     // Persist to Firestore when logged in
     if (user && finalName) {
-      const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
-      const isDefault = defaultNames.includes(workoutName);
+      const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+      const defaultMatch = allDefaults.find(d => d.name === workoutName);
+      const isDefault = !!defaultMatch;
       saveUserWorkout(user.uid, {
         id: existingWorkout?.id || null,
         name: finalName,
@@ -1257,6 +1268,7 @@ const Main = () => {
         isDefault: isNew ? false : isDefault,
         isPublic: true,
         defaultName: isDefault && newTitle ? workoutName : null,
+        defaultId: existingWorkout?.defaultId || defaultMatch?.id || null,
         restTime: newRestTime ?? null,
         tags: safeTags,
         creatorUid: null,
@@ -1391,8 +1403,10 @@ const Main = () => {
   }, [user, feedDetailPost, feedDetailOwner, feedDetailSaving, feedDetailTaken, closeFeedDetail, handleHomeStartWorkout, refreshWorkouts]);
 
   const handleDeleteWorkout = (workoutName) => {
-    const defaultNames = DEFAULT_TIMER_WORKOUTS.map(d => d.name);
-    const isDefault = defaultNames.includes(workoutName);
+    const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+    const defaultMatch = allDefaults.find(d => d.name === workoutName || d.id === workoutName);
+    const isDefault = !!defaultMatch;
+    const defaultId = defaultMatch?.id || null;
 
     // Remove from local state
     setTimerWorkoutData(prev => {
@@ -1432,7 +1446,7 @@ const Main = () => {
 
     // Persist to Firestore
     if (user) {
-      deleteUserWorkout(user.uid, workoutName, isDefault)
+      deleteUserWorkout(user.uid, workoutName, isDefault, defaultId)
         .catch(err => console.error('Failed to delete workout:', err));
     }
   };

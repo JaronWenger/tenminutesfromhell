@@ -32,6 +32,7 @@ export const saveUserWorkout = async (userId, workout) => {
     isCustom: workout.isCustom || false,
     forked: workout.forked || false,
     defaultName: workout.defaultName || null,
+    defaultId: workout.defaultId || null,
     restTime: workout.restTime ?? null,
     isPublic: true,
     tags: workout.tags || null,
@@ -83,32 +84,30 @@ export const getUserHistory = async (userId) => {
 };
 
 // Delete a workout for a user
-export const deleteUserWorkout = async (userId, workoutName, isDefault) => {
+export const deleteUserWorkout = async (userId, workoutName, isDefault, defaultId = null) => {
   const workoutsRef = collection(db, 'users', userId, 'customWorkouts');
   const snapshot = await getDocs(workoutsRef);
 
   if (isDefault) {
-    // Find existing doc by name or defaultName
+    // Find existing doc by defaultId first, then fall back to name/defaultName
     // Skip custom (forked) workouts so deleting a default doesn't wipe a user's fork
     const existing = snapshot.docs.find(d => {
       const data = d.data();
       if (data.isCustom) return false;
+      if (defaultId && data.defaultId === defaultId) return true;
       return data.name === workoutName || data.defaultName === workoutName;
     });
     // For default workouts, save a deletion marker so it stays removed on reload
+    const marker = {
+      deleted: true,
+      defaultName: workoutName,
+      defaultId: defaultId || null,
+      updatedAt: serverTimestamp()
+    };
     if (existing) {
-      await setDoc(doc(db, 'users', userId, 'customWorkouts', existing.id), {
-        deleted: true,
-        defaultName: workoutName,
-        updatedAt: serverTimestamp()
-      });
+      await setDoc(doc(db, 'users', userId, 'customWorkouts', existing.id), marker);
     } else {
-      await addDoc(workoutsRef, {
-        deleted: true,
-        defaultName: workoutName,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      await addDoc(workoutsRef, { ...marker, createdAt: serverTimestamp() });
     }
   } else {
     // For custom workouts, find by name and delete the doc
