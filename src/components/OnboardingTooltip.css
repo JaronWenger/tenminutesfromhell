@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  animation: onb-fade-in 0.25s ease forwards;
+  animation: onb-fade-in 0.4s ease forwards;
 }
 
 .onb-tooltip.onb-closing {
@@ -59,7 +59,7 @@
 }
 
 .onb-custom-arrow {
-  animation: onb-fade-in 0.25s ease forwards;
+  animation: onb-fade-in 0.4s ease forwards;
 }
 
 .onb-custom-arrow.onb-closing {

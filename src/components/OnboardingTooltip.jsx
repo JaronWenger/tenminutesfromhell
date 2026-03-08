@@ -40,6 +40,7 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
   const [arrowPath, setArrowPath] = useState(null);
   const [closing, setClosing] = useState(false);
   const [delayDone, setDelayDone] = useState(!delay);
+  const [posReady, setPosReady] = useState(false);
   const dismissTimer = useRef(null);
   const wasVisible = useRef(false);
   const textRef = useRef(null);
@@ -48,6 +49,7 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
   useEffect(() => {
     if (!visible || !delay) { setDelayDone(!delay ? true : false); return; }
     setDelayDone(false);
+    setPosReady(false);
     const t = setTimeout(() => setDelayDone(true), delay);
     return () => clearTimeout(t);
   }, [visible, delay]);
@@ -126,9 +128,10 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
         }
       }
     };
+    setPosReady(false);
     calculate();
-    // Small delay to let textRef measure
-    const t = setTimeout(calculate, 50);
+    // Small delay to let textRef measure, then mark ready
+    const t = setTimeout(() => { calculate(); setPosReady(true); }, 50);
     window.addEventListener('resize', calculate);
     return () => { window.removeEventListener('resize', calculate); clearTimeout(t); };
   }, [visible, delayDone, targetSelector, arrowDirection, arrowTargetSelector, offsetX, offsetY]);
@@ -156,7 +159,7 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
   };
 
   if ((!visible || !delayDone) && !closing) return null;
-  if (!pos) return null;
+  if (!pos || (!posReady && !closing)) return null;
 
   // Transform so the arrow tip aligns with the target edge
   let transform;

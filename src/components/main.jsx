@@ -196,13 +196,13 @@ const Main = () => {
   const timerOnbBase = timerState.targetTime; // e.g. 490 for 8 exercises + 10s prep
   const ONBOARDING_STEPS = {
     timer: [
-      { text: 'Tap play!', target: '.play-btn', arrow: 'right', noOverlay: true },
+      { text: 'Tap play!', target: '.play-btn', arrow: 'right', noOverlay: true, delay: 300 },
       { text: '10 seconds to get ready...', target: '.workout-list', arrowTarget: '.time-seconds', timeBased: true },
       { text: 'Blue means rest...', target: '.workout-list', timeBased: true, noArrow: true },
       { text: 'Red means go in', target: '.workout-list', timeBased: true, noArrow: true, countdown: true },
     ],
     home: [
-      { text: 'Tap a workout', target: '.workout-card-add', arrow: 'up', arrowScale: 3, textScale: 1.8, offsetY: -100, noOverlay: true },
+      { text: 'Tap a workout', target: '.workout-card-add', arrow: 'up', arrowScale: 3, textScale: 1.8, offsetY: -100, noOverlay: true, delay: 300 },
       { text: 'Activity', target: '.home-header-bell', arrow: 'up', noArrow: true, noOverlay: true, delay: 200, pendingDetailClose: true, offsetX: -90, offsetY: 50, separateArrowTarget: '.home-header-bell', arrowConfig: { startXPct: 0.6, endXPct: -0.4, endYPct: 0.3, cpX: (sx, ex) => (sx + ex) / 2 - 20, cpY: (sy, ey) => Math.min(sy, ey) - 25 } },
     ],
     stats: [],
@@ -1397,9 +1397,15 @@ const Main = () => {
     // Remove from local state
     setTimerWorkoutData(prev => {
       const remaining = prev.filter(w => w.name !== workoutName);
-      // Select first remaining if deleted was selected (scheduled after render)
-      if (timerSelectedWorkout === workoutName && remaining.length > 0) {
-        setTimeout(() => setTimerSelectedWorkout(remaining[0].name), 0);
+      // If deleted workout was selected, switch to the first remaining
+      if (timerSelectedWorkout === workoutName) {
+        const newSelection = remaining.length > 0 ? remaining[0].name : '';
+        setTimeout(() => {
+          setTimerSelectedWorkout(newSelection);
+          if (user && newSelection) {
+            setSelectedWorkout(user.uid, newSelection).catch(err => console.error('Failed to persist selection:', err));
+          }
+        }, 0);
       }
       // Persist updated order (scheduled after render)
       if (user) {
