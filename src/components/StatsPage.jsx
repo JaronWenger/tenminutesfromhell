@@ -230,19 +230,21 @@ const StatsPage = ({
     }
 
     const days = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = -1; i < 8; i++) {
       const d = new Date(sunday);
       d.setDate(sunday.getDate() + i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const isFuture = d > today;
+      const isEdge = i === -1 || i === 7;
       days.push({
-        label: DAY_LABELS[i],
+        label: isEdge ? '' : DAY_LABELS[i],
         minutes: isFuture ? null : Math.round((dailyDurationMap[key] || 0) / 60),
         seconds: isFuture ? 0 : (dailyDurationMap[key] || 0),
         workouts: dailyWorkoutsMap[key] || [],
         date: d,
-        isToday: d.toDateString() === today.toDateString(),
-        isFuture
+        isToday: !isEdge && d.toDateString() === today.toDateString(),
+        isFuture,
+        isEdge
       });
     }
     return days;
@@ -414,6 +416,7 @@ const StatsPage = ({
   };
 
   const mockWeekChart = [
+    { label: '', minutes: 8, isToday: false, isFuture: false, isEdge: true },
     { label: 'S', minutes: 15, isToday: false, isFuture: false },
     { label: 'M', minutes: 22, isToday: false, isFuture: false },
     { label: 'T', minutes: 11, isToday: false, isFuture: false },
@@ -421,6 +424,7 @@ const StatsPage = ({
     { label: 'T', minutes: 33, isToday: false, isFuture: false },
     { label: 'F', minutes: 11, isToday: true, isFuture: false },
     { label: 'S', minutes: null, isToday: false, isFuture: true },
+    { label: '', minutes: null, isToday: false, isFuture: true, isEdge: true },
   ];
   const mockWeekStreak = 12;
 
@@ -513,7 +517,8 @@ const StatsPage = ({
   const pastDays = displayWeekChart.filter(d => d.minutes !== null);
   const maxMin = Math.max(...pastDays.map(d => d.minutes), 1);
 
-  const getX = (i) => padLeft + (i / 6) * (chartW - padLeft - padRight);
+  // Map index: 0=prev day (off-screen left), 1-7=Sun-Sat, 8=next day (off-screen right)
+  const getX = (i) => padLeft + ((i - 1) / 6) * (chartW - padLeft - padRight);
   const getY = (mins) => padTop + plotH - (mins / maxMin) * plotH;
 
   // Y-axis ticks
@@ -521,13 +526,14 @@ const StatsPage = ({
     ? Array.from({ length: maxMin + 1 }, (_, i) => i)
     : [0, Math.round(maxMin / 2), maxMin];
 
-  // Build line path + points only for non-future days
-  const linePoints = displayWeekChart
+  // Build line path with all points (including edge days), dots only for visible days
+  const allLinePoints = displayWeekChart
     .map((d, i) => d.minutes !== null ? { x: getX(i), y: getY(d.minutes), ...d, i } : null)
     .filter(Boolean);
+  const linePoints = allLinePoints.filter(p => !p.isEdge);
 
-  const linePath = linePoints.length > 1
-    ? linePoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+  const linePath = allLinePoints.length > 1
+    ? allLinePoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
     : '';
 
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -538,10 +544,10 @@ const StatsPage = ({
     const rect = el.getBoundingClientRect();
     const ratio = (clientX - rect.left) / rect.width;
     const svgX = ratio * chartW;
-    let closest = 0;
+    let closest = 1;
     let closestDist = Infinity;
-    for (let i = 0; i < 7; i++) {
-      const x = padLeft + (i / 6) * (chartW - padLeft - padRight);
+    for (let i = 1; i <= 7; i++) {
+      const x = getX(i);
       const dist = Math.abs(svgX - x);
       if (dist < closestDist) {
         closestDist = dist;
@@ -549,7 +555,7 @@ const StatsPage = ({
       }
     }
     return closest;
-  }, [chartW, padLeft, padRight]);
+  }, [chartW, getX]);
 
   const handleScrubStart = useCallback((clientX) => {
     setScrubIndex(getScrubIndex(clientX));
@@ -1350,7 +1356,7 @@ const StatsPage = ({
             <h3 className="stats-section-title">
               {scrubIndex !== null ? (() => {
                 const d = displayWeekChart[scrubIndex]?.date;
-                if (!d) return DAY_NAMES[scrubIndex];
+                if (!d) return DAY_NAMES[scrubIndex - 1];
                 return d.toLocaleDateString('default', { weekday: 'long', month: 'short', day: 'numeric' });
               })() : (selectedWeekStart ? (() => {
                 const end = new Date(selectedWeekStart);
@@ -1420,8 +1426,17 @@ const StatsPage = ({
                     strokeDasharray="3,3"
                   />
                 )}
+                <defs>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="2" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
                 {linePath && (
-                  <path d={linePath} fill="none" stroke="#e74c3c" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+                  <path d={linePath} fill="none" stroke="#dc2626" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" filter="url(#glow)" />
                 )}
                 {linePoints.map((p) => (
                   <circle
@@ -1429,16 +1444,17 @@ const StatsPage = ({
                     cx={p.x}
                     cy={p.y}
                     r={4}
-                    fill={p.minutes > 0 ? '#e74c3c' : '#333'}
+                    fill={p.minutes > 0 ? '#dc2626' : '#333'}
+                    filter={p.minutes > 0 ? 'url(#glow)' : undefined}
                   />
                 ))}
-                {displayWeekChart.map((d, i) => (
+                {displayWeekChart.filter(d => !d.isEdge).map((d, idx) => (
                   <text
-                    key={i}
-                    x={getX(i)}
+                    key={idx}
+                    x={getX(idx + 1)}
                     y={chartH - 2}
                     textAnchor="middle"
-                    fill={d.isToday ? '#e74c3c' : 'rgba(255,255,255,0.3)'}
+                    fill={d.isToday ? '#dc2626' : 'rgba(255,255,255,0.3)'}
                     fontSize="10"
                     fontWeight={d.isToday ? '600' : '500'}
                   >
