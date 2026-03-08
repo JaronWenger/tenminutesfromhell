@@ -470,6 +470,21 @@ const Main = () => {
     return () => { cancelled = true; };
   }, [user]);
 
+  // Clean stale schedule entries (workout deleted but schedule not updated)
+  useEffect(() => {
+    if (!user || !workoutReady) return;
+    const workoutNames = new Set(timerWorkoutData.map(w => w.name));
+    const hasStale = Object.values(weeklySchedule).some(v => v != null && !workoutNames.has(v));
+    if (hasStale) {
+      const cleaned = { ...weeklySchedule };
+      for (const day in cleaned) {
+        if (cleaned[day] != null && !workoutNames.has(cleaned[day])) cleaned[day] = null;
+      }
+      setWeeklyScheduleState(cleaned);
+      setWeeklySchedule(user.uid, cleaned).catch(err => console.error('Failed to clean schedule:', err));
+    }
+  }, [user, workoutReady, timerWorkoutData, weeklySchedule]);
+
   // Refresh follow counts when a follow/unfollow happens
   const refreshFollowData = useCallback(() => {
     if (!user) return;
