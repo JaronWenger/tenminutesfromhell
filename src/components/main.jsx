@@ -1278,6 +1278,9 @@ const Main = () => {
             setTimerWorkoutData(prev => prev.map(w => w.id === tempId ? { ...w, id: docId } : w));
             setTimerSelectedWorkoutId(curId => curId === tempId ? docId : curId);
           }
+          // Save updated workout order (fork replaces default in list)
+          const currentData = timerWorkoutData.map(w => w.id === existingWorkout?.id ? { ...forked, id: docId || tempId } : w);
+          await setWorkoutOrder(user.uid, currentData.map(w => w.name));
         };
         persist().catch(err => console.error('Failed to persist forked workout:', err));
       }

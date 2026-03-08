@@ -222,7 +222,8 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
         getFollowing(user.uid),
         getSuggestedUsers(user.uid)
       ]);
-      setUsers(allUsers.filter(u => u.uid !== user.uid));
+      const isTestAccount = (u) => u.email === 'aitakapic@gmail.com' || u.displayName === 'takapic';
+      setUsers(allUsers.filter(u => u.uid !== user.uid && !isTestAccount(u)));
       setFollowingIds(following);
       setSuggestedUsers(suggested);
     } catch (err) {

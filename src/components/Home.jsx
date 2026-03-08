@@ -1132,11 +1132,13 @@ const Home = ({
         exercises: [...editExercises],
         restTime: editRestTime,
         tags: [...editTags],
-        id: undefined,
         forked: true,
+        isCustom: true,
+        defaultId: null,
         creatorUid: null,
         creatorName: null,
         creatorPhotoURL: null
+        // id will be set by main.jsx (temp then Firestore)
       }));
     } else {
       setDetailWorkout(prev => ({
@@ -1861,7 +1863,7 @@ const Home = ({
                 }}
               />
               <div className="home-detail-delete-confirm-box">
-                <p className="home-detail-delete-confirm-title">Delete Workout?</p>
+                <p className="home-detail-delete-confirm-title">Delete "{detailWorkout?.name}"?</p>
                 <p className="home-detail-delete-confirm-msg">This can't be undone.</p>
                 <div className="home-detail-delete-confirm-actions">
                   <button
@@ -1926,7 +1928,7 @@ const Home = ({
             onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmWorkout(null); }}
           />
           <div className="home-detail-delete-confirm-box">
-            <p className="home-detail-delete-confirm-title">Delete Workout?</p>
+            <p className="home-detail-delete-confirm-title">Delete "{deleteConfirmWorkout?.name}"?</p>
             <p className="home-detail-delete-confirm-msg">This can't be undone.</p>
             <div className="home-detail-delete-confirm-actions">
               <button

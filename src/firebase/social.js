@@ -28,6 +28,7 @@ export const ensureUserProfile = async (user) => {
   if (!snap.exists()) {
     await setDoc(ref, {
       uid: user.uid,
+      email: user.email || null,
       displayName: user.displayName || 'Anonymous',
       photoURL: user.photoURL || null,
       workoutCount: 0,
@@ -37,8 +38,9 @@ export const ensureUserProfile = async (user) => {
       updatedAt: serverTimestamp()
     });
   } else {
-    // Update display name / photo if changed
+    // Update display name / photo / email if changed
     await setDoc(ref, {
+      email: user.email || null,
       displayName: user.displayName || 'Anonymous',
       photoURL: user.photoURL || null,
       updatedAt: serverTimestamp()
