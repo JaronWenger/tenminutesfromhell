@@ -11,6 +11,7 @@ const PRESET_TAGS = ['Full Body', 'Chest', 'Back', 'Shoulders', 'Biceps', 'Trice
 const Home = ({
   timerWorkoutData,
   timerSelectedWorkout,
+  timerSelectedWorkoutId,
   workoutHistory,
   onWorkoutSelect,
   onArrowClick,
@@ -26,7 +27,7 @@ const Home = ({
   globalRestTime = 15,
   onDetailSave,
   onStartWorkout,
-  defaultWorkoutNames = [],
+  defaultWorkoutIds = new Set(),
   requestCloseDetail = false,
   requestOpenDetail = null,
   requestOpenInEdit = false,
@@ -284,7 +285,7 @@ const Home = ({
     );
     if (hasRelevantHistory) chips.push('Recent');
     // Show "Shared" if any workout came from another user (not defaults, not user's own)
-    const hasShared = timerWorkoutData.some(w => w.creatorUid && w.creatorUid !== user?.uid && !defaultWorkoutNames.includes(w.name));
+    const hasShared = timerWorkoutData.some(w => w.creatorUid && w.creatorUid !== user?.uid && !defaultWorkoutIds.has(w.defaultId) && !defaultWorkoutIds.has(w.id));
     if (hasShared) chips.push('Shared');
     // Show "Schedule" if any day has a workout assigned
     const hasSchedule = weeklySchedule && Object.values(weeklySchedule).some(v => v != null);
@@ -299,7 +300,7 @@ const Home = ({
       .sort((a, b) => tagCounts[b] - tagCounts[a])
       .forEach(t => chips.push(t));
     return chips;
-  }, [timerWorkoutData, workoutHistory, weeklySchedule, defaultWorkoutNames]);
+  }, [timerWorkoutData, workoutHistory, weeklySchedule, defaultWorkoutIds]);
 
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -324,14 +325,14 @@ const Home = ({
       return completed.slice(0, 7).map(c => c.workout);
     }
     if (activeFilter === 'Shared') {
-      return timerWorkoutData.filter(w => w.creatorUid && w.creatorUid !== user?.uid && !defaultWorkoutNames.includes(w.name));
+      return timerWorkoutData.filter(w => w.creatorUid && w.creatorUid !== user?.uid && !defaultWorkoutIds.has(w.defaultId) && !defaultWorkoutIds.has(w.id));
     }
     if (activeFilter === 'Schedule') {
       const result = [];
       for (let i = 0; i < 7; i++) {
-        const name = weeklySchedule[i];
-        if (!name) continue;
-        const workout = timerWorkoutData.find(w => w.name === name);
+        const schedId = weeklySchedule[i];
+        if (!schedId) continue;
+        const workout = timerWorkoutData.find(w => w.id === schedId);
         if (workout) result.push(workout);
       }
       return result;
@@ -341,7 +342,7 @@ const Home = ({
       const tags = w.tags || (w.tag ? [w.tag] : []);
       return tags.includes(activeFilter);
     });
-  }, [activeFilter, timerWorkoutData, workoutHistory, weeklySchedule, defaultWorkoutNames]);
+  }, [activeFilter, timerWorkoutData, workoutHistory, weeklySchedule, defaultWorkoutIds]);
 
   // Map: index in displayedWorkouts → day header to show above it (Schedule filter only)
   const scheduleHeaders = useMemo(() => {
@@ -349,9 +350,9 @@ const Home = ({
     const headers = {};
     let idx = 0;
     for (let i = 0; i < 7; i++) {
-      const name = weeklySchedule[i];
-      if (!name) continue;
-      const workout = timerWorkoutData.find(w => w.name === name);
+      const schedId = weeklySchedule[i];
+      if (!schedId) continue;
+      const workout = timerWorkoutData.find(w => w.id === schedId);
       if (!workout) continue;
       headers[idx] = { dayName: DAY_NAMES[i], dayIndex: i };
       idx++;
@@ -598,7 +599,7 @@ const Home = ({
   useEffect(() => {
     if (requestOpenDetail) {
       openDetail(requestOpenDetail);
-      onWorkoutSelect('timer', requestOpenDetail.name);
+      onWorkoutSelect('timer', requestOpenDetail.name, requestOpenDetail.id);
       if (requestOpenInEdit) {
         setTimeout(() => setIsEditing(true), 350);
       }
@@ -609,7 +610,7 @@ const Home = ({
 
   const handleRowClick = (workout) => {
     if (isSwiping.current || isDragging || longPressTriggered.current) return;
-    onWorkoutSelect('timer', workout.name);
+    onWorkoutSelect('timer', workout.name, workout.id);
     openDetail(workout);
   };
 
@@ -1074,9 +1075,9 @@ const Home = ({
     }
   }, [handleSwipeMoveNonPassive]);
 
-  const handleDelete = (workoutName) => {
+  const handleDelete = (workoutId, workoutName) => {
     resetSwipe();
-    onDeleteWorkout(workoutName);
+    onDeleteWorkout(workoutId, workoutName);
   };
 
   const isNewWorkout = detailWorkout?.isNew;
@@ -1121,8 +1122,8 @@ const Home = ({
       && editRestTime === origRestTime
       && editTags.length === origTags.length
       && editTags.every((t, i) => t === origTags[i]);
-    const isOwned = nothingChanged || detailWorkout.forked || !defaultWorkoutNames.includes(detailWorkout.name);
-    onDetailSave(detailWorkout.name, editExercises, editTitle, editRestTime, editTags, { isOwned });
+    const isOwned = nothingChanged || detailWorkout.forked || (!defaultWorkoutIds.has(detailWorkout.defaultId) && !defaultWorkoutIds.has(detailWorkout.id));
+    onDetailSave(detailWorkout.name, editExercises, editTitle, editRestTime, editTags, { isOwned, workoutId: detailWorkout.id });
     if (!isOwned) {
       // Fork: update detail overlay to show the new forked workout
       setDetailWorkout(prev => ({
@@ -1222,7 +1223,7 @@ const Home = ({
     };
   }, [isEditingTitle]);
 
-  const isDefaultWorkout = detailWorkout ? (!detailWorkout.forked && defaultWorkoutNames.includes(detailWorkout.name)) : false;
+  const isDefaultWorkout = detailWorkout ? (!detailWorkout.forked && (defaultWorkoutIds.has(detailWorkout.defaultId) || defaultWorkoutIds.has(detailWorkout.id))) : false;
 
   const displayRestTime = detailWorkout
     ? (detailWorkout.restTime != null ? detailWorkout.restTime : globalRestTime)
@@ -1291,7 +1292,7 @@ const Home = ({
               {displayedWorkouts.map((workout, index) => {
                 const totalSeconds = (workout.exercises.length * 60) + prepTime;
                 const completions = getCompletionCount(workout);
-                const isSelected = timerSelectedWorkout === workout.name;
+                const isSelected = timerSelectedWorkoutId ? (workout.id === timerSelectedWorkoutId) : (timerSelectedWorkout === workout.name);
                 const isSwipeActive = swipingIndex === index;
                 const header = scheduleHeaders[index];
                 const draggableKey = header ? `${workout.name}-day${header.dayIndex}` : workout.name;
@@ -1366,7 +1367,7 @@ const Home = ({
                           onTouchEnd={() => handleSwipeEnd()}
                         >
                           {showCardPhotos && (
-                            !workout.isCustom && defaultWorkoutNames.includes(workout.name) ? (
+                            !workout.isCustom && (defaultWorkoutIds.has(workout.defaultId) || defaultWorkoutIds.has(workout.id)) ? (
                               <div className="workout-card-avatar-wrap workout-card-avatar-logo"><img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="workout-card-avatar" /></div>
                             ) : workout.creatorPhotoURL ? (
                               <img src={workout.creatorPhotoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
@@ -1404,7 +1405,7 @@ const Home = ({
                             className={`workout-card-start-btn${!user ? ' always-visible' : ''}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onStartWorkout(workout.name);
+                              onStartWorkout(workout.name, workout.id);
                             }}
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1786,7 +1787,7 @@ const Home = ({
                     className="home-detail-start-btn"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onStartWorkout(detailWorkout.name);
+                      onStartWorkout(detailWorkout.name, detailWorkout.id);
                       closeDetail();
                     }}
                   >
@@ -1877,7 +1878,7 @@ const Home = ({
                     onClick={() => {
                       setShowDeleteConfirm(false);
                       setDeleteConfirmClosing(false);
-                      onDeleteWorkout(detailWorkout.name);
+                      onDeleteWorkout(detailWorkout.id, detailWorkout.name);
                       closeDetail();
                     }}
                   >
@@ -1904,7 +1905,7 @@ const Home = ({
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               Schedule
             </button>
-            <button className="workout-card-menu-item" onClick={() => { setCardMenuIndex(null); setCardMenuPos(null); onStartWorkout(workout.name); }}>
+            <button className="workout-card-menu-item" onClick={() => { setCardMenuIndex(null); setCardMenuPos(null); onStartWorkout(workout.name, workout.id); }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               Start
             </button>
@@ -1938,7 +1939,7 @@ const Home = ({
                 className="home-detail-delete-confirm-delete"
                 onClick={() => {
                   if (Date.now() - deletePopupShownAt.current < 400) return;
-                  onDeleteWorkout(deleteConfirmWorkout.name);
+                  onDeleteWorkout(deleteConfirmWorkout.id, deleteConfirmWorkout.name);
                   setDeleteConfirmWorkout(null);
                 }}
               >

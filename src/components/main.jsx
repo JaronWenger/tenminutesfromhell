@@ -74,26 +74,37 @@ const Main = () => {
   const [timerWorkoutData, setTimerWorkoutData] = useState(DEFAULT_TIMER_WORKOUTS);
   const [stopwatchWorkoutData, setStopwatchWorkoutData] = useState(DEFAULT_STOPWATCH_WORKOUTS);
 
-  // Derive name arrays from workout data
-  const timerWorkouts = timerWorkoutData.map(w => w.name);
-  const stopwatchWorkouts = stopwatchWorkoutData.map(w => w.name);
+  // Derive ID sets from workout data for quick lookup
+  const timerWorkoutIds = new Set(timerWorkoutData.map(w => w.id).filter(Boolean));
+  const stopwatchWorkoutIds = new Set(stopwatchWorkoutData.map(w => w.id).filter(Boolean));
 
-  // Exercise lookup by workout name
-  const getExerciseList = useCallback((workoutName) => {
-    if (workoutName === 'New Workout') return [];
-    const allWorkouts = [...timerWorkoutData, ...stopwatchWorkoutData];
-    const found = allWorkouts.find(w => w.name === workoutName);
-    return found ? found.exercises : [];
+  // Find workout by ID across all data
+  const findWorkoutById = useCallback((workoutId) => {
+    if (!workoutId) return null;
+    return timerWorkoutData.find(w => w.id === workoutId)
+      || stopwatchWorkoutData.find(w => w.id === workoutId)
+      || null;
   }, [timerWorkoutData, stopwatchWorkoutData]);
+
+  // Exercise lookup by workout ID (fallback to name for legacy)
+  const getExerciseList = useCallback((workoutId) => {
+    if (!workoutId || workoutId === 'New Workout') return [];
+    const w = findWorkoutById(workoutId);
+    if (w) return w.exercises;
+    // Legacy fallback: lookup by name
+    const allWorkouts = [...timerWorkoutData, ...stopwatchWorkoutData];
+    const found = allWorkouts.find(w => w.name === workoutId);
+    return found ? found.exercises : [];
+  }, [timerWorkoutData, stopwatchWorkoutData, findWorkoutById]);
 
   const [prepTime, setPrepTime] = useState(10);
   const [restTime, setRestTime] = useState(15);
   const [activeLastMinute, setActiveLastMinute] = useState(true);
   const [shuffleExercises, setShuffleExercises] = useState(false);
 
-  // Calculate total time from exercise count
-  const calculateTotalTime = useCallback((workoutName) => {
-    const exercises = getExerciseList(workoutName || '8-Minute Abs');
+  // Calculate total time from exercise count (accepts ID or name for legacy)
+  const calculateTotalTime = useCallback((workoutIdOrName) => {
+    const exercises = getExerciseList(workoutIdOrName || 'default-hiit-them-abs');
     return (exercises.length * 60) + prepTime;
   }, [getExerciseList, prepTime]);
 
@@ -130,7 +141,14 @@ const Main = () => {
   const [currentEditLevel, setCurrentEditLevel] = useState('categories');
   const [currentEditingWorkout, setCurrentEditingWorkout] = useState(null);
   const [timerSelectedWorkout, setTimerSelectedWorkout] = useState('8-Minute Abs');
+  const [timerSelectedWorkoutId, setTimerSelectedWorkoutId] = useState('default-hiit-them-abs');
   const [stopwatchSelectedWorkout, setStopwatchSelectedWorkout] = useState('Back & Bis');
+
+  // Find the currently selected timer workout by ID
+  const findSelectedWorkout = useCallback(() => {
+    if (!timerSelectedWorkoutId) return timerWorkoutData[0] || null;
+    return timerWorkoutData.find(w => w.id === timerSelectedWorkoutId) || null;
+  }, [timerWorkoutData, timerSelectedWorkoutId]);
 
   // Stats page state
   const [workoutHistory, setWorkoutHistory] = useState([]);
@@ -269,12 +287,13 @@ const Main = () => {
 
   const handleScheduleDaySelect = useCallback((dayIndex) => {
     if (!scheduleWorkout) return;
+    const workoutId = scheduleWorkout.id;
     setScheduleDraft(prev => {
       const next = { ...prev };
-      if (next[dayIndex] === scheduleWorkout.name) {
+      if (next[dayIndex] === workoutId) {
         next[dayIndex] = null;
       } else {
-        next[dayIndex] = scheduleWorkout.name;
+        next[dayIndex] = workoutId;
       }
       return next;
     });
@@ -344,6 +363,7 @@ const Main = () => {
       setRestTime(15);
       setActiveLastMinute(true);
       setTimerSelectedWorkout('8-Minute Abs');
+      setTimerSelectedWorkoutId('default-hiit-them-abs');
       setWeeklyScheduleState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
       // Load onboarding from localStorage for logged-out users
       const stored = JSON.parse(localStorage.getItem('onboarding_completed') || '{}');
@@ -434,10 +454,13 @@ const Main = () => {
         if (prefs.weeklySchedule) setWeeklyScheduleState(prefs.weeklySchedule);
         // Auto-select today's scheduled workout, or fall back to saved selection
         const todayDay = new Date().getDay();
-        const scheduledName = prefs.weeklySchedule?.[todayDay];
-        if (scheduledName) {
-          setTimerSelectedWorkout(scheduledName);
+        const scheduledId = prefs.weeklySchedule?.[todayDay];
+        if (scheduledId) {
+          setTimerSelectedWorkoutId(scheduledId);
+        } else if (prefs.selectedWorkoutId) {
+          setTimerSelectedWorkoutId(prefs.selectedWorkoutId);
         } else if (prefs.selectedWorkout) {
+          // Legacy: name-only saved selection — will resolve to ID after workout data loads
           setTimerSelectedWorkout(prefs.selectedWorkout);
         }
         setWorkoutReady(true);
@@ -473,12 +496,12 @@ const Main = () => {
   // Clean stale schedule entries (workout deleted but schedule not updated)
   useEffect(() => {
     if (!user || !workoutReady) return;
-    const workoutNames = new Set(timerWorkoutData.map(w => w.name));
-    const hasStale = Object.values(weeklySchedule).some(v => v != null && !workoutNames.has(v));
+    const validIds = new Set(timerWorkoutData.map(w => w.id).filter(Boolean));
+    const hasStale = Object.values(weeklySchedule).some(v => v != null && !validIds.has(v));
     if (hasStale) {
       const cleaned = { ...weeklySchedule };
       for (const day in cleaned) {
-        if (cleaned[day] != null && !workoutNames.has(cleaned[day])) cleaned[day] = null;
+        if (cleaned[day] != null && !validIds.has(cleaned[day])) cleaned[day] = null;
       }
       setWeeklyScheduleState(cleaned);
       setWeeklySchedule(user.uid, cleaned).catch(err => console.error('Failed to clean schedule:', err));
@@ -574,27 +597,20 @@ const Main = () => {
     const timerDefaults = [...DEFAULT_TIMER_WORKOUTS];
     const stopwatchDefaults = [...DEFAULT_STOPWATCH_WORKOUTS];
     const allDefaults = [...timerDefaults, ...stopwatchDefaults];
-    const defaultIds = new Set(allDefaults.map(d => d.id));
-    const defaultNames = new Set(allDefaults.map(d => d.name));
 
-    // Collect deleted defaults by ID or name
+    // Collect deleted defaults by ID only
     const deletedDefaultIds = new Set();
-    const deletedDefaultNames = new Set();
     customWorkouts.filter(c => c.deleted).forEach(c => {
       if (c.defaultId) deletedDefaultIds.add(c.defaultId);
-      if (c.defaultName) deletedDefaultNames.add(c.defaultName);
     });
 
-    const isDefaultDeleted = (d) => deletedDefaultIds.has(d.id) || deletedDefaultNames.has(d.name);
+    const isDefaultDeleted = (d) => deletedDefaultIds.has(d.id);
 
-    // Find override for a default: match by defaultId first, then legacy defaultName/name fallback
+    // Find override for a default: match by defaultId ONLY
     const usedAsOverride = new Set();
     const findOverride = (d) => {
       const override = customWorkouts.find(
-        c => !c.deleted && (
-          (c.defaultId && c.defaultId === d.id) ||
-          (!c.defaultId && (c.defaultName === d.name || (!c.defaultName && !c.isCustom && c.name === d.name)))
-        )
+        c => !c.deleted && c.defaultId && c.defaultId === d.id
       );
       if (override) usedAsOverride.add(override.id || override.name);
       return override;
@@ -614,17 +630,10 @@ const Main = () => {
         return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
       });
 
-    // Add any fully custom workouts (not overriding defaults, not deleted, not already used as override)
+    // Add any custom workouts (not used as a default override, not deleted)
     customWorkouts.forEach(c => {
       if (c.deleted) return;
       if (usedAsOverride.has(c.id || c.name)) return;
-      if (c.isCustom) {
-        if (c.type === 'timer') timerResult.push(c);
-        else stopwatchResult.push(c);
-        return;
-      }
-      // Legacy docs without defaultId: check if name matches a default (old override behavior)
-      if (!c.defaultId && (defaultNames.has(c.name) || defaultNames.has(c.defaultName))) return;
       if (c.type === 'timer') timerResult.push(c);
       else stopwatchResult.push(c);
     });
@@ -798,13 +807,26 @@ const Main = () => {
 
   // Recalculate timer when workout selection changes
   useEffect(() => {
-    const newTotalTime = calculateTotalTime(timerSelectedWorkout);
+    const selected = findSelectedWorkout();
+    if (!selected) return;
+    const newTotalTime = (selected.exercises.length * 60) + prepTime;
     setTimerState(prev => ({
       ...prev,
       timeLeft: newTotalTime,
       targetTime: newTotalTime
     }));
-  }, [timerSelectedWorkout, calculateTotalTime]);
+  }, [timerSelectedWorkoutId, findSelectedWorkout, prepTime]);
+
+  // Legacy: resolve timerSelectedWorkoutId from name when workout data loads
+  useEffect(() => {
+    if (timerSelectedWorkout && !timerSelectedWorkoutId && timerWorkoutData.length > 0) {
+      const match = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+      if (match?.id) {
+        setTimerSelectedWorkoutId(match.id);
+        setTimerSelectedWorkout(''); // clear legacy name once ID is resolved
+      }
+    }
+  }, [timerSelectedWorkout, timerSelectedWorkoutId, timerWorkoutData]);
 
   // Timer interval ref
   const timerIntervalRef = useRef(null);
@@ -825,7 +847,7 @@ const Main = () => {
     // Speed up final rest when activeLastMinute is off
     // Normal speed for first 2 seconds of rest, then burn through the remainder
     if (!activeLastMinute && timerState.timeLeft > 0) {
-      const selectedW = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+      const selectedW = findSelectedWorkout();
       const effectiveRestTime = selectedW?.restTime != null ? selectedW.restTime : restTime;
       if (timerState.timeLeft <= effectiveRestTime) {
         const s = effectiveRestTime - timerState.timeLeft; // seconds into rest
@@ -856,7 +878,7 @@ const Main = () => {
         clearTimeout(timerIntervalRef.current);
       }
     };
-  }, [timerState.isRunning, timerState.timeLeft, activeLastMinute, restTime, timerWorkoutData, timerSelectedWorkout]);
+  }, [timerState.isRunning, timerState.timeLeft, activeLastMinute, restTime, findSelectedWorkout]);
 
   // Session tracking for set credits, multi-set posts, and history — reset when workout changes
   const sessionPostIdRef = useRef(null);
@@ -866,7 +888,7 @@ const Main = () => {
     sessionPostIdRef.current = null;
     sessionHistoryIdRef.current = null;
     sessionSetCountRef.current = 0;
-  }, [timerSelectedWorkout]);
+  }, [timerSelectedWorkoutId]);
 
   // Detect workout completion — runs side effects outside of state updater
   const timerCompletedRef = useRef(false);
@@ -891,8 +913,10 @@ const Main = () => {
 
       // Record history and share
       if (user) {
-        const exercises = getExerciseList(timerSelectedWorkout);
-        const selectedWorkoutObj = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+        const selectedWorkoutObj = findSelectedWorkout();
+        if (!selectedWorkoutObj) return;
+        const exercises = selectedWorkoutObj.exercises;
+        const workoutName = selectedWorkoutObj.name;
 
         // Increment set counter for this session (always, for all workouts)
         sessionSetCountRef.current += 1;
@@ -902,7 +926,7 @@ const Main = () => {
       if (inAppNotifications) {
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
         setToastClosing(false);
-        setToastMessage({ sets: setsCompleted, workout: timerSelectedWorkout, body: autoShareEnabled === true ? 'Shared to activity' : 'Nicely done!' });
+        setToastMessage({ sets: setsCompleted, workout: workoutName, body: autoShareEnabled === true ? 'Shared to activity' : 'Nicely done!' });
         toastTimerRef.current = setTimeout(() => {
           setToastClosing(true);
           setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 400);
@@ -916,13 +940,13 @@ const Main = () => {
         // Create or update single history entry for this session
         if (setsCompleted === 1 || !sessionHistoryIdRef.current) {
           recordWorkoutHistory(user.uid, {
-            workoutName: timerSelectedWorkout,
-            workoutId: selectedWorkoutObj?.id || null,
+            workoutName,
+            workoutId: selectedWorkoutObj.id,
             workoutType: 'timer',
             duration: timerState.targetTime,
             setCount: 1,
             exercises,
-            restTime: selectedWorkoutObj?.restTime ?? restTime,
+            restTime: selectedWorkoutObj.restTime ?? restTime,
             prepTime,
             activeLastMinute
           }).then(historyId => {
@@ -938,8 +962,8 @@ const Main = () => {
         }
 
         const shareData = {
-          workoutName: timerSelectedWorkout,
-          workoutId: selectedWorkoutObj?.id || null,
+          workoutName,
+          workoutId: selectedWorkoutObj.id,
           workoutType: 'timer',
           duration: timerState.targetTime,
           exercises,
@@ -965,7 +989,7 @@ const Main = () => {
     if (timerState.timeLeft > 0) {
       timerCompletedRef.current = false;
     }
-  }, [timerState.timeLeft, timerState.isRunning, timerState.targetTime, user, timerSelectedWorkout, getExerciseList, autoShareEnabled, handleShareWorkout]);
+  }, [timerState.timeLeft, timerState.isRunning, timerState.targetTime, user, findSelectedWorkout, autoShareEnabled, handleShareWorkout]);
 
   // Stopwatch interval ref
   const stopwatchIntervalRef = useRef(null);
@@ -1053,8 +1077,8 @@ const Main = () => {
   const handleStopwatchReset = () => {
     // Record history before resetting
     if (user && stopwatchState.time > 0) {
-      const exercises = getExerciseList(stopwatchSelectedWorkout);
-      const selectedWorkoutObj = stopwatchWorkoutData.find(w => w.name === stopwatchSelectedWorkout);
+      const selectedWorkoutObj = stopwatchWorkoutData.find(w => w.id === stopwatchSelectedWorkout) || stopwatchWorkoutData.find(w => w.name === stopwatchSelectedWorkout);
+      const exercises = selectedWorkoutObj ? selectedWorkoutObj.exercises : [];
       const workoutData = {
         workoutName: stopwatchSelectedWorkout,
         workoutId: selectedWorkoutObj?.id || null,
@@ -1141,16 +1165,17 @@ const Main = () => {
     }
   };
 
-  const handleWorkoutSelection = (type, workout) => {
+  const handleWorkoutSelection = (type, workoutName, workoutId) => {
     if (type === 'timer') {
-      setTimerSelectedWorkout(workout);
+      setTimerSelectedWorkoutId(workoutId || null);
+      setTimerSelectedWorkout(workoutName); // display name cache
       if (user) {
-        setSelectedWorkout(user.uid, workout).catch(err =>
+        setSelectedWorkout(user.uid, workoutName, workoutId || null).catch(err =>
           console.error('Failed to save selected workout:', err)
         );
       }
     } else if (type === 'stopwatch') {
-      setStopwatchSelectedWorkout(workout);
+      setStopwatchSelectedWorkout(workoutName);
     }
   };
 
@@ -1159,15 +1184,18 @@ const Main = () => {
     const workoutName = currentEditingWorkout;
     const isNew = workoutName === 'New Workout';
     const finalName = newTitle || workoutName;
+    const allData = workoutType === 'timer' ? timerWorkoutData : stopwatchWorkoutData;
+    const existingW = allData.find(w => w.name === workoutName);
 
     // Optimistic local update
+    const tempId = isNew ? `temp-${Date.now()}` : null;
     const setData = workoutType === 'timer' ? setTimerWorkoutData : setStopwatchWorkoutData;
     setData(prev => {
       if (isNew) {
-        return [...prev, { name: finalName, type: workoutType, exercises: updatedExercises, isPublic: true }];
+        return [...prev, { id: tempId, name: finalName, type: workoutType, exercises: updatedExercises, isPublic: true, isCustom: true }];
       }
       return prev.map(w =>
-        w.name === workoutName
+        (existingW?.id ? w.id === existingW.id : w.name === workoutName)
           ? { ...w, name: finalName, exercises: updatedExercises }
           : w
       );
@@ -1175,15 +1203,17 @@ const Main = () => {
 
     // Update selected workout name if it was renamed
     if (newTitle && workoutName !== 'New Workout') {
-      if (workoutType === 'timer' && timerSelectedWorkout === workoutName) {
+      if (workoutType === 'timer' && timerSelectedWorkoutId === existingW?.id) {
         setTimerSelectedWorkout(finalName);
-      } else if (workoutType === 'stopwatch' && stopwatchSelectedWorkout === workoutName) {
-        setStopwatchSelectedWorkout(finalName);
       }
     }
     if (isNew) {
-      if (workoutType === 'timer') setTimerSelectedWorkout(finalName);
-      else setStopwatchSelectedWorkout(finalName);
+      if (workoutType === 'timer') {
+        setTimerSelectedWorkout(finalName);
+        setTimerSelectedWorkoutId(tempId);
+      } else {
+        setStopwatchSelectedWorkout(finalName);
+      }
     }
 
     // Update the editing workout name reference
@@ -1191,74 +1221,92 @@ const Main = () => {
 
     // Persist to Firestore when logged in
     if (user) {
-      const defaultNames = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name);
-      const isDefault = defaultNames.includes(workoutName);
+      const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+      const defaultMatch = allDefaults.find(d => d.id === existingW?.defaultId || d.id === existingW?.id);
+      const isDefault = !!defaultMatch;
       saveUserWorkout(user.uid, {
+        id: existingW?.id || null,
         name: finalName,
         type: workoutType,
         exercises: updatedExercises,
         isDefault,
+        isCustom: isNew ? true : (existingW?.isCustom || false),
         isPublic: true,
         defaultName: isDefault && newTitle ? workoutName : null,
+        defaultId: existingW?.defaultId || defaultMatch?.id || null,
         creatorUid: null,
         creatorName: null,
         creatorPhotoURL: null,
+      }).then(docId => {
+        if (docId && isNew && workoutType === 'timer') {
+          setTimerWorkoutData(prev => prev.map(w => w.id === tempId ? { ...w, id: docId } : w));
+          setTimerSelectedWorkoutId(curId => curId === tempId ? docId : curId);
+        }
       }).catch(err => console.error('Failed to save workout:', err));
     }
   };
 
   const handleDetailSave = useCallback((workoutName, exercises, newTitle, newRestTime, tags, options = {}) => {
-    const { isOwned = true } = options;
+    const { isOwned = true, workoutId = null } = options;
     const finalName = newTitle || workoutName;
     const isNew = !workoutName;
     const safeTags = tags && tags.length > 0 ? tags : null;
+    const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+
+    // Find existing workout by ID first, then name fallback
+    const existingWorkout = workoutId
+      ? timerWorkoutData.find(w => w.id === workoutId)
+      : timerWorkoutData.find(w => w.name === workoutName);
 
     // Fork: remix of another user's workout
     if (!isOwned && !isNew) {
-      const forked = { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true, forked: true, isPublic: true };
+      const tempId = `temp-${Date.now()}`;
+      const forked = { id: tempId, name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isCustom: true, forked: true, isPublic: true };
       setTimerWorkoutData(prev =>
-        prev.map(w => w.name === workoutName ? forked : w)
+        prev.map(w => (existingWorkout?.id ? w.id === existingWorkout.id : w.name === workoutName) ? forked : w)
       );
       setTimerSelectedWorkout(finalName);
+      setTimerSelectedWorkoutId(tempId);
       if (user && finalName) {
-        // Soft-delete the original default first, then save the fork
-        // Must be sequential to avoid race where delete overwrites the fork doc
-        const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
-        const forkDefaultMatch = allDefaults.find(d => d.name === workoutName);
+        const forkDefaultMatch = allDefaults.find(d => d.id === existingWorkout?.defaultId || d.id === existingWorkout?.id);
         const persist = async () => {
           if (forkDefaultMatch) {
-            await deleteUserWorkout(user.uid, workoutName, true, forkDefaultMatch.id);
+            await deleteUserWorkout(user.uid, existingWorkout?.id, true, forkDefaultMatch.id);
           }
-          await saveUserWorkout(user.uid, { ...forked, isDefault: false, defaultName: null, defaultId: null, creatorUid: null, creatorName: null, creatorPhotoURL: null });
+          const docId = await saveUserWorkout(user.uid, { ...forked, id: null, isDefault: false, defaultName: null, defaultId: null, creatorUid: null, creatorName: null, creatorPhotoURL: null });
+          if (docId) {
+            setTimerWorkoutData(prev => prev.map(w => w.id === tempId ? { ...w, id: docId } : w));
+            setTimerSelectedWorkoutId(curId => curId === tempId ? docId : curId);
+          }
         };
         persist().catch(err => console.error('Failed to persist forked workout:', err));
       }
       return;
     }
 
-    const existingWorkout = timerWorkoutData.find(w => w.name === workoutName);
-
     // Optimistic local update
     if (isNew && finalName) {
-      setTimerWorkoutData(prev => [...prev, { name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isPublic: true }]);
+      // Temp client-side ID so the new workout is immediately selectable by ID (replaced by Firestore ID on save)
+      const tempId = `temp-${Date.now()}`;
+      setTimerWorkoutData(prev => [...prev, { id: tempId, name: finalName, type: 'timer', exercises, restTime: newRestTime ?? null, tags: safeTags, isPublic: true, isCustom: true }]);
       setTimerSelectedWorkout(finalName);
+      setTimerSelectedWorkoutId(tempId);
     } else {
       setTimerWorkoutData(prev =>
         prev.map(w =>
-          w.name === workoutName
+          (existingWorkout?.id ? w.id === existingWorkout.id : w.name === workoutName)
             ? { ...w, name: finalName, exercises, restTime: newRestTime ?? null, tags: safeTags, creatorUid: null, creatorName: null, creatorPhotoURL: null }
             : w
         )
       );
-      if (newTitle && newTitle !== workoutName && timerSelectedWorkout === workoutName) {
+      if (newTitle && existingWorkout?.id === timerSelectedWorkoutId) {
         setTimerSelectedWorkout(finalName);
       }
     }
 
     // Persist to Firestore when logged in
     if (user && finalName) {
-      const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
-      const defaultMatch = allDefaults.find(d => d.name === workoutName);
+      const defaultMatch = allDefaults.find(d => d.id === existingWorkout?.defaultId || d.id === existingWorkout?.id);
       const isDefault = !!defaultMatch;
       saveUserWorkout(user.uid, {
         id: existingWorkout?.id || null,
@@ -1266,49 +1314,60 @@ const Main = () => {
         type: 'timer',
         exercises,
         isDefault: isNew ? false : isDefault,
+        isCustom: isNew ? true : (existingWorkout?.isCustom || false),
         isPublic: true,
         defaultName: isDefault && newTitle ? workoutName : null,
-        defaultId: existingWorkout?.defaultId || defaultMatch?.id || null,
+        defaultId: isNew ? null : (existingWorkout?.defaultId || defaultMatch?.id || null),
         restTime: newRestTime ?? null,
         tags: safeTags,
         creatorUid: null,
         creatorName: null,
         creatorPhotoURL: null,
+      }).then(docId => {
+        if (docId) {
+          // Replace temp ID with real Firestore doc ID
+          setTimerWorkoutData(prev => prev.map(w =>
+            (w.id && w.id.startsWith('temp-') && w.name === finalName) ? { ...w, id: docId } : w
+          ));
+          // Update selection if it still points to a temp ID
+          setTimerSelectedWorkoutId(curId => (curId && curId.startsWith('temp-')) ? docId : curId);
+        }
       }).catch(err => console.error('Failed to save workout:', err));
     }
-  }, [user, timerSelectedWorkout, timerWorkoutData]);
+  }, [user, timerSelectedWorkoutId, timerWorkoutData]);
 
-  const handleHomeStartWorkout = useCallback((workoutName) => {
-    setTimerSelectedWorkout(workoutName);
-    // Reset timer to the new workout's total time
-    const allWorkouts = [...timerWorkoutData, ...stopwatchWorkoutData];
-    const workout = allWorkouts.find(w => w.name === workoutName);
+  const handleHomeStartWorkout = useCallback((workoutName, workoutId) => {
+    const wId = workoutId || null;
+    setTimerSelectedWorkoutId(wId);
+    setTimerSelectedWorkout(workoutName); // display cache
+    const workout = wId ? findWorkoutById(wId) : null;
     const exerciseCount = workout ? workout.exercises.length : 0;
     const newTime = (exerciseCount * 60) + prepTime;
     setTimerState({ timeLeft: newTime, isRunning: false, targetTime: newTime, selectedWorkoutIndex: 0 });
     if (user) {
-      setSelectedWorkout(user.uid, workoutName).catch(err =>
+      setSelectedWorkout(user.uid, workoutName, wId).catch(err =>
         console.error('Failed to save selected workout:', err)
       );
     }
     setActiveTab('timer');
-  }, [user, timerWorkoutData, stopwatchWorkoutData, prepTime]);
+  }, [user, findWorkoutById, prepTime]);
 
   // Feed post detail popup
   const openFeedDetail = useCallback((post) => {
     const allW = [...timerWorkoutData, ...stopwatchWorkoutData];
     const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
     const postExercises = JSON.stringify(post.exercises || []);
-    // For notifications without exercises (workout_saved), look up by name
     const hasExercises = post.exercises && post.exercises.length > 0;
-    // Match by name AND exercises — same name with different exercises is a different workout
-    const exactMatch = hasExercises
-      ? allW.find(w => w.name === post.workoutName && JSON.stringify(w.exercises) === postExercises)
-      : allW.find(w => w.name === post.workoutName);
-    // Check if this exercise set matches a default workout
-    const isDefaultContent = allDefaults.some(d =>
-      d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises
-    );
+    // Match by workoutId first (preferred), then fall back to name+exercises for legacy posts
+    const exactMatch = post.workoutId
+      ? allW.find(w => w.id === post.workoutId)
+      : (hasExercises
+        ? allW.find(w => w.name === post.workoutName && JSON.stringify(w.exercises) === postExercises)
+        : allW.find(w => w.name === post.workoutName));
+    // Check if this matches a default workout by ID or content
+    const isDefaultContent = post.workoutId
+      ? allDefaults.some(d => d.id === post.workoutId)
+      : allDefaults.some(d => d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises);
     let owner = null;
     let isOwn = false;
     if (exactMatch && exactMatch.creatorUid) {
@@ -1334,7 +1393,7 @@ const Main = () => {
       isOwn = false;
     }
     // Get tags and restTime from matched workout or defaults
-    const sourceWorkout = exactMatch || allDefaults.find(d => d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises);
+    const sourceWorkout = exactMatch || (post.workoutId ? allDefaults.find(d => d.id === post.workoutId) : allDefaults.find(d => d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises));
     const tags = sourceWorkout?.tags || (sourceWorkout?.tag ? [sourceWorkout.tag] : []);
     setFeedDetailOwner(owner);
     setFeedDetailIsOwn(isOwn);
@@ -1402,22 +1461,24 @@ const Main = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, feedDetailPost, feedDetailOwner, feedDetailSaving, feedDetailTaken, closeFeedDetail, handleHomeStartWorkout, refreshWorkouts]);
 
-  const handleDeleteWorkout = (workoutName) => {
+  const handleDeleteWorkout = (workoutId, workoutName) => {
     const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
-    const defaultMatch = allDefaults.find(d => d.name === workoutName || d.id === workoutName);
+    const workout = timerWorkoutData.find(w => w.id === workoutId);
+    const defaultMatch = allDefaults.find(d => d.id === (workout?.defaultId || workoutId));
     const isDefault = !!defaultMatch;
     const defaultId = defaultMatch?.id || null;
 
     // Remove from local state
     setTimerWorkoutData(prev => {
-      const remaining = prev.filter(w => w.name !== workoutName);
+      const remaining = prev.filter(w => w.id !== workoutId);
       // If deleted workout was selected, switch to the first remaining
-      if (timerSelectedWorkout === workoutName) {
-        const newSelection = remaining.length > 0 ? remaining[0].name : '';
+      if (timerSelectedWorkoutId === workoutId) {
+        const newSel = remaining.length > 0 ? remaining[0] : null;
         setTimeout(() => {
-          setTimerSelectedWorkout(newSelection);
-          if (user && newSelection) {
-            setSelectedWorkout(user.uid, newSelection).catch(err => console.error('Failed to persist selection:', err));
+          setTimerSelectedWorkout(newSel?.name || '');
+          setTimerSelectedWorkoutId(newSel?.id || null);
+          if (user && newSel?.name) {
+            setSelectedWorkout(user.uid, newSel.name, newSel.id || null).catch(err => console.error('Failed to persist selection:', err));
           }
         }, 0);
       }
@@ -1431,12 +1492,12 @@ const Main = () => {
       return remaining;
     });
 
-    // Remove from weekly schedule if scheduled
-    const hasScheduled = Object.values(weeklySchedule).some(v => v === workoutName);
+    // Remove from weekly schedule if scheduled (schedule stores IDs)
+    const hasScheduled = Object.values(weeklySchedule).some(v => v === workoutId);
     if (hasScheduled) {
       const cleaned = { ...weeklySchedule };
       for (const day in cleaned) {
-        if (cleaned[day] === workoutName) cleaned[day] = null;
+        if (cleaned[day] === workoutId) cleaned[day] = null;
       }
       setWeeklyScheduleState(cleaned);
       if (user) {
@@ -1446,7 +1507,7 @@ const Main = () => {
 
     // Persist to Firestore
     if (user) {
-      deleteUserWorkout(user.uid, workoutName, isDefault, defaultId)
+      deleteUserWorkout(user.uid, workoutId, isDefault, defaultId)
         .catch(err => console.error('Failed to delete workout:', err));
     }
   };
@@ -1464,11 +1525,11 @@ const Main = () => {
     const workoutName = currentEditingWorkout;
 
     if (!workoutType && workoutName) {
-      if (timerWorkouts.includes(workoutName)) {
-        workoutType = 'timer';
-      } else if (stopwatchWorkouts.includes(workoutName)) {
-        workoutType = 'stopwatch';
-      }
+      // Find by name in all workout data to determine type
+      const timerMatch = timerWorkoutData.find(w => w.name === workoutName);
+      const swMatch = stopwatchWorkoutData.find(w => w.name === workoutName);
+      if (timerMatch) workoutType = 'timer';
+      else if (swMatch) workoutType = 'stopwatch';
     }
 
     if (!workoutType || (workoutType !== 'timer' && workoutType !== 'stopwatch')) {
@@ -1477,7 +1538,9 @@ const Main = () => {
     }
 
     if (workoutType === 'timer') {
+      const match = timerWorkoutData.find(w => w.name === workoutName);
       setTimerSelectedWorkout(workoutName);
+      setTimerSelectedWorkoutId(match?.id || null);
     } else if (workoutType === 'stopwatch') {
       setStopwatchSelectedWorkout(workoutName);
     }
@@ -1584,7 +1647,7 @@ const Main = () => {
           prepTime={prepTime}
           globalRestTime={restTime}
           onStartWorkout={handleHomeStartWorkout}
-          defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+          defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
           followingIds={followingIds}
           followerIds={followerIds}
           pinnedWorkouts={pinnedWorkouts}
@@ -1614,7 +1677,7 @@ const Main = () => {
     }
 
     if (currentEditPage) {
-      const workouts = currentEditPage === 'timer' ? timerWorkouts : stopwatchWorkouts;
+      const workouts = currentEditPage === 'timer' ? timerWorkoutData.map(w => w.name) : stopwatchWorkoutData.map(w => w.name);
       const selectedWorkout = currentEditPage === 'timer' ? timerSelectedWorkout : stopwatchSelectedWorkout;
 
       return (
@@ -1637,6 +1700,7 @@ const Main = () => {
           <Home
             timerWorkoutData={timerWorkoutData}
             timerSelectedWorkout={timerSelectedWorkout}
+            timerSelectedWorkoutId={timerSelectedWorkoutId}
             workoutHistory={workoutHistory}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
@@ -1652,7 +1716,7 @@ const Main = () => {
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
-            defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+            defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
 
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
@@ -1674,7 +1738,7 @@ const Main = () => {
             prepTime={prepTime}
             globalRestTime={restTime}
             onStartWorkout={handleHomeStartWorkout}
-            defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+            defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
             pinnedWorkouts={pinnedWorkouts}
             onPinnedWorkoutsChange={handlePinnedWorkoutsChange}
             onWorkoutAdded={refreshWorkouts}
@@ -1690,6 +1754,7 @@ const Main = () => {
           <Home
             timerWorkoutData={timerWorkoutData}
             timerSelectedWorkout={timerSelectedWorkout}
+            timerSelectedWorkoutId={timerSelectedWorkoutId}
             workoutHistory={workoutHistory}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
@@ -1705,7 +1770,7 @@ const Main = () => {
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
-            defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+            defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
 
             requestCloseDetail={homeDetailCloseRequested}
             showCardPhotos={showCardPhotos}
@@ -1780,14 +1845,14 @@ const Main = () => {
           targetTime={timerState.targetTime}
           selectedWorkoutIndex={timerState.selectedWorkoutIndex}
           onTimerStateChange={handleTimerStateChange}
-          workouts={getExerciseList(timerSelectedWorkout)}
-          selectedWorkoutName={timerSelectedWorkout}
+          workouts={findSelectedWorkout()?.exercises || []}
+          selectedWorkoutName={findSelectedWorkout()?.name || ''}
           activeColor={activeColor}
           restColor={restColor}
           sidePlankAlertEnabled={sidePlankAlertEnabled}
           prepTime={prepTime}
           restTime={(() => {
-            const selectedW = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+            const selectedW = findSelectedWorkout();
             return selectedW?.restTime != null ? selectedW.restTime : restTime;
           })()}
           activeLastMinute={activeLastMinute}
@@ -1797,11 +1862,11 @@ const Main = () => {
           onInitialLoadDone={() => setInitialLoad(false)}
           isVisible={activeTab === 'timer' && !currentEditPage}
           hasNoExercises={(() => {
-            const w = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+            const w = findSelectedWorkout();
             return w ? (w.exercises || []).length === 0 : false;
           })()}
           onWorkoutLabelClick={(openInEdit) => {
-            const workout = timerWorkoutData.find(w => w.name === timerSelectedWorkout);
+            const workout = findSelectedWorkout();
             if (workout) {
               setTimerDetailEditMode(!!openInEdit);
               setTimerDetailWorkout(workout);
@@ -1816,6 +1881,7 @@ const Main = () => {
             detailOnly
             timerWorkoutData={timerWorkoutData}
             timerSelectedWorkout={timerSelectedWorkout}
+            timerSelectedWorkoutId={timerSelectedWorkoutId}
             workoutHistory={workoutHistory}
             onWorkoutSelect={handleWorkoutSelection}
             onArrowClick={handleEditWorkoutSelect}
@@ -1830,8 +1896,8 @@ const Main = () => {
             prepTime={prepTime}
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
-            onStartWorkout={(name) => { setTimerDetailWorkout(null); handleHomeStartWorkout(name); }}
-            defaultWorkoutNames={[...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.name)}
+            onStartWorkout={(name, id) => { setTimerDetailWorkout(null); handleHomeStartWorkout(name, id); }}
+            defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
             requestCloseDetail={false}
             showCardPhotos={showCardPhotos}
             onShareWorkout={openSendWorkout}

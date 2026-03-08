@@ -45,23 +45,24 @@ export const saveUserWorkout = async (userId, workout) => {
   // If we have the Firestore doc ID, update directly (handles renames without creating duplicates)
   if (workout.id) {
     await setDoc(doc(db, 'users', userId, 'customWorkouts', workout.id), data, { merge: true });
-    return;
+    return workout.id;
   }
 
-  // No ID — new workout or legacy: fall back to name-based lookup
+  // No doc ID — match by defaultId if it's a default override, otherwise create new
   const snapshot = await getDocs(workoutsRef);
-  const existing = snapshot.docs.find(d => {
-    const data = d.data();
-    if (data.deleted) return false;
-    return data.name === workout.name ||
-      (workout.defaultName && data.defaultName === workout.defaultName) ||
-      (data.defaultName === workout.name);
-  });
+  const existing = workout.defaultId
+    ? snapshot.docs.find(d => {
+        const dd = d.data();
+        return !dd.deleted && dd.defaultId === workout.defaultId;
+      })
+    : null;
 
   if (existing) {
     await setDoc(doc(db, 'users', userId, 'customWorkouts', existing.id), data, { merge: true });
+    return existing.id;
   } else {
-    await addDoc(workoutsRef, { ...data, createdAt: serverTimestamp() });
+    const docRef = await addDoc(workoutsRef, { ...data, createdAt: serverTimestamp() });
+    return docRef.id;
   }
 };
 
@@ -84,24 +85,17 @@ export const getUserHistory = async (userId) => {
 };
 
 // Delete a workout for a user
-export const deleteUserWorkout = async (userId, workoutName, isDefault, defaultId = null) => {
+export const deleteUserWorkout = async (userId, workoutId, isDefault, defaultId = null) => {
   const workoutsRef = collection(db, 'users', userId, 'customWorkouts');
-  const snapshot = await getDocs(workoutsRef);
 
-  if (isDefault) {
-    // Find existing doc by defaultId first, then fall back to name/defaultName
-    // Skip custom (forked) workouts so deleting a default doesn't wipe a user's fork
-    const existing = snapshot.docs.find(d => {
-      const data = d.data();
-      if (data.isCustom) return false;
-      if (defaultId && data.defaultId === defaultId) return true;
-      return data.name === workoutName || data.defaultName === workoutName;
-    });
-    // For default workouts, save a deletion marker so it stays removed on reload
+  if (isDefault && defaultId) {
+    // Find existing doc by defaultId
+    const snapshot = await getDocs(workoutsRef);
+    const existing = snapshot.docs.find(d => d.data().defaultId === defaultId);
+    // Save a deletion marker so it stays removed on reload
     const marker = {
       deleted: true,
-      defaultName: workoutName,
-      defaultId: defaultId || null,
+      defaultId: defaultId,
       updatedAt: serverTimestamp()
     };
     if (existing) {
@@ -109,12 +103,9 @@ export const deleteUserWorkout = async (userId, workoutName, isDefault, defaultI
     } else {
       await addDoc(workoutsRef, { ...marker, createdAt: serverTimestamp() });
     }
-  } else {
-    // For custom workouts, find by name and delete the doc
-    const existing = snapshot.docs.find(d => d.data().name === workoutName);
-    if (existing) {
-      await deleteDoc(doc(db, 'users', userId, 'customWorkouts', existing.id));
-    }
+  } else if (workoutId) {
+    // Custom workout: delete by Firestore doc ID directly (no query needed)
+    await deleteDoc(doc(db, 'users', userId, 'customWorkouts', workoutId));
   }
 };
 

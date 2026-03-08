@@ -58,7 +58,7 @@ const StatsPage = ({
   prepTime = 15,
   globalRestTime = 15,
   onStartWorkout,
-  defaultWorkoutNames = [],
+  defaultWorkoutIds = new Set(),
   followingIds: propFollowingIds = [],
   followerIds: propFollowerIds = [],
   pinnedWorkouts = [],
@@ -581,8 +581,8 @@ const StatsPage = ({
 
   // Non-default, non-private workouts available for pinning
   const ownedWorkouts = useMemo(() => {
-    return allWorkouts.filter(w => !defaultWorkoutNames.includes(w.name));
-  }, [allWorkouts, defaultWorkoutNames]);
+    return allWorkouts.filter(w => !defaultWorkoutIds.has(w.defaultId) && !defaultWorkoutIds.has(w.id));
+  }, [allWorkouts, defaultWorkoutIds]);
 
   // Resolved pinned workout objects (filter out stale entries)
   const pinnedWorkoutObjects = useMemo(() => {
@@ -1476,13 +1476,14 @@ const StatsPage = ({
                   const grouped = {};
                   entries.forEach(w => {
                     const n = typeof w === 'string' ? w : w.name;
+                    const wId = typeof w === 'string' ? null : w.workoutId;
                     const sc = typeof w === 'string' ? 1 : (w.setCount || 1);
-                    const key = `${n}::${sc}`;
-                    if (!grouped[key]) grouped[key] = { name: n, setCount: sc, count: 0 };
+                    const key = `${wId || n}::${sc}`;
+                    if (!grouped[key]) grouped[key] = { name: n, workoutId: wId, setCount: sc, count: 0 };
                     grouped[key].count += 1;
                   });
-                  return Object.values(grouped).map(({ name, setCount, count }) => {
-                    const workout = allWorkouts.find(w => w.name === name);
+                  return Object.values(grouped).map(({ name, workoutId, setCount, count }) => {
+                    const workout = workoutId ? allWorkouts.find(w => w.id === workoutId) : allWorkouts.find(w => w.name === name);
                     const exercises = workout ? workout.exercises : [];
                     const wRestTime = workout?.restTime != null ? workout.restTime : globalRestTime;
                     const activeSeconds = exercises.length * (60 - wRestTime) + (exercises.length > 0 ? wRestTime : 0);

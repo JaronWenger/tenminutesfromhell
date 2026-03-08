@@ -61,6 +61,7 @@ export const getAllPreferences = async (userId) => {
       activeLastMinute: true,
       shuffleExercises: false,
       selectedWorkout: null,
+      selectedWorkoutId: null,
       showCardPhotos: true,
       inAppNotifications: true,
       pinnedWorkouts: [],
@@ -80,6 +81,7 @@ export const getAllPreferences = async (userId) => {
     activeLastMinute: data.activeLastMinute ?? true,
     shuffleExercises: data.shuffleExercises ?? false,
     selectedWorkout: data.selectedWorkout || null,
+    selectedWorkoutId: data.selectedWorkoutId || null,
     showCardPhotos: data.showCardPhotos ?? true,
     inAppNotifications: data.inAppNotifications ?? true,
     pinnedWorkouts: data.pinnedWorkouts || [],
@@ -109,11 +111,10 @@ export const setUserColors = async (userId, { activeColor, restColor }) => {
   }, { merge: true });
 };
 
-export const setSelectedWorkout = async (userId, workoutName) => {
-  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
-    selectedWorkout: workoutName,
-    updatedAt: serverTimestamp()
-  }, { merge: true });
+export const setSelectedWorkout = async (userId, workoutName, workoutId = null) => {
+  const data = { selectedWorkout: workoutName, updatedAt: serverTimestamp() };
+  if (workoutId !== undefined) data.selectedWorkoutId = workoutId;
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), data, { merge: true });
 };
 
 export const setWorkoutOrder = async (userId, orderArray) => {

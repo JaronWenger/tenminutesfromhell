@@ -404,6 +404,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
   };
 
   const isSharedWorkoutInLibrary = useCallback((post) => {
+    if (post.workoutId) return allWorkouts.some(w => w.id === post.workoutId);
     return allWorkouts.some(w => w.name === post.workoutName);
   }, [allWorkouts]);
 
