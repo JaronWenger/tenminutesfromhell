@@ -5,12 +5,20 @@ import './SideMenu.css';
 
 const ACTIVE_DEFAULT = '#ff3b30';
 const REST_DEFAULT = '#007aff';
-const OTHER_COLORS = ['#5AC8D4', '#DBF9B8', '#C4B5E0', '#C47A6E', '#2D7D6B', '#FF6B2B'];
+const OTHER_COLORS = ['#00E5FF', '#DBF9B8', '#C4B5E0', '#C47A6E', '#2D7D6B', '#FF6B2B'];
+const NEON_COLORS = ['#E040FB', '#7C4DFF', '#ACD8AA', '#76FF03', '#FFD740', '#FF4081', '#1DE9B6', '#304FFE'];
+const EARTH_COLORS = ['#F4845F', '#B8860B', '#E6194B', '#059669', '#DC2626', '#0891B2', '#D97706', '#E15634'];
 
 const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, inAppNotifications, onToggleInAppNotifications, onOpenProfile }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
+
+  // Reset color popup when menu closes
+  useEffect(() => {
+    if (!isOpen) setColorPopup(null);
+  }, [isOpen]);
+
   // ── Swipe left to close ──
   const swipeRef = useRef({ startX: 0, startY: 0, locked: null });
   const panelElRef = useRef(null);
@@ -349,6 +357,26 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                 ...(colorPopup === 'active' ? [ACTIVE_DEFAULT, REST_DEFAULT] : [REST_DEFAULT, ACTIVE_DEFAULT]),
                 ...OTHER_COLORS
               ].map(hex => (
+                <div
+                  key={hex}
+                  className={`sidemenu-swatch ${(colorPopup === 'active' ? activeColor : restColor) === hex ? 'selected' : ''}`}
+                  style={{ background: hex }}
+                  onClick={() => { onColorChange(colorPopup, hex); setColorPopup(null); }}
+                />
+              ))}
+            </div>
+            <div className="sidemenu-color-popup-swatches">
+              {NEON_COLORS.map(hex => (
+                <div
+                  key={hex}
+                  className={`sidemenu-swatch ${(colorPopup === 'active' ? activeColor : restColor) === hex ? 'selected' : ''}`}
+                  style={{ background: hex }}
+                  onClick={() => { onColorChange(colorPopup, hex); setColorPopup(null); }}
+                />
+              ))}
+            </div>
+            <div className="sidemenu-color-popup-swatches">
+              {EARTH_COLORS.map(hex => (
                 <div
                   key={hex}
                   className={`sidemenu-swatch ${(colorPopup === 'active' ? activeColor : restColor) === hex ? 'selected' : ''}`}
