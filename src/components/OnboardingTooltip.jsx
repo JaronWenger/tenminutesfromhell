@@ -40,18 +40,24 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
   const [arrowPath, setArrowPath] = useState(null);
   const [closing, setClosing] = useState(false);
   const [delayDone, setDelayDone] = useState(!delay);
-  const [posReady, setPosReady] = useState(false);
+  const [ready, setReady] = useState(false);
   const dismissTimer = useRef(null);
   const wasVisible = useRef(false);
   const textRef = useRef(null);
 
-  // Delay before showing
+  // Wait for fonts + delay before showing
   useEffect(() => {
-    if (!visible || !delay) { setDelayDone(!delay ? true : false); return; }
-    setDelayDone(false);
-    setPosReady(false);
-    const t = setTimeout(() => setDelayDone(true), delay);
-    return () => clearTimeout(t);
+    if (!visible) { setDelayDone(!delay); setReady(false); return; }
+    setReady(false);
+    let cancelled = false;
+    const wait = async () => {
+      await document.fonts.ready;
+      if (delay) await new Promise(r => setTimeout(r, delay));
+      if (!cancelled) { setDelayDone(true); }
+    };
+    if (delay) setDelayDone(false);
+    wait();
+    return () => { cancelled = true; };
   }, [visible, delay]);
 
   // Position calculation
@@ -128,12 +134,22 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
         }
       }
     };
-    setPosReady(false);
+    setReady(false);
     calculate();
-    // Small delay to let textRef measure, then mark ready
-    const t = setTimeout(() => { calculate(); setPosReady(true); }, 50);
+    // Retry until target element is found in DOM, then mark ready for fade-in
+    let found = !!document.querySelector(targetSelector);
+    let retries = 0;
+    const t = setInterval(() => {
+      calculate();
+      found = !!document.querySelector(targetSelector);
+      retries++;
+      if (found || retries > 20) {
+        clearInterval(t);
+        requestAnimationFrame(() => setReady(true));
+      }
+    }, 50);
     window.addEventListener('resize', calculate);
-    return () => { window.removeEventListener('resize', calculate); clearTimeout(t); };
+    return () => { window.removeEventListener('resize', calculate); clearInterval(t); };
   }, [visible, delayDone, targetSelector, arrowDirection, arrowTargetSelector, offsetX, offsetY]);
 
   // Auto-dismiss (only after delay is done)
@@ -159,7 +175,7 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
   };
 
   if ((!visible || !delayDone) && !closing) return null;
-  if (!pos || (!posReady && !closing)) return null;
+  if (!pos) return null;
 
   // Transform so the arrow tip aligns with the target edge
   let transform;
@@ -192,15 +208,15 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
         <div className="onb-overlay" onClick={handleDismiss} onTouchEnd={handleDismiss} />
       )}
       <div
-        className={`onb-tooltip ${arrowTargetSelector ? '' : `onb-arrow-${arrowDirection}`} ${closing ? 'onb-closing' : ''}`}
-        style={{ top: pos.top, left: pos.left, transform }}
+        className={`onb-tooltip ${arrowTargetSelector ? '' : `onb-arrow-${arrowDirection}`} ${closing ? 'onb-closing' : ''} ${ready && !closing ? 'onb-ready' : ''}`}
+        style={{ top: pos.top, left: pos.left, transform, opacity: ready || closing ? undefined : 0 }}
       >
         <div className="onb-text" ref={textRef} style={textScale !== 1 ? { fontSize: `${36 * textScale}px` } : undefined}>{typeof text === 'string' && text.includes('\n') ? text.split('\n').map((line, i) => <div key={i} style={i > 0 ? { paddingLeft: '4em' } : undefined}>{line}</div>) : text}</div>
         {!arrowTargetSelector && !noArrow && <ArrowSVG direction={arrowDirection} scale={arrowScale} />}
       </div>
       {(arrowTargetSelector || separateArrowTarget) && arrowPath && !(arrowConfig && arrowConfig.hidden) && (
         <svg
-          className={`onb-custom-arrow ${closing ? 'onb-closing' : ''}`}
+          className={`onb-custom-arrow ${closing ? 'onb-closing' : ''} ${ready && !closing ? 'onb-ready' : ''}`}
           style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none' }}
         >
           <path

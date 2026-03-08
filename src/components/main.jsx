@@ -196,7 +196,7 @@ const Main = () => {
   const timerOnbBase = timerState.targetTime; // e.g. 490 for 8 exercises + 10s prep
   const ONBOARDING_STEPS = {
     timer: [
-      { text: 'Tap play!', target: '.play-btn', arrow: 'right', noOverlay: true, delay: 300 },
+      { text: 'Tap play!', target: '.play-btn', arrow: 'right', noOverlay: true },
       { text: '10 seconds to get ready...', target: '.workout-list', arrowTarget: '.time-seconds', timeBased: true },
       { text: 'Blue means rest...', target: '.workout-list', timeBased: true, noArrow: true },
       { text: 'Red means go in', target: '.workout-list', timeBased: true, noArrow: true, countdown: true },

@@ -12,11 +12,17 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  animation: onb-fade-in 0.4s ease forwards;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.onb-tooltip.onb-ready {
+  opacity: 1;
 }
 
 .onb-tooltip.onb-closing {
-  animation: onb-fade-out 0.25s ease forwards;
+  opacity: 0;
+  transition: opacity 0.25s ease;
 }
 
 .onb-text {
@@ -59,11 +65,17 @@
 }
 
 .onb-custom-arrow {
-  animation: onb-fade-in 0.4s ease forwards;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.onb-custom-arrow.onb-ready {
+  opacity: 1;
 }
 
 .onb-custom-arrow.onb-closing {
-  animation: onb-fade-out 0.25s ease forwards;
+  opacity: 0;
+  transition: opacity 0.25s ease;
 }
 
 @keyframes onb-fade-in {
