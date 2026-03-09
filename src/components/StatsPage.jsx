@@ -557,22 +557,78 @@ const StatsPage = ({
     return closest;
   }, [chartW, getX]);
 
+  const scrubTapRef = useRef({ startX: null, moved: false });
+
+  const getEdgeZone = useCallback((clientX) => {
+    const el = chartContainerRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const ratio = (clientX - rect.left) / rect.width;
+    const edgeThreshold = 0.1;
+    if (ratio < edgeThreshold) return 'left';
+    if (ratio > 1 - edgeThreshold) return 'right';
+    return null;
+  }, []);
+
+  const navigateWeek = useCallback((direction) => {
+    const current = selectedWeekStart || (() => {
+      const today = new Date();
+      const d = new Date(today);
+      d.setDate(today.getDate() - today.getDay());
+      d.setHours(0, 0, 0, 0);
+      return d;
+    })();
+    const next = new Date(current);
+    next.setDate(current.getDate() + (direction === 'right' ? 7 : -7));
+    next.setHours(0, 0, 0, 0);
+    // If navigating to current week, reset to null
+    const today = new Date();
+    const currentSunday = new Date(today);
+    currentSunday.setDate(today.getDate() - today.getDay());
+    currentSunday.setHours(0, 0, 0, 0);
+    if (next.getTime() === currentSunday.getTime()) {
+      setSelectedWeekStart(null);
+    } else {
+      setSelectedWeekStart(next);
+    }
+    // Highlight the week on the heatmap
+    const sundayKey = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+    setHighlightedWeek(sundayKey);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightedWeek(null), 300);
+  }, [selectedWeekStart]);
+
   const handleScrubStart = useCallback((clientX) => {
+    scrubTapRef.current = { startX: clientX, moved: false };
     setScrubIndex(getScrubIndex(clientX));
   }, [getScrubIndex]);
 
   const handleScrubMove = useCallback((clientX) => {
+    if (scrubTapRef.current.startX !== null && Math.abs(clientX - scrubTapRef.current.startX) > 5) {
+      scrubTapRef.current.moved = true;
+    }
     setScrubIndex(getScrubIndex(clientX));
   }, [getScrubIndex]);
 
   const [pinnedFadeIn, setPinnedFadeIn] = useState(false);
-  const handleScrubEnd = useCallback(() => {
+  const handleScrubEnd = useCallback((clientX) => {
+    const tap = scrubTapRef.current;
+    if (!tap.moved && tap.startX !== null) {
+      const edge = getEdgeZone(tap.startX);
+      if (edge) {
+        scrubTapRef.current = { startX: null, moved: false };
+        setScrubIndex(null);
+        navigateWeek(edge);
+        return;
+      }
+    }
+    scrubTapRef.current = { startX: null, moved: false };
     if (scrubIndex !== null) {
       setPinnedFadeIn(true);
       setTimeout(() => setPinnedFadeIn(false), 400);
     }
     setScrubIndex(null);
-  }, [scrubIndex]);
+  }, [scrubIndex, getEdgeZone, navigateWeek]);
 
   // All workouts
   const allWorkouts = useMemo(() => {
@@ -1404,7 +1460,7 @@ const StatsPage = ({
                     const sec = s % 60;
                     return s === 0 ? '' : `${m}:${sec.toString().padStart(2, '0')}`;
                   }
-                  const weekSecs = displayWeekChart.reduce((sum, d) => sum + (d.seconds || 0), 0);
+                  const weekSecs = displayWeekChart.filter(d => !d.isEdge).reduce((sum, d) => sum + (d.seconds || 0), 0);
                   if (weekSecs === 0) return '';
                   const h = Math.floor(weekSecs / 3600);
                   const m = Math.floor((weekSecs % 3600) / 60);
@@ -1413,6 +1469,15 @@ const StatsPage = ({
                 })()}
               </span>
             </h3>
+            <div style={{ position: 'relative' }}>
+              <div
+                style={{ position: 'absolute', top: 0, bottom: 0, right: '100%', width: '50vw', zIndex: 1 }}
+                onClick={() => navigateWeek('left')}
+              />
+              <div
+                style={{ position: 'absolute', top: 0, bottom: 0, left: '100%', width: '50vw', zIndex: 1 }}
+                onClick={() => navigateWeek('right')}
+              />
             <div
               className="week-line-chart"
               ref={chartContainerRef}
@@ -1494,6 +1559,7 @@ const StatsPage = ({
                   </text>
                 ))}
               </svg>
+            </div>
             </div>
           </div>
 
