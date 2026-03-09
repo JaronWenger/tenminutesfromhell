@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser } from '../firebase/social';
-import { getUserHistory, saveUserWorkout, getWorkoutsBatchV2, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
+import { getUserHistory, getWorkoutsBatchV2, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './StatsPage.css';
 
@@ -1018,7 +1018,8 @@ const StatsPage = ({
           await addLibraryRef(user.uid, newId, 'saved');
         }
       } else {
-        await saveUserWorkout(user.uid, {
+        // No workout ID — create new V2 doc
+        const newId = await createWorkoutV2(user.uid, {
           name: workout.name,
           type: workout.type,
           exercises: workout.exercises,
@@ -1029,6 +1030,7 @@ const StatsPage = ({
           creatorName: viewingProfile?.displayName || null,
           creatorPhotoURL: viewingProfile?.photoURL || null,
         });
+        await addLibraryRef(user.uid, newId, 'saved');
       }
       setTakenWorkouts(prev => ({ ...prev, [workout.name]: true }));
       if (onWorkoutAdded) onWorkoutAdded();

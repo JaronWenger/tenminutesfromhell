@@ -20,7 +20,7 @@ import {
   cancelFollowRequest,
   getUserProfiles
 } from '../firebase/social';
-import { saveUserWorkout, recordWorkoutHistory, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
+import { recordWorkoutHistory, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
 import './FeedPage.css';
 
 const APP_URL = 'https://hiitem.com';

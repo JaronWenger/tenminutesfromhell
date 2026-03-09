@@ -69,7 +69,7 @@ export const getAllPreferences = async (userId) => {
       pinnedWorkouts: [],
       weeklySchedule: { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
       onboardingCompleted: { timer: false, home: false, stats: false },
-      workoutModelV2: false,
+      workoutModelV2: true,
       deletedDefaults: [],
     };
   }
@@ -91,7 +91,7 @@ export const getAllPreferences = async (userId) => {
     pinnedWorkouts: data.pinnedWorkouts || [],
     weeklySchedule: data.weeklySchedule || { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
     onboardingCompleted: data.onboardingCompleted || { timer: false, home: false, stats: false },
-    workoutModelV2: data.workoutModelV2 ?? false,
+    workoutModelV2: data.workoutModelV2 ?? true,
     deletedDefaults: data.deletedDefaults || [],
   };
 };
@@ -634,7 +634,6 @@ export const createPost = async (userId, workoutData, profile) => {
     isPublic: true,
     setsCompleted: workoutData.setsCompleted || 1,
     joinedUsers: {},
-    likeCount: 0,
     createdAt: serverTimestamp(),
     lastCompletedAt: serverTimestamp()
   };
