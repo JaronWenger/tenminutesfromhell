@@ -478,6 +478,7 @@ const Main = () => {
           console.error('Failed to load workouts:', err);
         }
         if (cancelled) return;
+        lastWorkoutRefreshRef.current = Date.now();
         setWorkoutReady(true);
         // Load follow data + account privacy + pending requests in background (non-blocking)
         Promise.all([getFollowing(user.uid), getFollowers(user.uid), getPendingFollowRequests(user.uid)])
@@ -673,16 +674,25 @@ const Main = () => {
     }
   }, [user, deletedDefaultsState]);
 
-  // Refresh workouts when app returns to foreground (picks up live-linked changes)
+  // Silently refresh workouts if data is stale (>30s old)
+  const lastWorkoutRefreshRef = useRef(0);
+  const refreshWorkoutsIfStale = useCallback(() => {
+    if (!user) return;
+    const now = Date.now();
+    if (now - lastWorkoutRefreshRef.current > 30000) {
+      lastWorkoutRefreshRef.current = now;
+      refreshWorkouts();
+    }
+  }, [user, refreshWorkouts]);
+
+  // Refresh on app foreground
   useEffect(() => {
     const handleVisibility = () => {
-      if (!document.hidden && user) {
-        refreshWorkouts();
-      }
+      if (!document.hidden) refreshWorkoutsIfStale();
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [user, refreshWorkouts]);
+  }, [refreshWorkoutsIfStale]);
 
   // Share workout post helper
   const handleShareWorkout = useCallback(async (workoutData) => {
@@ -1439,16 +1449,16 @@ const Main = () => {
       : (hasExercises
         ? allW.find(w => w.name === post.workoutName && JSON.stringify(w.exercises) === postExercises)
         : allW.find(w => w.name === post.workoutName));
-    // V2: if not in library but has workoutId, fetch live from Firestore
+    // Always fetch live data when workoutId exists (picks up owner's edits)
     let liveDoc = null;
-    if (!exactMatch && post.workoutId) {
+    if (post.workoutId) {
       try {
         liveDoc = await getWorkoutV2(post.workoutId);
       } catch (err) {
         console.error('Failed to fetch live workout:', err);
       }
     }
-    const sourceData = exactMatch || liveDoc;
+    const sourceData = liveDoc || exactMatch;
     // Check if this matches a default workout by ID or content
     const isDefaultContent = post.workoutId
       ? allDefaults.some(d => d.id === post.workoutId)
@@ -2047,6 +2057,7 @@ const Main = () => {
               setTimeout(() => setHomeDetailCloseRequested(false), 50);
             }
             setActiveTab(tab);
+            refreshWorkoutsIfStale();
             if (showFeedPage) setFeedCloseRequested(true);
             if (showSideMenu) setSideMenuCloseRequested(true);
             if (showLoginModal) setLoginModalCloseRequested(true);
