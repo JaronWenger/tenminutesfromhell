@@ -673,6 +673,17 @@ const Main = () => {
     }
   }, [user, deletedDefaultsState]);
 
+  // Refresh workouts when app returns to foreground (picks up live-linked changes)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (!document.hidden && user) {
+        refreshWorkouts();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [user, refreshWorkouts]);
+
   // Share workout post helper
   const handleShareWorkout = useCallback(async (workoutData) => {
     if (!user) return null;
