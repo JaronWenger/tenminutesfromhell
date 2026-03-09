@@ -581,6 +581,12 @@ const StatsPage = ({
     const next = new Date(current);
     next.setDate(current.getDate() + (direction === 'right' ? 7 : -7));
     next.setHours(0, 0, 0, 0);
+    // Block at year boundaries
+    const yearStart = new Date(selectedYear, 0, 1);
+    yearStart.setDate(yearStart.getDate() - yearStart.getDay()); // Sunday of first week
+    const yearEnd = new Date(selectedYear, 11, 31);
+    yearEnd.setDate(yearEnd.getDate() + (6 - yearEnd.getDay())); // Saturday of last week
+    if (next < yearStart || next > yearEnd) return;
     // If navigating to current week, reset to null
     const today = new Date();
     const currentSunday = new Date(today);
@@ -591,12 +597,28 @@ const StatsPage = ({
     } else {
       setSelectedWeekStart(next);
     }
-    // Highlight the week on the heatmap
+    // Highlight the week on the heatmap and scroll into view if needed
     const sundayKey = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
     setHighlightedWeek(sundayKey);
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     highlightTimerRef.current = setTimeout(() => setHighlightedWeek(null), 300);
-  }, [selectedWeekStart]);
+
+    // Scroll heatmap to keep selected week visible
+    const el = calendarScrollRef.current;
+    if (el && displayCalendar?.weeks) {
+      const wi = displayCalendar.weeks.findIndex(w => w[0]?.sundayKey === sundayKey);
+      if (wi >= 0) {
+        const cellWidth = 14;
+        const weekLeft = wi * cellWidth;
+        const weekRight = weekLeft + cellWidth;
+        if (weekLeft < el.scrollLeft) {
+          el.scrollTo({ left: weekLeft, behavior: 'smooth' });
+        } else if (weekRight > el.scrollLeft + el.clientWidth) {
+          el.scrollTo({ left: weekRight - el.clientWidth, behavior: 'smooth' });
+        }
+      }
+    }
+  }, [selectedWeekStart, displayCalendar]);
 
   const handleScrubStart = useCallback((clientX) => {
     scrubTapRef.current = { startX: clientX, moved: false };
