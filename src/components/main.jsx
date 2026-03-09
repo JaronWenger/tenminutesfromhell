@@ -1235,7 +1235,8 @@ const Main = () => {
             name: finalName, exercises: updatedExercises,
             creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL
           });
-        } else if (existingW?.id && !existingW.id.startsWith('temp-')) {
+        } else if (existingW?.id && !existingW.id.startsWith('temp-') && !existingW.id.startsWith('default-')) {
+          // Non-owner edit of a V2 workout — fork into new doc
           const docId = await createWorkoutV2(user.uid, {
             name: finalName, type: workoutType, exercises: updatedExercises,
             isCustom: existingW.isCustom || false, isPublic: true,
@@ -1244,13 +1245,24 @@ const Main = () => {
           });
           await addLibraryRef(user.uid, docId, 'created');
           await removeLibraryRef(user.uid, existingW.id);
+          if (docId && workoutType === 'timer') {
+            setTimerWorkoutData(prev => prev.map(w => w.id === existingW.id ? { ...w, id: docId, ownerUid: user.uid } : w));
+            setTimerSelectedWorkoutId(curId => curId === existingW.id ? docId : curId);
+          }
         } else {
+          // Default workout being modified — create override doc
           const docId = await createWorkoutV2(user.uid, {
             name: finalName, type: workoutType, exercises: updatedExercises,
             isDefault, defaultId: defaultMatch?.id || null, isPublic: true,
             creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL
           });
           await addLibraryRef(user.uid, docId, 'created');
+          if (docId && workoutType === 'timer') {
+            setTimerWorkoutData(prev => prev.map(w =>
+              (w.id === existingW?.id || (!existingW?.id && w.name === finalName)) ? { ...w, id: docId, ownerUid: user.uid } : w
+            ));
+            setTimerSelectedWorkoutId(curId => (curId === existingW?.id || (!curId && !existingW?.id)) ? docId : curId);
+          }
         }
       };
       persistExerciseSave().catch(err => console.error('Failed to save workout:', err));
