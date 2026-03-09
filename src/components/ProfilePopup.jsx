@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser, createFollowRequest, cancelFollowRequest } from '../firebase/social';
-import { getUserHistory, getUserWorkouts, saveUserWorkout } from '../firebase/firestore';
+import { getUserHistory, addLibraryRef, createWorkoutV2, getWorkoutV2, getWorkoutsBatchV2 } from '../firebase/firestore';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './StatsPage.css';
 
@@ -171,13 +171,25 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
     setLoading(true);
     (async () => {
       try {
-        const [following, followers, userHistory, workouts, prefs, [fullProfile]] = await Promise.all([
+        // Fetch prefs+pinned in one chain, parallel with everything else
+        const [following, followers, userHistory, [fullProfile], resolvedPinned] = await Promise.all([
           getFollowing(activeProfile.uid),
           getFollowers(activeProfile.uid),
           getUserHistory(activeProfile.uid),
-          getUserWorkouts(activeProfile.uid),
-          getAllPreferences(activeProfile.uid),
-          getUserProfiles([activeProfile.uid])
+          getUserProfiles([activeProfile.uid]),
+          (async () => {
+            const prefs = await getAllPreferences(activeProfile.uid);
+            const pinnedIds = prefs.pinnedWorkouts || [];
+            if (pinnedIds.length === 0) return [];
+            const v2Docs = await getWorkoutsBatchV2(pinnedIds);
+            const workoutMap = {};
+            v2Docs.forEach(w => { workoutMap[w.id] = w; });
+            if (Object.keys(workoutMap).length < pinnedIds.length) {
+              const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+              allDefaults.forEach(w => { if (w.id && !workoutMap[w.id]) workoutMap[w.id] = w; });
+            }
+            return pinnedIds.map(id => workoutMap[id]).filter(Boolean);
+          })()
         ]);
         if (cancelled) return;
         // Merge full profile data (including isPrivate) into activeProfile
@@ -207,15 +219,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
         setCompletions(completionMap);
 
         setCalendar(buildCalendarGrid(dailyMap));
-
-        const pinnedIds = prefs.pinnedWorkouts || [];
-        if (pinnedIds.length > 0) {
-          const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
-          const workoutMap = {};
-          allDefaults.forEach(w => { if (w.id) workoutMap[w.id] = w; });
-          workouts.filter(w => !w.deleted).forEach(w => { if (w.id) workoutMap[w.id] = w; });
-          setPinnedWorkouts(pinnedIds.map(id => workoutMap[id]).filter(Boolean));
-        }
+        if (resolvedPinned.length > 0) setPinnedWorkouts(resolvedPinned);
       } catch (err) {
         console.error('Failed to load user profile:', err);
       }
@@ -447,17 +451,42 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
     }
     setSavingWorkouts(prev => ({ ...prev, [workout.name]: true }));
     try {
-      await saveUserWorkout(user.uid, {
-        name: workout.name,
-        type: workout.type,
-        exercises: workout.exercises,
-        isCustom: true,
-        tags: workout.tags || null,
-        restTime: workout.restTime ?? null,
-        creatorUid: activeProfile?.uid || null,
-        creatorName: activeProfile?.displayName || null,
-        creatorPhotoURL: activeProfile?.photoURL || null,
-      });
+      // V2: if the workout has an ID in the top-level collection, add a library reference (live-linked)
+      if (workout.id) {
+        const existingDoc = await getWorkoutV2(workout.id);
+        if (existingDoc && !existingDoc.ownerDeleted) {
+          // Live-link: reference the existing workout doc
+          await addLibraryRef(user.uid, workout.id, 'saved');
+        } else {
+          // Workout doc missing or frozen — create a new one owned by user
+          const newId = await createWorkoutV2(user.uid, {
+            name: workout.name,
+            type: workout.type,
+            exercises: workout.exercises,
+            isCustom: true,
+            tags: workout.tags || null,
+            restTime: workout.restTime ?? null,
+            creatorUid: activeProfile?.uid || null,
+            creatorName: activeProfile?.displayName || null,
+            creatorPhotoURL: activeProfile?.photoURL || null,
+          });
+          await addLibraryRef(user.uid, newId, 'saved');
+        }
+      } else {
+        // No workout ID — create new doc (legacy path)
+        const newId = await createWorkoutV2(user.uid, {
+          name: workout.name,
+          type: workout.type,
+          exercises: workout.exercises,
+          isCustom: true,
+          tags: workout.tags || null,
+          restTime: workout.restTime ?? null,
+          creatorUid: activeProfile?.uid || null,
+          creatorName: activeProfile?.displayName || null,
+          creatorPhotoURL: activeProfile?.photoURL || null,
+        });
+        await addLibraryRef(user.uid, newId, 'saved');
+      }
       setTakenWorkouts(prev => ({ ...prev, [workout.name]: true }));
       if (onWorkoutAdded) onWorkoutAdded();
       createSaveNotification({
@@ -466,6 +495,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
         actorName: user.displayName,
         actorPhotoURL: user.photoURL,
         workoutName: workout.name,
+        workoutId: workout.id || null,
         source: 'pinned'
       }).catch(err => console.error('Save notif failed:', err));
     } catch (err) {

@@ -304,11 +304,22 @@ const Home = ({
 
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+  // Deduplicate workouts by ID or name (guards against transient state races)
+  const dedupedWorkouts = useMemo(() => {
+    const seen = new Set();
+    return timerWorkoutData.filter(w => {
+      const key = w.id || w.name;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [timerWorkoutData]);
+
   const displayedWorkouts = useMemo(() => {
-    if (activeFilter === null) return timerWorkoutData;
+    if (activeFilter === null) return dedupedWorkouts;
     if (activeFilter === 'Recent') {
       const completed = [];
-      timerWorkoutData.forEach(w => {
+      dedupedWorkouts.forEach(w => {
         const matchingHistory = workoutHistory
           ?.filter(h => historyMatchesWorkout(h, w))
           .sort((a, b) => {
@@ -325,24 +336,24 @@ const Home = ({
       return completed.slice(0, 7).map(c => c.workout);
     }
     if (activeFilter === 'Shared') {
-      return timerWorkoutData.filter(w => w.creatorUid && w.creatorUid !== user?.uid && !defaultWorkoutIds.has(w.defaultId) && !defaultWorkoutIds.has(w.id));
+      return dedupedWorkouts.filter(w => w.creatorUid && w.creatorUid !== user?.uid && !defaultWorkoutIds.has(w.defaultId) && !defaultWorkoutIds.has(w.id));
     }
     if (activeFilter === 'Schedule') {
       const result = [];
       for (let i = 0; i < 7; i++) {
         const schedId = weeklySchedule[i];
         if (!schedId) continue;
-        const workout = timerWorkoutData.find(w => w.id === schedId);
+        const workout = dedupedWorkouts.find(w => w.id === schedId);
         if (workout) result.push(workout);
       }
       return result;
     }
     // Tag filter
-    return timerWorkoutData.filter(w => {
+    return dedupedWorkouts.filter(w => {
       const tags = w.tags || (w.tag ? [w.tag] : []);
       return tags.includes(activeFilter);
     });
-  }, [activeFilter, timerWorkoutData, workoutHistory, weeklySchedule, defaultWorkoutIds]);
+  }, [activeFilter, dedupedWorkouts, workoutHistory, weeklySchedule, defaultWorkoutIds]);
 
   // Map: index in displayedWorkouts → day header to show above it (Schedule filter only)
   const scheduleHeaders = useMemo(() => {

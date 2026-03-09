@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser } from '../firebase/social';
-import { getUserHistory, getUserWorkouts, saveUserWorkout } from '../firebase/firestore';
+import { getUserHistory, saveUserWorkout, getWorkoutsBatchV2, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './StatsPage.css';
 
@@ -592,8 +592,13 @@ const StatsPage = ({
   }, [pinnedWorkouts, allWorkouts]);
 
   // Auto-clean stale pinned IDs from Firestore
+  // Only clean when V2 data is loaded (allWorkouts has non-default IDs)
   useEffect(() => {
     if (!user || allWorkouts.length === 0 || pinnedWorkouts.length === 0) return;
+    // Don't clean if pinned IDs are V2 (non-default) but allWorkouts only has defaults
+    const hasV2Workouts = allWorkouts.some(w => w.id && !w.id.startsWith('default-'));
+    const hasV2Pins = pinnedWorkouts.some(id => !id.startsWith('default-'));
+    if (hasV2Pins && !hasV2Workouts) return; // V2 data not loaded yet
     const validIds = pinnedWorkoutObjects.map(w => w.id);
     if (validIds.length < pinnedWorkouts.length) {
       if (onPinnedWorkoutsChange) onPinnedWorkoutsChange(validIds);
@@ -826,12 +831,24 @@ const StatsPage = ({
     setViewingProfileClosing(false);
     setViewingProfileLoading(true);
     try {
-      const [following, followers, userHistory, workouts, prefs] = await Promise.all([
+      // Fetch prefs+pinned in one chain, parallel with everything else
+      const [following, followers, userHistory, resolvedPinned] = await Promise.all([
         getFollowing(profile.uid),
         getFollowers(profile.uid),
         getUserHistory(profile.uid),
-        getUserWorkouts(profile.uid),
-        getAllPreferences(profile.uid)
+        (async () => {
+          const prefs = await getAllPreferences(profile.uid);
+          const pinnedIds = prefs.pinnedWorkouts || [];
+          if (pinnedIds.length === 0) return [];
+          const v2Docs = await getWorkoutsBatchV2(pinnedIds);
+          const workoutMap = {};
+          v2Docs.forEach(w => { workoutMap[w.id] = w; });
+          if (Object.keys(workoutMap).length < pinnedIds.length) {
+            const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+            allDefaults.forEach(w => { if (w.id && !workoutMap[w.id]) workoutMap[w.id] = w; });
+          }
+          return pinnedIds.map(id => workoutMap[id]).filter(Boolean);
+        })()
       ]);
       setViewingProfileFollowing(following.length);
       setViewingProfileFollowers(followers.length);
@@ -858,33 +875,24 @@ const StatsPage = ({
       });
       setViewingProfileStats({ totalHours, totalMinutes, dailyMap });
 
-      // Compute completion counts per workout name
       const completionMap = {};
       userHistory.forEach(h => {
         if (h.workoutName) completionMap[h.workoutName] = (completionMap[h.workoutName] || 0) + 1;
       });
       setViewingProfileCompletions(completionMap);
 
-      // Build calendar grid (current year)
       setViewingProfileCalendar(buildCalendarGrid(dailyMap));
+      if (resolvedPinned.length > 0) setViewingProfilePinnedWorkouts(resolvedPinned);
 
-      // Resolve pinned workouts
-      const pinnedIds = prefs.pinnedWorkouts || [];
-      if (pinnedIds.length > 0) {
-        const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
-        const workoutMap = {};
-        allDefaults.forEach(w => { if (w.id) workoutMap[w.id] = w; });
-        workouts.filter(w => !w.deleted).forEach(w => { if (w.id) workoutMap[w.id] = w; });
-        setViewingProfilePinnedWorkouts(pinnedIds.map(id => workoutMap[id]).filter(Boolean));
+      // Snapshot panel height before content expands
+      if (vpPanelRef.current) {
+        vpPanelHeightRef.current = vpPanelRef.current.offsetHeight;
       }
+      setViewingProfileLoading(false);
     } catch (err) {
       console.error('Failed to load user profile:', err);
+      setViewingProfileLoading(false);
     }
-    // Snapshot panel height before content expands
-    if (vpPanelRef.current) {
-      vpPanelHeightRef.current = vpPanelRef.current.offsetHeight;
-    }
-    setViewingProfileLoading(false);
   };
 
   const closeViewingProfile = () => {
@@ -990,17 +998,38 @@ const StatsPage = ({
     }
     setSavingWorkouts(prev => ({ ...prev, [workout.name]: true }));
     try {
-      await saveUserWorkout(user.uid, {
-        name: workout.name,
-        type: workout.type,
-        exercises: workout.exercises,
-        isCustom: true,
-        tags: workout.tags || null,
-        restTime: workout.restTime ?? null,
-        creatorUid: viewingProfile?.uid || null,
-        creatorName: viewingProfile?.displayName || null,
-        creatorPhotoURL: viewingProfile?.photoURL || null,
-      });
+      // V2: live-link if workout has an ID in top-level collection
+      if (workout.id) {
+        const existingDoc = await getWorkoutV2(workout.id);
+        if (existingDoc && !existingDoc.ownerDeleted) {
+          await addLibraryRef(user.uid, workout.id, 'saved');
+        } else {
+          const newId = await createWorkoutV2(user.uid, {
+            name: workout.name,
+            type: workout.type,
+            exercises: workout.exercises,
+            isCustom: true,
+            tags: workout.tags || null,
+            restTime: workout.restTime ?? null,
+            creatorUid: viewingProfile?.uid || null,
+            creatorName: viewingProfile?.displayName || null,
+            creatorPhotoURL: viewingProfile?.photoURL || null,
+          });
+          await addLibraryRef(user.uid, newId, 'saved');
+        }
+      } else {
+        await saveUserWorkout(user.uid, {
+          name: workout.name,
+          type: workout.type,
+          exercises: workout.exercises,
+          isCustom: true,
+          tags: workout.tags || null,
+          restTime: workout.restTime ?? null,
+          creatorUid: viewingProfile?.uid || null,
+          creatorName: viewingProfile?.displayName || null,
+          creatorPhotoURL: viewingProfile?.photoURL || null,
+        });
+      }
       setTakenWorkouts(prev => ({ ...prev, [workout.name]: true }));
       if (onWorkoutAdded) onWorkoutAdded();
       createSaveNotification({
@@ -1009,6 +1038,7 @@ const StatsPage = ({
         actorName: user.displayName,
         actorPhotoURL: user.photoURL,
         workoutName: workout.name,
+        workoutId: workout.id || null,
         source: 'pinned'
       }).catch(err => console.error('Save notif failed:', err));
     } catch (err) {

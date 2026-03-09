@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   addDoc,
@@ -131,4 +132,227 @@ export const recordWorkoutHistory = async (userId, entry) => {
 // Update an existing history entry (e.g., when additional sets are completed)
 export const updateWorkoutHistory = async (userId, historyId, updates) => {
   await updateDoc(doc(db, 'users', userId, 'history', historyId), updates);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// V2: Top-level workouts collection + library references
+// ═══════════════════════════════════════════════════════════════
+
+// Create a workout in the top-level collection — returns the doc ID
+export const createWorkoutV2 = async (ownerUid, workoutData) => {
+  const data = {
+    ownerUid,
+    ownerDeleted: false,
+    name: workoutData.name,
+    type: workoutData.type,
+    exercises: workoutData.exercises || [],
+    isDefault: workoutData.isDefault || false,
+    isCustom: workoutData.isCustom || false,
+    forked: workoutData.forked || false,
+    defaultId: workoutData.defaultId || null,
+    restTime: workoutData.restTime ?? null,
+    isPublic: workoutData.isPublic !== false,
+    tags: workoutData.tags || null,
+    creatorUid: workoutData.creatorUid || null,
+    creatorName: workoutData.creatorName || null,
+    creatorPhotoURL: workoutData.creatorPhotoURL || null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+  const docRef = await addDoc(collection(db, 'workouts'), data);
+  return docRef.id;
+};
+
+// Update a workout (owner only — caller must verify ownership)
+export const updateWorkoutV2 = async (workoutId, updates) => {
+  await updateDoc(doc(db, 'workouts', workoutId), {
+    ...updates,
+    updatedAt: serverTimestamp()
+  });
+};
+
+// Read a single workout
+export const getWorkoutV2 = async (workoutId) => {
+  const snap = await getDoc(doc(db, 'workouts', workoutId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() };
+};
+
+// Batch-fetch multiple workouts by ID — returns array (skips missing docs)
+export const getWorkoutsBatchV2 = async (workoutIds) => {
+  if (!workoutIds || workoutIds.length === 0) return [];
+  const results = await Promise.all(
+    workoutIds.map(async (id) => {
+      const snap = await getDoc(doc(db, 'workouts', id));
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    })
+  );
+  return results.filter(Boolean);
+};
+
+// Soft-delete a workout (owner deletes — freezes for everyone else)
+export const softDeleteWorkoutV2 = async (workoutId) => {
+  await updateDoc(doc(db, 'workouts', workoutId), {
+    ownerDeleted: true,
+    updatedAt: serverTimestamp()
+  });
+};
+
+// Revive a soft-deleted workout (owner re-adds it)
+export const reviveWorkoutV2 = async (workoutId) => {
+  await updateDoc(doc(db, 'workouts', workoutId), {
+    ownerDeleted: false,
+    updatedAt: serverTimestamp()
+  });
+};
+
+// ── Library references ──
+
+// Add a workout reference to a user's library
+export const addLibraryRef = async (userId, workoutId, source = 'created') => {
+  await setDoc(doc(db, 'users', userId, 'library', workoutId), {
+    addedAt: serverTimestamp(),
+    source
+  });
+};
+
+// Remove a workout reference from a user's library
+export const removeLibraryRef = async (userId, workoutId) => {
+  await deleteDoc(doc(db, 'users', userId, 'library', workoutId));
+};
+
+// Get all library references for a user
+export const getLibraryRefs = async (userId) => {
+  const snapshot = await getDocs(collection(db, 'users', userId, 'library'));
+  return snapshot.docs.map(d => ({
+    workoutId: d.id,
+    ...d.data()
+  }));
+};
+
+// Load a user's full library: refs → resolved workout data
+// Auto-deduplicates by workout name (keeps first, removes duplicate refs)
+export const getUserWorkoutsV2 = async (userId) => {
+  const refs = await getLibraryRefs(userId);
+  if (refs.length === 0) return { workouts: [], refs: [] };
+  const workoutIds = refs.map(r => r.workoutId);
+  const workouts = await getWorkoutsBatchV2(workoutIds);
+  // Build a map for easy lookup
+  const refMap = {};
+  refs.forEach(r => { refMap[r.workoutId] = r; });
+  // Deduplicate by name — keep first occurrence, remove duplicate refs in background
+  const seenNames = new Set();
+  const duplicateRefIds = [];
+  const enriched = [];
+  for (const w of workouts) {
+    if (seenNames.has(w.name)) {
+      duplicateRefIds.push(w.id);
+      continue;
+    }
+    seenNames.add(w.name);
+    enriched.push({
+      ...w,
+      _librarySource: refMap[w.id]?.source || null,
+      _libraryAddedAt: refMap[w.id]?.addedAt || null
+    });
+  }
+  // Clean up duplicate refs in background (don't await)
+  if (duplicateRefIds.length > 0) {
+    Promise.all(duplicateRefIds.map(id => removeLibraryRef(userId, id)))
+      .catch(err => console.error('Failed to clean duplicate refs:', err));
+  }
+  const dedupedRefs = refs.filter(r => !duplicateRefIds.includes(r.workoutId));
+  return { workouts: enriched, refs: dedupedRefs };
+};
+
+// ── Migration ──
+
+// Migrate a user's customWorkouts to V2 (top-level workouts + library refs)
+// Returns { idMap, deletedDefaults } for updating preferences
+// Idempotent: checks existing library refs to avoid duplicates
+export const migrateUserWorkoutsV2 = async (userId) => {
+  const oldDocs = await getDocs(collection(db, 'users', userId, 'customWorkouts'));
+  if (oldDocs.empty) return { idMap: {}, deletedDefaults: [] };
+
+  // Check existing library refs to avoid re-migrating
+  const existingRefs = await getLibraryRefs(userId);
+  const existingWorkoutIds = new Set(existingRefs.map(r => r.workoutId));
+  // Also load existing workout docs to check for duplicates by name
+  let existingWorkouts = [];
+  if (existingRefs.length > 0) {
+    existingWorkouts = await getWorkoutsBatchV2(existingRefs.map(r => r.workoutId));
+  }
+  const existingNames = new Set(existingWorkouts.map(w => w.name));
+
+  const idMap = {};          // oldId → newId
+  const deletedDefaults = []; // defaultIds that were soft-deleted
+
+  for (const d of oldDocs.docs) {
+    const data = d.data();
+
+    // Soft-delete markers for defaults
+    if (data.deleted) {
+      if (data.defaultId) deletedDefaults.push(data.defaultId);
+      continue;
+    }
+
+    // Skip docs with missing required fields (corrupt/partial data)
+    if (!data.name || !data.type) continue;
+
+    // Skip if already migrated (workout with same name already in library)
+    if (existingNames.has(data.name)) continue;
+
+    // Create top-level workout doc
+    const newId = await createWorkoutV2(userId, {
+      name: data.name,
+      type: data.type,
+      exercises: data.exercises || [],
+      isDefault: data.isDefault || false,
+      isCustom: data.isCustom || false,
+      forked: data.forked || false,
+      defaultId: data.defaultId || null,
+      restTime: data.restTime ?? null,
+      isPublic: data.isPublic !== false,
+      tags: data.tags || null,
+      creatorUid: data.creatorUid || null,
+      creatorName: data.creatorName || null,
+      creatorPhotoURL: data.creatorPhotoURL || null
+    });
+
+    idMap[d.id] = newId;
+
+    // Determine source
+    const source = (data.creatorUid && data.creatorUid !== userId) ? 'saved' : 'created';
+    await addLibraryRef(userId, newId, source);
+  }
+
+  return { idMap, deletedDefaults };
+};
+
+// Mark V2 migration complete and remap preference IDs
+export const markMigrationComplete = async (userId, deletedDefaults, idMap, oldPrefs) => {
+  const updates = {
+    workoutModelV2: true,
+    deletedDefaults,
+    updatedAt: serverTimestamp()
+  };
+  // Remap pinnedWorkouts IDs
+  if (oldPrefs.pinnedWorkouts?.length > 0) {
+    updates.pinnedWorkouts = oldPrefs.pinnedWorkouts.map(id => idMap[id] || id);
+  }
+  // Remap weeklySchedule IDs
+  if (oldPrefs.weeklySchedule) {
+    const remapped = {};
+    for (const day in oldPrefs.weeklySchedule) {
+      const old = oldPrefs.weeklySchedule[day];
+      remapped[day] = old ? (idMap[old] || old) : null;
+    }
+    updates.weeklySchedule = remapped;
+  }
+  // Remap selectedWorkoutId
+  if (oldPrefs.selectedWorkoutId && idMap[oldPrefs.selectedWorkoutId]) {
+    updates.selectedWorkoutId = idMap[oldPrefs.selectedWorkoutId];
+  }
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), updates, { merge: true });
+  return updates;
 };

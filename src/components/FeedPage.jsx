@@ -20,7 +20,7 @@ import {
   cancelFollowRequest,
   getUserProfiles
 } from '../firebase/social';
-import { saveUserWorkout, recordWorkoutHistory } from '../firebase/firestore';
+import { saveUserWorkout, recordWorkoutHistory, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
 import './FeedPage.css';
 
 const APP_URL = 'https://hiitem.com';
@@ -185,7 +185,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     if (!user) return;
     setLoading(true);
     try {
-      const [feedPosts, following] = await Promise.all([
+      let [feedPosts, following] = await Promise.all([
         getFeedPosts(user.uid),
         getFollowing(user.uid)
       ]);
@@ -196,6 +196,21 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
         photoURL: null,
         createdAt: user.metadata?.creationTime ? new Date(user.metadata.creationTime) : new Date(),
       };
+      // Enrich all posts that have workoutId with live workout data (V2 live-linking)
+      const postsWithWorkoutId = feedPosts.filter(p => p.workoutId);
+      if (postsWithWorkoutId.length > 0) {
+        const uniqueIds = [...new Set(postsWithWorkoutId.map(p => p.workoutId))];
+        const liveDocs = await Promise.all(uniqueIds.map(id => getWorkoutV2(id).catch(() => null)));
+        const liveMap = {};
+        liveDocs.forEach((doc, i) => { if (doc) liveMap[uniqueIds[i]] = doc; });
+        feedPosts = feedPosts.map(p => {
+          if (p.workoutId && liveMap[p.workoutId]) {
+            const live = liveMap[p.workoutId];
+            return { ...p, exercises: live.exercises, exerciseCount: live.exercises?.length, workoutName: live.name };
+          }
+          return p;
+        });
+      }
       setPosts([...feedPosts, welcomePost]);
       setFollowingIds(following);
       const workoutPosts = feedPosts.filter(p => !p.type);
@@ -420,17 +435,42 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
     if (!user || shareActions[post.id]) return;
     setShareActions(prev => ({ ...prev, [post.id]: 'accepting' }));
     try {
-      await saveUserWorkout(user.uid, {
-        name: post.workoutName,
-        type: post.workoutType || 'timer',
-        exercises: post.exercises || [],
-        isCustom: true,
-        restTime: post.restTime ?? null,
-        tags: post.tags || null,
-        creatorUid: post.creatorUid || post.userId,
-        creatorName: post.creatorName || post.displayName,
-        creatorPhotoURL: post.creatorPhotoURL || post.photoURL,
-      });
+      // V2: if the shared workout has a workoutId, add a library reference (live-linked)
+      if (post.workoutId) {
+        const existingDoc = await getWorkoutV2(post.workoutId);
+        if (existingDoc) {
+          // Live-link: just add a reference to the existing workout doc
+          await addLibraryRef(user.uid, post.workoutId, 'shared');
+        } else {
+          // Workout doc deleted — create a new one from the snapshot data
+          const newId = await createWorkoutV2(user.uid, {
+            name: post.workoutName,
+            type: post.workoutType || 'timer',
+            exercises: post.exercises || [],
+            isCustom: true,
+            restTime: post.restTime ?? null,
+            tags: post.tags || null,
+            creatorUid: post.creatorUid || post.userId,
+            creatorName: post.creatorName || post.displayName,
+            creatorPhotoURL: post.creatorPhotoURL || post.photoURL,
+          });
+          await addLibraryRef(user.uid, newId, 'shared');
+        }
+      } else {
+        // Legacy share (no workoutId) — create new workout doc
+        const newId = await createWorkoutV2(user.uid, {
+          name: post.workoutName,
+          type: post.workoutType || 'timer',
+          exercises: post.exercises || [],
+          isCustom: true,
+          restTime: post.restTime ?? null,
+          tags: post.tags || null,
+          creatorUid: post.creatorUid || post.userId,
+          creatorName: post.creatorName || post.displayName,
+          creatorPhotoURL: post.creatorPhotoURL || post.photoURL,
+        });
+        await addLibraryRef(user.uid, newId, 'shared');
+      }
       await updateNotificationStatus(post.id, 'accepted');
       setShareActions(prev => ({ ...prev, [post.id]: 'accepted' }));
       if (onWorkoutAdded) onWorkoutAdded();

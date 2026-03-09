@@ -9,7 +9,7 @@ const OTHER_COLORS = ['#00E5FF', '#DBF9B8', '#C4B5E0', '#C47A6E', '#2D7D6B', '#F
 const NEON_COLORS = ['#E040FB', '#7C4DFF', '#ACD8AA', '#76FF03', '#FFD740', '#FF4081', '#1DE9B6', '#304FFE'];
 const EARTH_COLORS = ['#F4845F', '#B8860B', '#E6194B', '#059669', '#DC2626', '#0891B2', '#D97706', '#E15634'];
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, inAppNotifications, onToggleInAppNotifications, onOpenProfile }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
@@ -343,6 +343,21 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
               <div className="sidemenu-toggle-knob" />
             </div>
           </div>
+
+          {isTestAccount && (
+            <>
+              <div className="sidemenu-divider" />
+              <div className="sidemenu-item" onClick={onToggleTestOnboarding}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+                <span className="sidemenu-item-label">Onboarding Mode</span>
+                <div className={`sidemenu-toggle ${testOnboardingMode ? 'on' : ''}`}>
+                  <div className="sidemenu-toggle-knob" />
+                </div>
+              </div>
+            </>
+          )}
 
         </div>
 

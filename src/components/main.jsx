@@ -14,7 +14,7 @@ import ProfilePopup from './ProfilePopup';
 import OnboardingTooltip from './OnboardingTooltip';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, updateWorkoutHistory, getUserHistory, deleteUserWorkout } from '../firebase/firestore';
+import { getUserWorkouts, saveUserWorkout, recordWorkoutHistory, updateWorkoutHistory, getUserHistory, deleteUserWorkout, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, migrateUserWorkoutsV2, markMigrationComplete } from '../firebase/firestore';
 import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted } from '../firebase/social';
 
 const hexToRgb = (hex) => {
@@ -154,9 +154,13 @@ const Main = () => {
   const [workoutHistory, setWorkoutHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Test account — always behaves as first-time user
+  // Test account — behaves as first-time user when onboarding mode is ON
   const TEST_EMAIL = 'aitakapic@gmail.com';
   const isTestAccount = user?.email === TEST_EMAIL;
+  const [testOnboardingMode, setTestOnboardingMode] = useState(() => {
+    return localStorage.getItem('testOnboardingMode') !== 'off';
+  });
+  const isTestOnboarding = isTestAccount && testOnboardingMode;
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
 
   // Social / Feed state
@@ -202,6 +206,8 @@ const Main = () => {
   const [pinnedWorkouts, setPinnedWorkoutsState] = useState([]);
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
+  const [deletedDefaultsState, setDeletedDefaultsState] = useState([]);
+  const [isV2User, setIsV2User] = useState(false);
 
   // Onboarding state
   const [onboarding, setOnboarding] = useState({
@@ -227,14 +233,14 @@ const Main = () => {
   };
 
   const persistOnboardingCompleted = useCallback((page) => {
-    if (user && !isTestAccount) {
+    if (user && !isTestOnboarding) {
       setOnboardingCompleted(user.uid, page).catch(() => {});
     } else if (!user) {
       const stored = JSON.parse(localStorage.getItem('onboarding_completed') || '{}');
       stored[page] = true;
       localStorage.setItem('onboarding_completed', JSON.stringify(stored));
     }
-  }, [user, isTestAccount]);
+  }, [user, isTestOnboarding]);
 
   const completeOnboarding = useCallback((page) => {
     setOnboarding(prev => ({ ...prev, [page]: { active: false, step: 0, completed: true } }));
@@ -346,10 +352,12 @@ const Main = () => {
 
   // Load user workouts and history from Firestore when user logs in
   useEffect(() => {
+    let cancelled = false;
+
     if (!user) {
       // Reset to defaults when logged out
-      setTimerWorkoutData(DEFAULT_TIMER_WORKOUTS);
-      setStopwatchWorkoutData(DEFAULT_STOPWATCH_WORKOUTS);
+      setTimerWorkoutData([...DEFAULT_TIMER_WORKOUTS]);
+      setStopwatchWorkoutData([...DEFAULT_STOPWATCH_WORKOUTS]);
       setWorkoutHistory([]);
       setAutoShareEnabled(null);
       setActiveColor('#ff3b30');
@@ -373,50 +381,18 @@ const Main = () => {
         home:  { active: false, step: 0, completed: null },
         stats: { active: false, step: 0, completed: null },
       });
-      return;
+      return () => { cancelled = true; };
     }
 
-    // Test account: skip all Firestore loading, treat as brand new user
-    if (isTestAccount) {
+    // Test account in onboarding mode: skip all Firestore loading, treat as brand new user
+    if (isTestOnboarding) {
       ensureUserProfile(user).catch(() => {});
       setIsFirstTimeUser(true);
+      setTimerWorkoutData([...DEFAULT_TIMER_WORKOUTS]);
+      setStopwatchWorkoutData([...DEFAULT_STOPWATCH_WORKOUTS]);
       setWorkoutReady(true);
-      return;
+      return () => { cancelled = true; };
     }
-
-    let cancelled = false;
-    const loadWorkouts = async () => {
-      try {
-        const [custom, savedOrder] = await Promise.all([
-          getUserWorkouts(user.uid),
-          getWorkoutOrder(user.uid)
-        ]);
-        if (cancelled) return;
-        if (custom.length > 0) {
-          const merged = mergeWorkouts(custom);
-          let timer = merged.timer;
-          if (savedOrder && savedOrder.length > 0) {
-            const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
-            timer = [...timer].sort((a, b) => {
-              const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
-              const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
-              return ai - bi;
-            });
-          }
-          setTimerWorkoutData(timer);
-          setStopwatchWorkoutData(merged.stopwatch);
-        } else if (savedOrder && savedOrder.length > 0) {
-          const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
-          setTimerWorkoutData(prev => [...prev].sort((a, b) => {
-            const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
-            const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
-            return ai - bi;
-          }));
-        }
-      } catch (err) {
-        console.error('Failed to load workouts:', err);
-      }
-    };
     const loadHistory = async () => {
       setHistoryLoading(true);
       try {
@@ -464,14 +440,97 @@ const Main = () => {
           // Legacy: name-only saved selection — will resolve to ID after workout data loads
           setTimerSelectedWorkout(prefs.selectedWorkout);
         }
-        // Load onboarding state BEFORE workoutReady (skip for test account — always reset)
+        // Load onboarding state BEFORE workoutReady (skip for test account in onboarding mode — always reset)
         // completed: null (unknown) → false (not done) or true (done)
-        const oc = (!isTestAccount && prefs.onboardingCompleted) || {};
+        const oc = (!isTestOnboarding && prefs.onboardingCompleted) || {};
         setOnboarding(prev => ({
           timer: { ...prev.timer, completed: !!oc.timer },
           home:  { ...prev.home,  completed: !!oc.home },
           stats: { ...prev.stats, completed: !!oc.stats },
         }));
+        // Load workouts (V2 or V1 with migration)
+        try {
+          if (prefs.workoutModelV2) {
+            // V2: load from top-level workouts collection
+            setIsV2User(true);
+            let { workouts, refs } = await getUserWorkoutsV2(user.uid);
+            console.log('[V2 LOAD] library refs:', refs.length, 'resolved workouts:', workouts.length, workouts.map(w => ({ id: w.id, name: w.name })));
+            // If library is empty, re-run migration (previous migration may have failed partway)
+            if (refs.length === 0) {
+              console.log('[V2 LOAD] Empty library — re-running migration...');
+              const { idMap, deletedDefaults: migratedDeleted } = await migrateUserWorkoutsV2(user.uid);
+              console.log('[V2 RE-MIGRATE] idMap:', idMap, 'deletedDefaults:', migratedDeleted);
+              if (Object.keys(idMap).length > 0) {
+                await markMigrationComplete(user.uid, migratedDeleted, idMap, prefs);
+                if (cancelled) return;
+                const reloaded = await getUserWorkoutsV2(user.uid);
+                workouts = reloaded.workouts;
+                refs = reloaded.refs;
+              }
+            }
+            if (cancelled) return;
+            const merged = mergeWorkoutsV2(workouts, prefs.deletedDefaults);
+            console.log('[V2 LOAD] merged timer:', merged.timer.length, 'stopwatch:', merged.stopwatch.length, 'deletedDefaults:', prefs.deletedDefaults);
+            let timer = merged.timer;
+            const savedOrder = prefs.workoutOrder;
+            if (savedOrder && savedOrder.length > 0) {
+              const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
+              timer = [...timer].sort((a, b) => {
+                const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
+                const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
+                return ai - bi;
+              });
+            }
+            if (!cancelled) {
+              setTimerWorkoutData(timer);
+              setStopwatchWorkoutData(merged.stopwatch);
+              setDeletedDefaultsState(prefs.deletedDefaults);
+              // Backfill: set creatorUid on owned workouts that are missing it
+              const ownedMissing = workouts.filter(w => w.ownerUid === user.uid && !w.creatorUid);
+              if (ownedMissing.length > 0) {
+                Promise.all(ownedMissing.map(w =>
+                  updateWorkoutV2(w.id, { creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL })
+                )).catch(err => console.error('Failed to backfill creator info:', err));
+              }
+            }
+          } else {
+            // V1: migrate then load V2
+            console.log('[V2 MIGRATION] Starting migration...');
+            const { idMap, deletedDefaults: migratedDeleted } = await migrateUserWorkoutsV2(user.uid);
+            console.log('[V2 MIGRATION] idMap:', idMap, 'deletedDefaults:', migratedDeleted);
+            if (cancelled) return;
+            // Mark migration complete and remap preference IDs
+            const migrationUpdates = await markMigrationComplete(user.uid, migratedDeleted, idMap, prefs);
+            if (cancelled) return;
+            setIsV2User(true);
+            // Remap local state IDs if needed
+            if (migrationUpdates.pinnedWorkouts) setPinnedWorkoutsState(migrationUpdates.pinnedWorkouts);
+            if (migrationUpdates.weeklySchedule) setWeeklyScheduleState(migrationUpdates.weeklySchedule);
+            if (migrationUpdates.selectedWorkoutId) setTimerSelectedWorkoutId(migrationUpdates.selectedWorkoutId);
+            // Now load V2 workouts
+            const { workouts } = await getUserWorkoutsV2(user.uid);
+            if (cancelled) return;
+            const merged = mergeWorkoutsV2(workouts, migratedDeleted);
+            let timer = merged.timer;
+            const savedOrder = prefs.workoutOrder;
+            if (savedOrder && savedOrder.length > 0) {
+              const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
+              timer = [...timer].sort((a, b) => {
+                const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
+                const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
+                return ai - bi;
+              });
+            }
+            if (!cancelled) {
+              setTimerWorkoutData(timer);
+              setStopwatchWorkoutData(merged.stopwatch);
+              setDeletedDefaultsState(migratedDeleted);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load workouts (V2):', err);
+        }
+        if (cancelled) return;
         setWorkoutReady(true);
         // Load follow data + account privacy + pending requests in background (non-blocking)
         Promise.all([getFollowing(user.uid), getFollowers(user.uid), getPendingFollowRequests(user.uid)])
@@ -487,11 +546,10 @@ const Main = () => {
         console.error('Failed to load settings:', err);
       }
     };
-    loadWorkouts();
     loadHistory();
     loadSocialProfile();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, isTestOnboarding]);
 
   // Clean stale schedule entries (workout deleted but schedule not updated)
   useEffect(() => {
@@ -643,6 +701,44 @@ const Main = () => {
     return { timer: timerResult, stopwatch: stopwatchResult };
   };
 
+  // Merge V2 library workouts with defaults (uses deletedDefaults from preferences)
+  const mergeWorkoutsV2 = (libraryWorkouts, deletedDefaults = []) => {
+    const timerDefaults = [...DEFAULT_TIMER_WORKOUTS];
+    const stopwatchDefaults = [...DEFAULT_STOPWATCH_WORKOUTS];
+    const deletedSet = new Set(deletedDefaults);
+
+    // Filter out deleted defaults, apply overrides from library
+    const usedAsOverride = new Set();
+    const findOverride = (d) => {
+      const override = libraryWorkouts.find(w => w.defaultId && w.defaultId === d.id);
+      if (override) usedAsOverride.add(override.id);
+      return override;
+    };
+
+    const timerResult = timerDefaults
+      .filter(d => !deletedSet.has(d.id))
+      .map(d => {
+        const override = findOverride(d);
+        return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
+      });
+
+    const stopwatchResult = stopwatchDefaults
+      .filter(d => !deletedSet.has(d.id))
+      .map(d => {
+        const override = findOverride(d);
+        return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
+      });
+
+    // Add non-override library workouts
+    libraryWorkouts.forEach(w => {
+      if (usedAsOverride.has(w.id)) return;
+      if (w.type === 'timer') timerResult.push(w);
+      else stopwatchResult.push(w);
+    });
+
+    return { timer: timerResult, stopwatch: stopwatchResult };
+  };
+
   // Refresh history from Firestore (called after joining someone's workout)
   const refreshHistory = useCallback(async () => {
     if (!user) return;
@@ -658,12 +754,12 @@ const Main = () => {
   const refreshWorkouts = useCallback(async () => {
     if (!user) return;
     try {
-      const [custom, savedOrder] = await Promise.all([
-        getUserWorkouts(user.uid),
-        getWorkoutOrder(user.uid)
-      ]);
-      if (custom.length > 0) {
-        const merged = mergeWorkouts(custom);
+      if (isV2User) {
+        const [{ workouts }, savedOrder] = await Promise.all([
+          getUserWorkoutsV2(user.uid),
+          getWorkoutOrder(user.uid)
+        ]);
+        const merged = mergeWorkoutsV2(workouts, deletedDefaultsState);
         let timer = merged.timer;
         if (savedOrder && savedOrder.length > 0) {
           const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
@@ -675,11 +771,30 @@ const Main = () => {
         }
         setTimerWorkoutData(timer);
         setStopwatchWorkoutData(merged.stopwatch);
+      } else {
+        const [custom, savedOrder] = await Promise.all([
+          getUserWorkouts(user.uid),
+          getWorkoutOrder(user.uid)
+        ]);
+        if (custom.length > 0) {
+          const merged = mergeWorkouts(custom);
+          let timer = merged.timer;
+          if (savedOrder && savedOrder.length > 0) {
+            const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
+            timer = [...timer].sort((a, b) => {
+              const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
+              const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
+              return ai - bi;
+            });
+          }
+          setTimerWorkoutData(timer);
+          setStopwatchWorkoutData(merged.stopwatch);
+        }
       }
     } catch (err) {
       console.error('Failed to refresh workouts:', err);
     }
-  }, [user]);
+  }, [user, isV2User, deletedDefaultsState]);
 
   // Share workout post helper
   const handleShareWorkout = useCallback(async (workoutData) => {
@@ -1272,17 +1387,37 @@ const Main = () => {
       if (user && finalName) {
         const forkDefaultMatch = allDefaults.find(d => d.id === existingWorkout?.defaultId || d.id === existingWorkout?.id);
         const persist = async () => {
-          if (forkDefaultMatch) {
-            await deleteUserWorkout(user.uid, existingWorkout?.id, true, forkDefaultMatch.id);
+          if (isV2User) {
+            // V2: create new workout, add library ref, remove old ref if exists
+            const docId = await createWorkoutV2(user.uid, { ...forked, isDefault: false, defaultId: null, creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL });
+            await addLibraryRef(user.uid, docId, 'created');
+            if (existingWorkout?.id && !existingWorkout.id.startsWith('temp-')) {
+              await removeLibraryRef(user.uid, existingWorkout.id);
+              // If it was a default override, add to deletedDefaults
+              if (forkDefaultMatch) {
+                const newDeleted = [...deletedDefaultsState, forkDefaultMatch.id];
+                setDeletedDefaultsState(newDeleted);
+                await markMigrationComplete(user.uid, newDeleted, {}, { pinnedWorkouts: pinnedWorkouts, weeklySchedule, selectedWorkoutId: timerSelectedWorkoutId });
+              }
+            }
+            if (docId) {
+              setTimerWorkoutData(prev => prev.map(w => w.id === tempId ? { ...w, id: docId } : w));
+              setTimerSelectedWorkoutId(curId => curId === tempId ? docId : curId);
+            }
+            const currentData = timerWorkoutData.map(w => w.id === existingWorkout?.id ? { ...forked, id: docId || tempId } : w);
+            await setWorkoutOrder(user.uid, currentData.map(w => w.name));
+          } else {
+            if (forkDefaultMatch) {
+              await deleteUserWorkout(user.uid, existingWorkout?.id, true, forkDefaultMatch.id);
+            }
+            const docId = await saveUserWorkout(user.uid, { ...forked, id: null, isDefault: false, defaultName: null, defaultId: null, creatorUid: null, creatorName: null, creatorPhotoURL: null });
+            if (docId) {
+              setTimerWorkoutData(prev => prev.map(w => w.id === tempId ? { ...w, id: docId } : w));
+              setTimerSelectedWorkoutId(curId => curId === tempId ? docId : curId);
+            }
+            const currentData = timerWorkoutData.map(w => w.id === existingWorkout?.id ? { ...forked, id: docId || tempId } : w);
+            await setWorkoutOrder(user.uid, currentData.map(w => w.name));
           }
-          const docId = await saveUserWorkout(user.uid, { ...forked, id: null, isDefault: false, defaultName: null, defaultId: null, creatorUid: null, creatorName: null, creatorPhotoURL: null });
-          if (docId) {
-            setTimerWorkoutData(prev => prev.map(w => w.id === tempId ? { ...w, id: docId } : w));
-            setTimerSelectedWorkoutId(curId => curId === tempId ? docId : curId);
-          }
-          // Save updated workout order (fork replaces default in list)
-          const currentData = timerWorkoutData.map(w => w.id === existingWorkout?.id ? { ...forked, id: docId || tempId } : w);
-          await setWorkoutOrder(user.uid, currentData.map(w => w.name));
         };
         persist().catch(err => console.error('Failed to persist forked workout:', err));
       }
@@ -1313,33 +1448,92 @@ const Main = () => {
     if (user && finalName) {
       const defaultMatch = allDefaults.find(d => d.id === existingWorkout?.defaultId || d.id === existingWorkout?.id);
       const isDefault = !!defaultMatch;
-      saveUserWorkout(user.uid, {
-        id: existingWorkout?.id || null,
-        name: finalName,
-        type: 'timer',
-        exercises,
-        isDefault: isNew ? false : isDefault,
-        isCustom: isNew ? true : (existingWorkout?.isCustom || false),
-        isPublic: true,
-        defaultName: isDefault && newTitle ? workoutName : null,
-        defaultId: isNew ? null : (existingWorkout?.defaultId || defaultMatch?.id || null),
-        restTime: newRestTime ?? null,
-        tags: safeTags,
-        creatorUid: null,
-        creatorName: null,
-        creatorPhotoURL: null,
-      }).then(docId => {
-        if (docId) {
-          // Replace temp ID with real Firestore doc ID
-          setTimerWorkoutData(prev => prev.map(w =>
-            (w.id && w.id.startsWith('temp-') && w.name === finalName) ? { ...w, id: docId } : w
-          ));
-          // Update selection if it still points to a temp ID
-          setTimerSelectedWorkoutId(curId => (curId && curId.startsWith('temp-')) ? docId : curId);
-        }
-      }).catch(err => console.error('Failed to save workout:', err));
+      if (isV2User) {
+        // V2: use top-level workouts collection
+        const persistV2 = async () => {
+          if (isNew) {
+            // Create new workout + library ref
+            const docId = await createWorkoutV2(user.uid, {
+              name: finalName, type: 'timer', exercises, isCustom: true, isPublic: true,
+              restTime: newRestTime ?? null, tags: safeTags,
+              creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL
+            });
+            await addLibraryRef(user.uid, docId, 'created');
+            if (docId) {
+              setTimerWorkoutData(prev => prev.map(w =>
+                (w.id && w.id.startsWith('temp-') && w.name === finalName) ? { ...w, id: docId } : w
+              ));
+              setTimerSelectedWorkoutId(curId => (curId && curId.startsWith('temp-')) ? docId : curId);
+            }
+          } else if (existingWorkout?.id && !existingWorkout.id.startsWith('temp-') && existingWorkout.ownerUid === user.uid) {
+            // Owner editing their own workout — update in place
+            await updateWorkoutV2(existingWorkout.id, {
+              name: finalName, exercises, restTime: newRestTime ?? null, tags: safeTags,
+              creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL
+            });
+          } else if (existingWorkout?.id && !existingWorkout.id.startsWith('temp-')) {
+            // Editing a workout we don't own — create new + swap library ref
+            const docId = await createWorkoutV2(user.uid, {
+              name: finalName, type: 'timer', exercises,
+              isCustom: existingWorkout.isCustom || false, isPublic: true,
+              defaultId: existingWorkout.defaultId || defaultMatch?.id || null,
+              restTime: newRestTime ?? null, tags: safeTags,
+              creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL
+            });
+            await addLibraryRef(user.uid, docId, 'created');
+            await removeLibraryRef(user.uid, existingWorkout.id);
+            if (docId) {
+              setTimerWorkoutData(prev => prev.map(w =>
+                w.id === existingWorkout.id ? { ...w, id: docId, name: finalName, exercises, restTime: newRestTime ?? null, tags: safeTags } : w
+              ));
+              setTimerSelectedWorkoutId(curId => curId === existingWorkout.id ? docId : curId);
+            }
+          } else {
+            // Default workout being modified — create override + library ref
+            const docId = await createWorkoutV2(user.uid, {
+              name: finalName, type: 'timer', exercises,
+              isDefault: true, defaultId: defaultMatch?.id || null,
+              isPublic: true, restTime: newRestTime ?? null, tags: safeTags,
+              creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL
+            });
+            await addLibraryRef(user.uid, docId, 'created');
+            if (docId) {
+              setTimerWorkoutData(prev => prev.map(w =>
+                (w.id && w.id.startsWith('temp-') && w.name === finalName) ? { ...w, id: docId } : w
+              ));
+              setTimerSelectedWorkoutId(curId => (curId && curId.startsWith('temp-')) ? docId : curId);
+            }
+          }
+        };
+        persistV2().catch(err => console.error('Failed to save workout (V2):', err));
+      } else {
+        // V1: legacy save
+        saveUserWorkout(user.uid, {
+          id: existingWorkout?.id || null,
+          name: finalName,
+          type: 'timer',
+          exercises,
+          isDefault: isNew ? false : isDefault,
+          isCustom: isNew ? true : (existingWorkout?.isCustom || false),
+          isPublic: true,
+          defaultName: isDefault && newTitle ? workoutName : null,
+          defaultId: isNew ? null : (existingWorkout?.defaultId || defaultMatch?.id || null),
+          restTime: newRestTime ?? null,
+          tags: safeTags,
+          creatorUid: null,
+          creatorName: null,
+          creatorPhotoURL: null,
+        }).then(docId => {
+          if (docId) {
+            setTimerWorkoutData(prev => prev.map(w =>
+              (w.id && w.id.startsWith('temp-') && w.name === finalName) ? { ...w, id: docId } : w
+            ));
+            setTimerSelectedWorkoutId(curId => (curId && curId.startsWith('temp-')) ? docId : curId);
+          }
+        }).catch(err => console.error('Failed to save workout:', err));
+      }
     }
-  }, [user, timerSelectedWorkoutId, timerWorkoutData]);
+  }, [user, timerSelectedWorkoutId, timerWorkoutData, isV2User, deletedDefaultsState, pinnedWorkouts, weeklySchedule]);
 
   const handleHomeStartWorkout = useCallback((workoutName, workoutId) => {
     const wId = workoutId || null;
@@ -1358,29 +1552,45 @@ const Main = () => {
   }, [user, findWorkoutById, prepTime]);
 
   // Feed post detail popup
-  const openFeedDetail = useCallback((post) => {
+  const openFeedDetail = useCallback(async (post) => {
     const allW = [...timerWorkoutData, ...stopwatchWorkoutData];
     const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
     const postExercises = JSON.stringify(post.exercises || []);
     const hasExercises = post.exercises && post.exercises.length > 0;
     // Match by workoutId first (preferred), then fall back to name+exercises for legacy posts
-    const exactMatch = post.workoutId
+    let exactMatch = post.workoutId
       ? allW.find(w => w.id === post.workoutId)
       : (hasExercises
         ? allW.find(w => w.name === post.workoutName && JSON.stringify(w.exercises) === postExercises)
         : allW.find(w => w.name === post.workoutName));
+    // V2: if not in library but has workoutId, fetch live from Firestore
+    let liveDoc = null;
+    if (!exactMatch && post.workoutId) {
+      try {
+        liveDoc = await getWorkoutV2(post.workoutId);
+      } catch (err) {
+        console.error('Failed to fetch live workout:', err);
+      }
+    }
+    const sourceData = exactMatch || liveDoc;
     // Check if this matches a default workout by ID or content
     const isDefaultContent = post.workoutId
       ? allDefaults.some(d => d.id === post.workoutId)
       : allDefaults.some(d => d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises);
     let owner = null;
     let isOwn = false;
-    if (exactMatch && exactMatch.creatorUid) {
-      // Taken from someone — show their info
-      owner = { uid: exactMatch.creatorUid, displayName: exactMatch.creatorName, photoURL: exactMatch.creatorPhotoURL };
-      isOwn = exactMatch.creatorUid === user?.uid;
+    // Determine workout owner: creatorUid (share chain) > ownerUid (V2 doc owner) > current user
+    const effectiveOwnerUid = sourceData?.creatorUid || sourceData?.ownerUid || null;
+    if (sourceData && effectiveOwnerUid && effectiveOwnerUid !== user?.uid) {
+      // Owned by someone else — show their info
+      owner = {
+        uid: effectiveOwnerUid,
+        displayName: sourceData.creatorName || post.displayName,
+        photoURL: sourceData.creatorPhotoURL || post.photoURL
+      };
+      isOwn = false;
     } else if (exactMatch) {
-      // In library with no creator: user's own custom or unmodified default
+      // In library, owned by current user or unmodified default
       if (isDefaultContent) {
         owner = null; // app icon
       } else {
@@ -1392,13 +1602,12 @@ const Main = () => {
       if (isDefaultContent) {
         owner = null; // app icon for default content
       } else {
-        // Best guess: the poster or unknown
         owner = { uid: post.userId, displayName: post.displayName, photoURL: post.photoURL };
       }
       isOwn = false;
     }
-    // Get tags and restTime from matched workout or defaults
-    const sourceWorkout = exactMatch || (post.workoutId ? allDefaults.find(d => d.id === post.workoutId) : allDefaults.find(d => d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises));
+    // Get tags and restTime from matched workout, live doc, or defaults
+    const sourceWorkout = sourceData || (post.workoutId ? allDefaults.find(d => d.id === post.workoutId) : allDefaults.find(d => d.name === post.workoutName && JSON.stringify(d.exercises) === postExercises));
     const tags = sourceWorkout?.tags || (sourceWorkout?.tag ? [sourceWorkout.tag] : []);
     setFeedDetailOwner(owner);
     setFeedDetailIsOwn(isOwn);
@@ -1407,9 +1616,9 @@ const Main = () => {
     setFeedDetailRestTime(sourceWorkout?.restTime ?? null);
     setFeedDetailSaving(false);
     setFeedDetailClosing(false);
-    // Enrich post with workout data if missing (e.g. workout_saved notifications)
-    const enrichedPost = (!hasExercises && sourceWorkout)
-      ? { ...post, exercises: sourceWorkout.exercises, workoutType: sourceWorkout.type, restTime: sourceWorkout.restTime }
+    // Enrich post with live workout data (from library or fetched doc)
+    const enrichedPost = sourceWorkout
+      ? { ...post, exercises: sourceWorkout.exercises, exerciseCount: sourceWorkout.exercises?.length, workoutType: sourceWorkout.type, restTime: sourceWorkout.restTime }
       : post;
     setFeedDetailPost(enrichedPost);
   }, [timerWorkoutData, stopwatchWorkoutData, user]);
@@ -1435,15 +1644,45 @@ const Main = () => {
     }
     setFeedDetailSaving(true);
     try {
-      await saveUserWorkout(user.uid, {
-        name: feedDetailPost.workoutName,
-        type: feedDetailPost.workoutType || 'timer',
-        exercises: feedDetailPost.exercises || [],
-        isCustom: true,
-        creatorUid: feedDetailOwner?.uid || null,
-        creatorName: feedDetailOwner?.displayName || null,
-        creatorPhotoURL: feedDetailOwner?.photoURL || null,
-      });
+      // V2: live-link if workoutId exists, otherwise create new doc
+      if (isV2User && feedDetailPost.workoutId) {
+        const existingDoc = await getWorkoutV2(feedDetailPost.workoutId);
+        if (existingDoc) {
+          await addLibraryRef(user.uid, feedDetailPost.workoutId, 'saved');
+        } else {
+          const newId = await createWorkoutV2(user.uid, {
+            name: feedDetailPost.workoutName,
+            type: feedDetailPost.workoutType || 'timer',
+            exercises: feedDetailPost.exercises || [],
+            isCustom: true,
+            creatorUid: feedDetailOwner?.uid || null,
+            creatorName: feedDetailOwner?.displayName || null,
+            creatorPhotoURL: feedDetailOwner?.photoURL || null,
+          });
+          await addLibraryRef(user.uid, newId, 'saved');
+        }
+      } else if (isV2User) {
+        const newId = await createWorkoutV2(user.uid, {
+          name: feedDetailPost.workoutName,
+          type: feedDetailPost.workoutType || 'timer',
+          exercises: feedDetailPost.exercises || [],
+          isCustom: true,
+          creatorUid: feedDetailOwner?.uid || null,
+          creatorName: feedDetailOwner?.displayName || null,
+          creatorPhotoURL: feedDetailOwner?.photoURL || null,
+        });
+        await addLibraryRef(user.uid, newId, 'saved');
+      } else {
+        await saveUserWorkout(user.uid, {
+          name: feedDetailPost.workoutName,
+          type: feedDetailPost.workoutType || 'timer',
+          exercises: feedDetailPost.exercises || [],
+          isCustom: true,
+          creatorUid: feedDetailOwner?.uid || null,
+          creatorName: feedDetailOwner?.displayName || null,
+          creatorPhotoURL: feedDetailOwner?.photoURL || null,
+        });
+      }
       setFeedDetailTaken(true);
       refreshWorkouts();
       if (feedDetailPost.type === 'workout_shared') {
@@ -1456,6 +1695,7 @@ const Main = () => {
         actorName: user.displayName,
         actorPhotoURL: user.photoURL,
         workoutName: feedDetailPost.workoutName,
+        workoutId: feedDetailPost.workoutId || null,
         source: 'activity'
       }).catch(err => console.error('Save notif failed:', err));
     } catch (err) {
@@ -1512,8 +1752,32 @@ const Main = () => {
 
     // Persist to Firestore
     if (user) {
-      deleteUserWorkout(user.uid, workoutId, isDefault, defaultId)
-        .catch(err => console.error('Failed to delete workout:', err));
+      if (isV2User) {
+        // V2: use top-level workouts + library refs
+        const persistDeleteV2 = async () => {
+          if (isDefault && defaultId) {
+            // Default workout: add to deletedDefaults in preferences
+            const newDeleted = [...deletedDefaultsState, defaultId];
+            setDeletedDefaultsState(newDeleted);
+            await markMigrationComplete(user.uid, newDeleted, {}, { pinnedWorkouts, weeklySchedule, selectedWorkoutId: timerSelectedWorkoutId });
+            // Remove library ref if there's an override doc
+            if (workout?.id && !workout.id.startsWith('default-')) {
+              await removeLibraryRef(user.uid, workout.id);
+            }
+          } else if (workout?.ownerUid === user.uid) {
+            // Owner of custom workout: soft-delete + remove library ref
+            await softDeleteWorkoutV2(workoutId);
+            await removeLibraryRef(user.uid, workoutId);
+          } else {
+            // Non-owner: just remove library ref
+            await removeLibraryRef(user.uid, workoutId);
+          }
+        };
+        persistDeleteV2().catch(err => console.error('Failed to delete workout (V2):', err));
+      } else {
+        deleteUserWorkout(user.uid, workoutId, isDefault, defaultId)
+          .catch(err => console.error('Failed to delete workout:', err));
+      }
     }
   };
 
@@ -2105,6 +2369,20 @@ const Main = () => {
         onToggleShowCardPhotos={handleToggleShowCardPhotos}
         inAppNotifications={inAppNotifications}
         onToggleInAppNotifications={handleToggleInAppNotifications}
+        isTestAccount={isTestAccount}
+        testOnboardingMode={testOnboardingMode}
+        onToggleTestOnboarding={() => {
+          const newVal = !testOnboardingMode;
+          setTestOnboardingMode(newVal);
+          localStorage.setItem('testOnboardingMode', newVal ? 'on' : 'off');
+          // Toggle on = reset onboarding, toggle off = mark done
+          // Workout data is handled by the main loading effect (depends on isTestOnboarding)
+          setOnboarding({
+            timer: { active: false, step: 0, completed: !newVal },
+            home:  { active: false, step: 0, completed: !newVal },
+            stats: { active: false, step: 0, completed: !newVal },
+          });
+        }}
         onOpenProfile={() => {
           setSideMenuCloseRequested(true);
           setActiveTab('stats');
@@ -2209,6 +2487,7 @@ const Main = () => {
                     creatorUid: sendWorkout.creatorUid || user.uid,
                     creatorName: sendWorkout.creatorName || user.displayName,
                     creatorPhotoURL: sendWorkout.creatorPhotoURL || user.photoURL,
+                    workoutId: sendWorkout.id || null,
                   }).catch(err => console.error('Share notif failed:', err));
                 });
                 setHasUnread(true);

@@ -69,6 +69,8 @@ export const getAllPreferences = async (userId) => {
       pinnedWorkouts: [],
       weeklySchedule: { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
       onboardingCompleted: { timer: false, home: false, stats: false },
+      workoutModelV2: false,
+      deletedDefaults: [],
     };
   }
   const data = snap.data();
@@ -89,6 +91,8 @@ export const getAllPreferences = async (userId) => {
     pinnedWorkouts: data.pinnedWorkouts || [],
     weeklySchedule: data.weeklySchedule || { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
     onboardingCompleted: data.onboardingCompleted || { timer: false, home: false, stats: false },
+    workoutModelV2: data.workoutModelV2 ?? false,
+    deletedDefaults: data.deletedDefaults || [],
   };
 };
 
@@ -453,9 +457,9 @@ export const getSuggestedUsers = async (userId) => {
 
 // ── Save Notifications ──
 
-export const createSaveNotification = async ({ recipientUid, actorUid, actorName, actorPhotoURL, workoutName, source }) => {
+export const createSaveNotification = async ({ recipientUid, actorUid, actorName, actorPhotoURL, workoutName, source, workoutId }) => {
   if (!recipientUid || recipientUid === actorUid) return;
-  await addDoc(collection(db, 'notifications'), {
+  const data = {
     recipientUid,
     type: 'workout_saved',
     actorUid,
@@ -464,7 +468,9 @@ export const createSaveNotification = async ({ recipientUid, actorUid, actorName
     workoutName,
     source,
     createdAt: serverTimestamp()
-  });
+  };
+  if (workoutId) data.workoutId = workoutId;
+  await addDoc(collection(db, 'notifications'), data);
 };
 
 export const getSaveNotifications = async (userId) => {
@@ -490,6 +496,7 @@ export const getSaveNotifications = async (userId) => {
       displayName: data.actorName,
       photoURL: data.actorPhotoURL,
       workoutName: data.workoutName,
+      workoutId: data.workoutId || null,
       source: data.source,
       createdAt: data.createdAt?.toDate?.() || null
     });
@@ -497,9 +504,9 @@ export const getSaveNotifications = async (userId) => {
   return results;
 };
 
-export const createShareNotification = async ({ recipientUid, actorUid, actorName, actorPhotoURL, workoutName, workoutType, exercises, restTime, tags, creatorUid, creatorName, creatorPhotoURL }) => {
+export const createShareNotification = async ({ recipientUid, actorUid, actorName, actorPhotoURL, workoutName, workoutType, exercises, restTime, tags, creatorUid, creatorName, creatorPhotoURL, workoutId }) => {
   if (!recipientUid || recipientUid === actorUid) return;
-  await addDoc(collection(db, 'notifications'), {
+  const data = {
     recipientUid,
     type: 'workout_shared',
     actorUid,
@@ -516,7 +523,9 @@ export const createShareNotification = async ({ recipientUid, actorUid, actorNam
     creatorPhotoURL: creatorPhotoURL || actorPhotoURL || null,
     status: 'pending',
     createdAt: serverTimestamp()
-  });
+  };
+  if (workoutId) data.workoutId = workoutId;
+  await addDoc(collection(db, 'notifications'), data);
 };
 
 export const getShareNotifications = async (userId) => {
@@ -547,6 +556,7 @@ export const getShareNotifications = async (userId) => {
       restTime: data.restTime,
       tags: data.tags,
       status: data.status,
+      workoutId: data.workoutId || null,
       creatorUid: data.creatorUid || data.actorUid,
       creatorName: data.creatorName || data.actorName,
       creatorPhotoURL: data.creatorPhotoURL || data.actorPhotoURL,
@@ -596,6 +606,7 @@ export const getSentShareNotifications = async (userId) => {
       restTime: d.restTime,
       tags: d.tags,
       status: d.status,
+      workoutId: d.workoutId || null,
       createdAt: d.createdAt?.toDate?.() || null
     };
   });
@@ -608,7 +619,7 @@ export const updateNotificationStatus = async (notificationId, status) => {
 // ── Posts ──
 
 export const createPost = async (userId, workoutData, profile) => {
-  const postRef = await addDoc(collection(db, 'posts'), {
+  const postData = {
     userId,
     displayName: profile.displayName || 'Anonymous',
     photoURL: profile.photoURL || null,
@@ -626,7 +637,9 @@ export const createPost = async (userId, workoutData, profile) => {
     likeCount: 0,
     createdAt: serverTimestamp(),
     lastCompletedAt: serverTimestamp()
-  });
+  };
+  if (workoutData.workoutId) postData.workoutId = workoutData.workoutId;
+  const postRef = await addDoc(collection(db, 'posts'), postData);
 
   // Increment workout count on profile
   await setDoc(doc(db, 'userProfiles', userId), {
