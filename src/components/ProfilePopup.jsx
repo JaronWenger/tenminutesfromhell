@@ -55,6 +55,97 @@ const getHeatColor = (count, isFuture) => {
   return 'var(--heat-4)';
 };
 
+// Build a custom heatmap grid that spells "HIITem" using pixel art
+const buildHIITemGrid = () => {
+  // Each letter is defined as [colOffset, row] pairs in a 7-row grid
+  // H(5) gap I(3) gap I(3) gap T(5) gap e(5) gap m(5) = 31 cols + 5 gaps = 36 cols
+  const START = 8; // center in ~53-week grid
+  const letters = [];
+  let col = START;
+
+  // H (5 wide)
+  const H = [];
+  for (let r = 0; r < 7; r++) { H.push([0, r]); H.push([4, r]); }
+  for (let c = 1; c <= 3; c++) H.push([c, 3]);
+  letters.push({ offset: col, cells: H }); col += 6;
+
+  // I (3 wide)
+  const I1 = [];
+  for (let c = 0; c <= 2; c++) { I1.push([c, 0]); I1.push([c, 6]); }
+  for (let r = 1; r <= 5; r++) I1.push([1, r]);
+  letters.push({ offset: col, cells: I1 }); col += 4;
+
+  // I (3 wide)
+  letters.push({ offset: col, cells: [...I1] }); col += 4;
+
+  // T (5 wide)
+  const T = [];
+  for (let c = 0; c <= 4; c++) T.push([c, 0]);
+  for (let r = 1; r <= 6; r++) T.push([2, r]);
+  letters.push({ offset: col, cells: T }); col += 6;
+
+  // e (5 wide, lowercase rows 2-6)
+  const E = [[1,2],[2,2],[3,2], [0,3],[4,3], [0,4],[1,4],[2,4],[3,4],[4,4], [0,5], [1,6],[2,6],[3,6]];
+  letters.push({ offset: col, cells: E }); col += 6;
+
+  // m (5 wide, lowercase rows 2-6)
+  const M = [[0,2],[1,2],[2,2],[3,2],[4,2], [0,3],[2,3],[4,3], [0,4],[2,4],[4,4], [0,5],[2,5],[4,5], [0,6],[2,6],[4,6]];
+  letters.push({ offset: col, cells: M });
+
+  // Build the grid (53 weeks × 7 days) with varying intensities per letter
+  const numWeeks = 53;
+  const filledMap = {}; // "col,row" → count (1-4)
+  let totalCells = 0;
+  // Each letter gets a base intensity that shifts across, creating a gradient
+  const letterIntensities = [3, 3, 3, 3, 3, 3]; // H I I T e m
+  letters.forEach(({ offset, cells }, li) => {
+    const base = letterIntensities[li];
+    cells.forEach(([c, r]) => {
+      // Vary within each letter based on position
+      const variation = ((c + r + li) % 3); // 0, 1, or 2
+      const count = Math.max(1, Math.min(4, base + variation - 1));
+      filledMap[`${offset + c},${r}`] = count;
+      totalCells++;
+    });
+  });
+
+  const weeks = [];
+  for (let wi = 0; wi < numWeeks; wi++) {
+    const week = [];
+    for (let di = 0; di < 7; di++) {
+      week.push({
+        date: `hiitem-${wi}-${di}`,
+        count: filledMap[`${wi},${di}`] || 0,
+        isFuture: false
+      });
+    }
+    weeks.push(week);
+  }
+
+  // Build month labels matching the real calendar layout
+  const year = new Date().getFullYear();
+  const jan1 = new Date(year, 0, 1);
+  const startDay = new Date(jan1);
+  startDay.setDate(jan1.getDate() - jan1.getDay());
+  const monthLabels = [];
+  const labelDate = new Date(startDay);
+  for (let wi = 0; wi < numWeeks; wi++) {
+    for (let di = 0; di < 7; di++) {
+      if (labelDate.getDate() <= 7 && di === 0) {
+        monthLabels.push({
+          weekIndex: wi,
+          label: labelDate.toLocaleString('default', { month: 'short' })
+        });
+      }
+      labelDate.setDate(labelDate.getDate() + 1);
+    }
+  }
+
+  // Center the scroll on the text (middle of the spelled word)
+  const midCol = START + 18;
+  return { weeks, monthLabels, numWeeks, todayWeekIndex: midCol, totalCells };
+};
+
 const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, onFollowChanged, prepTime = 15, globalRestTime = 15, pendingFollowRequests = {}, onPendingFollowRequestsChange, onFindPeople }) => {
   const [activeProfile, setActiveProfile] = useState(profile);
   const [profileFollowing, setProfileFollowing] = useState(0);
@@ -153,10 +244,21 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
     }, 200);
   }, []);
 
+  const isHIITemProfile = activeProfile?.uid === 'hiitem';
+
   // Load profile data
   useEffect(() => {
     if (!activeProfile) return;
     let cancelled = false;
+
+    // HIITem synthetic profile — no Firestore data
+    if (activeProfile.uid === 'hiitem') {
+      const grid = buildHIITemGrid();
+      setStats({ totalHours: 20, totalMinutes: 25 });
+      setCalendar(grid);
+      setLoading(false);
+      return;
+    }
 
     if (activeProfile.uid !== user?.uid) {
       const taken = {};
@@ -572,7 +674,13 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
           <div className="stats-pp-header">
             <div className="stats-pp-header-left">
               {activeProfile.photoURL ? (
-                <img src={activeProfile.photoURL} alt="" className="stats-pp-avatar" referrerPolicy="no-referrer" />
+                isHIITemProfile ? (
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                    <img src={activeProfile.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.15)' }} referrerPolicy="no-referrer" />
+                  </div>
+                ) : (
+                  <img src={activeProfile.photoURL} alt="" className="stats-pp-avatar" referrerPolicy="no-referrer" />
+                )
               ) : (
                 <div className="stats-pp-avatar stats-pp-avatar-fallback">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -582,18 +690,20 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
               )}
               <div className="stats-pp-header-info">
                 <span className="stats-pp-name">{activeProfile.displayName || 'Unknown'}</span>
-                <div className="stats-pp-follow-row">
-                  <button className="stats-pp-follow-btn" onClick={() => openFollowList('following')}>
-                    <span className="stats-pp-follow-num">{profileFollowing}</span> Following
-                  </button>
-                  <button className="stats-pp-follow-btn" onClick={() => openFollowList('followers')}>
-                    <span className="stats-pp-follow-num">{profileFollowers}</span> Followers
-                  </button>
-                </div>
+                {!isHIITemProfile && (
+                  <div className="stats-pp-follow-row">
+                    <button className="stats-pp-follow-btn" onClick={() => openFollowList('following')}>
+                      <span className="stats-pp-follow-num">{profileFollowing}</span> Following
+                    </button>
+                    <button className="stats-pp-follow-btn" onClick={() => openFollowList('followers')}>
+                      <span className="stats-pp-follow-num">{profileFollowers}</span> Followers
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="stats-pp-header-right">
-              {!loading && activeProfile.uid !== user?.uid && !isFollowingProfile ? (
+              {!loading && !isHIITemProfile && activeProfile.uid !== user?.uid && !isFollowingProfile ? (
                 <button
                   className={`stats-pp-follow-action-btn ${pendingFollowRequests[activeProfile.uid] ? 'requested' : ''}`}
                   onClick={handleFollowToggle}
@@ -618,7 +728,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
           </div>
 
           <>
-              {(isFollowingProfile || activeProfile.uid === user?.uid) && calendar && (
+              {(isHIITemProfile || isFollowingProfile || activeProfile.uid === user?.uid) && calendar && (
                 <div className="stats-pp-calendar-scroll" ref={calendarScrollRef}>
                   <div
                     className="stats-pp-calendar"

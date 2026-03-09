@@ -608,7 +608,18 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                 if (post.type === 'welcome') return (
                 <div key={post.id} className="feed-post-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('people')}>
                   <div className="feed-post-header">
-                    <div className="feed-post-avatar" style={{ overflow: 'hidden', width: 40, height: 40, borderRadius: '50%' }}>
+                    <div
+                      className="feed-post-avatar"
+                      style={{ overflow: 'hidden', width: 40, height: 40, borderRadius: '50%' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewProfile && onViewProfile({
+                          uid: 'hiitem',
+                          displayName: 'HIITem',
+                          photoURL: process.env.PUBLIC_URL + '/logo192.png'
+                        });
+                      }}
+                    >
                       <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" referrerPolicy="no-referrer" style={{ transform: 'scale(1.15)', border: 'none' }} />
                     </div>
                     <div className="feed-post-meta">
