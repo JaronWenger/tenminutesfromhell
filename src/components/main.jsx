@@ -205,9 +205,9 @@ const Main = () => {
 
   // Onboarding state
   const [onboarding, setOnboarding] = useState({
-    timer: { active: false, step: 0, completed: false },
-    home:  { active: false, step: 0, completed: false },
-    stats: { active: false, step: 0, completed: false },
+    timer: { active: false, step: 0, completed: null },
+    home:  { active: false, step: 0, completed: null },
+    stats: { active: false, step: 0, completed: null },
   });
 
   // Timer onboarding uses timeLeft-based progression (calculated from prepTime + exercises)
@@ -365,12 +365,13 @@ const Main = () => {
       setTimerSelectedWorkout('8-Minute Abs');
       setTimerSelectedWorkoutId('default-hiit-them-abs');
       setWeeklyScheduleState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
+      setWorkoutReady(false);
       // Load onboarding from localStorage for logged-out users
-      const stored = JSON.parse(localStorage.getItem('onboarding_completed') || '{}');
+      // Use null (unknown) so tooltips don't flash before Firestore confirms on next login
       setOnboarding({
-        timer: { active: false, step: 0, completed: !!stored.timer },
-        home:  { active: false, step: 0, completed: !!stored.home },
-        stats: { active: false, step: 0, completed: !!stored.stats },
+        timer: { active: false, step: 0, completed: null },
+        home:  { active: false, step: 0, completed: null },
+        stats: { active: false, step: 0, completed: null },
       });
       return;
     }
@@ -463,16 +464,15 @@ const Main = () => {
           // Legacy: name-only saved selection — will resolve to ID after workout data loads
           setTimerSelectedWorkout(prefs.selectedWorkout);
         }
+        // Load onboarding state BEFORE workoutReady (skip for test account — always reset)
+        // completed: null (unknown) → false (not done) or true (done)
+        const oc = (!isTestAccount && prefs.onboardingCompleted) || {};
+        setOnboarding(prev => ({
+          timer: { ...prev.timer, completed: !!oc.timer },
+          home:  { ...prev.home,  completed: !!oc.home },
+          stats: { ...prev.stats, completed: !!oc.stats },
+        }));
         setWorkoutReady(true);
-        // Load onboarding state (skip for test account — always reset)
-        if (!isTestAccount && prefs.onboardingCompleted) {
-          const oc = prefs.onboardingCompleted;
-          setOnboarding(prev => ({
-            timer: { ...prev.timer, completed: !!oc.timer },
-            home:  { ...prev.home,  completed: !!oc.home },
-            stats: { ...prev.stats, completed: !!oc.stats },
-          }));
-        }
         // Load follow data + account privacy + pending requests in background (non-blocking)
         Promise.all([getFollowing(user.uid), getFollowers(user.uid), getPendingFollowRequests(user.uid)])
           .then(([following, followers, pendingReqs]) => {
@@ -546,30 +546,32 @@ const Main = () => {
   }, [activeTab, checkUnread]);
 
   // Onboarding: activate timer page after initial load finishes (signed-in users only)
+  // completed must be exactly false (confirmed by Firestore), not null (unknown/loading)
   useEffect(() => {
-    if (!user || !workoutReady || initialLoad || onboarding.timer.completed || onboarding.timer.active) return;
+    if (!user || !workoutReady || initialLoad || onboarding.timer.completed !== false || onboarding.timer.active) return;
     const t = setTimeout(() => {
-      setOnboarding(prev => prev.timer.completed ? prev : { ...prev, timer: { ...prev.timer, active: true } });
+      setOnboarding(prev => prev.timer.completed !== false ? prev : { ...prev, timer: { ...prev.timer, active: true } });
     }, 400);
     return () => clearTimeout(t);
   }, [user, workoutReady, initialLoad, onboarding.timer.completed, onboarding.timer.active]);
 
   // Onboarding: activate home/stats on first tab visit (signed-in users only)
+  // completed must be exactly false (confirmed by Firestore), not null (unknown/loading)
   useEffect(() => {
     if (!user || !workoutReady) return;
-    if (activeTab === 'home' && !onboarding.home.completed && !onboarding.home.active) {
+    if (activeTab === 'home' && onboarding.home.completed === false && !onboarding.home.active) {
       const t = setTimeout(() => {
-        setOnboarding(prev => prev.home.completed ? prev : { ...prev, home: { ...prev.home, active: true } });
+        setOnboarding(prev => prev.home.completed !== false ? prev : { ...prev, home: { ...prev.home, active: true } });
       }, 200);
       return () => clearTimeout(t);
     }
-    if (activeTab === 'stats' && !onboarding.stats.completed && !onboarding.stats.active) {
+    if (activeTab === 'stats' && onboarding.stats.completed === false && !onboarding.stats.active) {
       const t = setTimeout(() => {
-        setOnboarding(prev => prev.stats.completed ? prev : { ...prev, stats: { ...prev.stats, active: true } });
+        setOnboarding(prev => prev.stats.completed !== false ? prev : { ...prev, stats: { ...prev.stats, active: true } });
       }, 200);
       return () => clearTimeout(t);
     }
-  }, [user, activeTab, onboarding.home.completed, onboarding.home.active, onboarding.stats.completed, onboarding.stats.active]);
+  }, [user, activeTab, workoutReady, onboarding.home.completed, onboarding.home.active, onboarding.stats.completed, onboarding.stats.active]);
 
   // Onboarding: timer step 0 auto-advances when timer starts running
   useEffect(() => {
@@ -2350,7 +2352,7 @@ const Main = () => {
         const pages = ['timer', 'home', 'stats'];
         for (const page of pages) {
           const state = onboarding[page];
-          if (!state.active || state.completed) continue;
+          if (!state.active || state.completed || state.completed === null) continue;
           // Only show if on the right tab (timer is always rendered when activeTab==='timer')
           if (page === 'timer' && (activeTab !== 'timer' || timerDetailWorkout)) continue;
           if (page === 'home' && (activeTab !== 'home' || showSideMenu || showFeedPage)) continue;
