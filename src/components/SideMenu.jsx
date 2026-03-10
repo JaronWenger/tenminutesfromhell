@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../firebase/auth';
+import { collection, getDocs, getDoc, doc, query, orderBy, limit } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import './SideMenu.css';
 
 const ACTIVE_DEFAULT = '#ff3b30';
@@ -9,10 +12,475 @@ const OTHER_COLORS = ['#00E5FF', '#DBF9B8', '#C4B5E0', '#C47A6E', '#2D7D6B', '#F
 const NEON_COLORS = ['#E040FB', '#7C4DFF', '#ACD8AA', '#76FF03', '#FFD740', '#FF4081', '#1DE9B6', '#304FFE'];
 const EARTH_COLORS = ['#F4845F', '#B8860B', '#E6194B', '#059669', '#DC2626', '#0891B2', '#D97706', '#E15634'];
 
+const ADMIN_EMAIL = 'jarongwenger@gmail.com';
+
 const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
+
+  // Admin panel state
+  const isAdmin = user?.email === ADMIN_EMAIL;
+  const [showAdminPopup, setShowAdminPopup] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminStats, setAdminStats] = useState(null);
+  const [adminDetail, setAdminDetail] = useState(null); // { title, items: [{ label, sublabel, value }] }
+
+  const formatTime = (s) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const loadAdminStats = useCallback(async () => {
+    setAdminLoading(true);
+    setShowAdminPopup(true);
+    setAdminDetail(null);
+    try {
+      // Fetch all collections in parallel
+      const [profilesSnap, postsSnap, workoutsSnap, notificationsSnap] = await Promise.all([
+        getDocs(collection(db, 'userProfiles')),
+        getDocs(collection(db, 'posts')),
+        getDocs(collection(db, 'workouts')),
+        getDocs(collection(db, 'notifications')),
+      ]);
+
+      const totalUsers = profilesSnap.size;
+      const totalPosts = postsSnap.size;
+      const totalWorkouts = workoutsSnap.size;
+
+      // Build profile lookup
+      const profileMap = {};
+      const profilePhotoMap = {};
+      const profileEmailMap = {};
+      profilesSnap.docs.forEach(d => {
+        const data = d.data();
+        profileMap[d.id] = data.displayName || 'Unknown';
+        profilePhotoMap[d.id] = data.photoURL || null;
+        profileEmailMap[d.id] = data.email || null;
+      });
+
+      // Per-user workout created/forked counts
+      const userWorkoutsCreated = {};
+      const userWorkoutsForked = {};
+      let totalForked = 0;
+      workoutsSnap.docs.forEach(d => {
+        const data = d.data();
+        const owner = data.ownerUid;
+        if (!owner) return;
+        userWorkoutsCreated[owner] = (userWorkoutsCreated[owner] || 0) + 1;
+        if (data.forked) {
+          totalForked++;
+          userWorkoutsForked[owner] = (userWorkoutsForked[owner] || 0) + 1;
+        }
+      });
+      console.log('[Admin] Workouts debug:', {
+        totalDocs: workoutsSnap.size,
+        ownerUids: Object.keys(userWorkoutsCreated),
+        profileUids: Object.keys(profileMap),
+        sample3: workoutsSnap.docs.slice(0, 3).map(d => ({ id: d.id, ownerUid: d.data().ownerUid, createdAt: d.data().createdAt })),
+      });
+
+      // Per-user post counts + reactions received + joins received
+      const userPostCounts = {};
+      const userReactionsReceived = {};
+      const userJoinsReceived = {};
+      let totalReactions = 0;
+      let totalJoins = 0;
+      postsSnap.docs.forEach(d => {
+        const data = d.data();
+        const uid = data.userId;
+        userPostCounts[uid] = (userPostCounts[uid] || 0) + 1;
+        const counts = data.reactionCounts || {};
+        let postReactions = 0;
+        Object.values(counts).forEach(n => { postReactions += n; });
+        totalReactions += postReactions;
+        userReactionsReceived[uid] = (userReactionsReceived[uid] || 0) + postReactions;
+        const joinCount = (data.joinedUserIds || []).length;
+        totalJoins += joinCount;
+        userJoinsReceived[uid] = (userJoinsReceived[uid] || 0) + joinCount;
+      });
+
+      // Notifications breakdown + per-user shares/saves
+      let workoutsShared = 0;
+      let workoutsSaved = 0;
+      const userSharesSent = {};
+      const userSavesReceived = {};
+      notificationsSnap.docs.forEach(d => {
+        const data = d.data();
+        if (data.type === 'workout_shared') {
+          workoutsShared++;
+          userSharesSent[data.actorUid] = (userSharesSent[data.actorUid] || 0) + 1;
+        } else if (data.type === 'workout_saved') {
+          workoutsSaved++;
+          userSavesReceived[data.recipientUid] = (userSavesReceived[data.recipientUid] || 0) + 1;
+        }
+      });
+
+      // Pre-index: first reaction per user from post reaction subcollections
+      const userFirstReaction = {};
+      await Promise.all(postsSnap.docs.map(async (postDoc) => {
+        try {
+          const reactionsSnap = await getDocs(collection(db, 'posts', postDoc.id, 'reactions'));
+          reactionsSnap.docs.forEach(rd => {
+            const rData = rd.data();
+            const uid = rData.userId;
+            const ts = rData.createdAt?.toDate?.() || null;
+            if (uid && ts && (!userFirstReaction[uid] || ts < userFirstReaction[uid])) {
+              userFirstReaction[uid] = ts;
+            }
+          });
+        } catch (_) { /* skip */ }
+      }));
+
+      // Per-user history + followers (parallel)
+      const userIds = profilesSnap.docs.map(d => d.id);
+      let totalFollows = 0;
+      let totalActiveSeconds = 0;
+      let totalCompletions = 0;
+      let totalSets = 0;
+      const workoutNameCounts = {};
+      const workoutUserCounts = {}; // workoutName -> { uid: count }
+      const userActiveSeconds = {};
+      const userCompletions = {};
+      const userSets = {};
+      const userFollowerCounts = {};
+      const userPinnedCounts = {};
+      let totalPinned = 0;
+      const workoutOwnerCounts = {}; // workoutId -> number of users who have it in library
+      const workoutOwnerUids = {}; // workoutId -> [uid, uid, ...]
+      const userSignupDates = {};
+      profilesSnap.docs.forEach(d => {
+        const data = d.data();
+        userSignupDates[d.id] = data.createdAt?.toDate?.() || null;
+      });
+
+      // Feature adoption tracking per user
+      const userFirstCompletion = {};
+      const userFirstFollow = {};
+      const userSettingsChanged = {};
+      const userHasPinned = {};
+
+      // Pre-index: first workout created/forked per user from workouts snap
+      const userFirstCreated = {};
+      const userFirstForked = {};
+      workoutsSnap.docs.forEach(d => {
+        const data = d.data();
+        const owner = data.ownerUid;
+        if (!owner) return;
+        const ts = data.createdAt?.toDate?.() || null;
+        if (ts && (!userFirstCreated[owner] || ts < userFirstCreated[owner])) userFirstCreated[owner] = ts;
+        if (data.forked && ts && (!userFirstForked[owner] || ts < userFirstForked[owner])) userFirstForked[owner] = ts;
+      });
+
+      // Pre-index: first save action per user from notifications (actorUid saved someone's workout)
+      const userFirstSaved = {};
+      notificationsSnap.docs.forEach(d => {
+        const data = d.data();
+        if (data.type === 'workout_saved') {
+          const ts = data.createdAt?.toDate?.() || null;
+          const actor = data.actorUid;
+          if (actor && ts && (!userFirstSaved[actor] || ts < userFirstSaved[actor])) userFirstSaved[actor] = ts;
+        }
+      });
+
+      await Promise.all(userIds.map(async (uid) => {
+        // History
+        try {
+          const histSnap = await getDocs(collection(db, 'users', uid, 'history'));
+          let userSeconds = 0;
+          let userComp = 0;
+          let userSetCount = 0;
+          let firstComp = null;
+          histSnap.docs.forEach(d => {
+            const data = d.data();
+            totalCompletions++;
+            userComp++;
+            const sets = data.setCount || 1;
+            totalSets += sets;
+            userSetCount += sets;
+            const exercises = data.exercises || [];
+            const rest = data.restTime ?? 15;
+            const alm = data.activeLastMinute ?? true;
+            const activePerSet = exercises.length > 0
+              ? (exercises.length - 1) * (60 - rest) + (60 - (alm ? 0 : rest))
+              : 0;
+            const seconds = activePerSet * sets;
+            totalActiveSeconds += seconds;
+            userSeconds += seconds;
+            const wn = data.workoutName || 'Unknown';
+            workoutNameCounts[wn] = (workoutNameCounts[wn] || 0) + 1;
+            if (!workoutUserCounts[wn]) workoutUserCounts[wn] = {};
+            workoutUserCounts[wn][uid] = (workoutUserCounts[wn][uid] || 0) + 1;
+            const compAt = data.completedAt?.toDate?.() || null;
+            if (compAt && (!firstComp || compAt < firstComp)) firstComp = compAt;
+          });
+          userActiveSeconds[uid] = userSeconds;
+          userCompletions[uid] = userComp;
+          userSets[uid] = userSetCount;
+          if (firstComp) userFirstCompletion[uid] = firstComp;
+        } catch (_) { /* skip */ }
+
+        // Followers
+        try {
+          const followersSnap = await getDocs(collection(db, 'followers', uid, 'userFollowers'));
+          const count = followersSnap.size;
+          totalFollows += count;
+          userFollowerCounts[uid] = count;
+        } catch (_) { /* skip */ }
+
+        // Following (first follow date)
+        try {
+          const followingSnap = await getDocs(collection(db, 'following', uid, 'userFollowing'));
+          let firstFollow = null;
+          followingSnap.docs.forEach(d => {
+            const ts = d.data().followedAt?.toDate?.() || null;
+            if (ts && (!firstFollow || ts < firstFollow)) firstFollow = ts;
+          });
+          if (firstFollow) userFirstFollow[uid] = firstFollow;
+        } catch (_) { /* skip */ }
+
+        // Preferences (pinned + settings changed)
+        try {
+          const prefsSnap = await getDoc(doc(db, 'users', uid, 'settings', 'preferences'));
+          if (prefsSnap.exists()) {
+            const p = prefsSnap.data();
+            const pinned = (p.pinnedWorkouts || []).length;
+            totalPinned += pinned;
+            userPinnedCounts[uid] = pinned;
+            userHasPinned[uid] = pinned > 0;
+            // Check if any setting differs from defaults
+            userSettingsChanged[uid] = (
+              p.prepTime !== 10 ||
+              p.activeLastMinute !== undefined ||
+              p.shuffleExercises === true ||
+              p.activeColor !== '#ff3b30' ||
+              p.restColor !== '#007aff' ||
+              p.autoShare === true ||
+              p.inAppNotifications === false ||
+              p.showCardPhotos === true ||
+              p.isPrivate === true
+            );
+          } else {
+            userPinnedCounts[uid] = 0;
+            userHasPinned[uid] = false;
+            userSettingsChanged[uid] = false;
+          }
+        } catch (_) { /* skip */ }
+
+        // Library refs (count owners per workout)
+        try {
+          const libSnap = await getDocs(collection(db, 'users', uid, 'library'));
+          libSnap.docs.forEach(ld => {
+            workoutOwnerCounts[ld.id] = (workoutOwnerCounts[ld.id] || 0) + 1;
+            if (!workoutOwnerUids[ld.id]) workoutOwnerUids[ld.id] = [];
+            workoutOwnerUids[ld.id].push(uid);
+          });
+        } catch (_) { /* skip */ }
+      }));
+
+      // Build most owned workout ranking
+      const workoutNameMap = {};
+      [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].forEach(w => {
+        workoutNameMap[w.id] = w.name;
+      });
+      workoutsSnap.docs.forEach(d => {
+        workoutNameMap[d.id] = d.data().name || 'Unknown';
+      });
+      const ownershipRanking = Object.entries(workoutOwnerCounts)
+        .map(([id, count]) => ({ id, name: workoutNameMap[id] || id, count, uids: workoutOwnerUids[id] || [] }))
+        .sort((a, b) => b.count - a.count);
+      const mostOwnedWorkout = ownershipRanking[0] || null;
+
+      const now = Date.now();
+
+      // Build feature adoption stats
+      const FEATURES = [
+        { key: 'completed', label: 'Completed Workout', getFirst: uid => userFirstCompletion[uid] },
+        { key: 'created', label: 'Created Workout', getFirst: uid => userFirstCreated[uid] },
+        { key: 'followed', label: 'Followed Someone', getFirst: uid => userFirstFollow[uid] },
+        { key: 'forked', label: 'Forked Workout', getFirst: uid => userFirstForked[uid] },
+        { key: 'saved', label: 'Saved Workout', getFirst: uid => userFirstSaved[uid] },
+        { key: 'reacted', label: 'Reacted on Post', getFirst: uid => userFirstReaction[uid] },
+        { key: 'settings', label: 'Changed Settings', getFirst: () => null, everCheck: uid => userSettingsChanged[uid] },
+        { key: 'pinned', label: 'Pinned Workout', getFirst: () => null, everCheck: uid => userHasPinned[uid] },
+      ];
+
+      const calcAdoption = (days) => {
+        const ms = days * 24 * 60 * 60 * 1000;
+        const eligible = userIds.filter(uid => {
+          const signup = userSignupDates[uid];
+          return signup && (now - signup.getTime()) >= ms;
+        });
+        if (eligible.length === 0) return { eligible: 0, features: {} };
+        const result = {};
+        FEATURES.forEach(f => {
+          const adopted = [];
+          const notAdopted = [];
+          eligible.forEach(uid => {
+            const signup = userSignupDates[uid];
+            if (f.everCheck) {
+              // No timestamp — just check if ever done
+              if (f.everCheck(uid)) adopted.push(uid); else notAdopted.push(uid);
+            } else {
+              const first = f.getFirst(uid);
+              if (first && (first.getTime() - signup.getTime()) <= ms) {
+                adopted.push(uid);
+              } else {
+                notAdopted.push(uid);
+              }
+            }
+          });
+          result[f.key] = {
+            label: f.label,
+            pct: Math.round((adopted.length / eligible.length) * 100),
+            adopted,
+            notAdopted,
+            total: eligible.length,
+          };
+        });
+        return { eligible: eligible.length, features: result };
+      };
+      const adoption7 = calcAdoption(7);
+      const adoption30 = calcAdoption(30);
+
+      // Most popular workout
+      let mostPopularWorkout = null;
+      let maxCount = 0;
+      for (const [name, count] of Object.entries(workoutNameCounts)) {
+        if (count > maxCount) { maxCount = count; mostPopularWorkout = name; }
+      }
+
+      // Top user by active time
+      let topUser = null;
+      let topSeconds = 0;
+      for (const [uid, seconds] of Object.entries(userActiveSeconds)) {
+        if (seconds > topSeconds) { topSeconds = seconds; topUser = { name: profileMap[uid], seconds }; }
+      }
+
+      // Most recent signup
+      let newestUser = null;
+      profilesSnap.docs.forEach(d => {
+        const data = d.data();
+        const created = data.createdAt?.toDate?.() || null;
+        if (created && (!newestUser || created > newestUser.date)) {
+          newestUser = { name: data.displayName, date: created };
+        }
+      });
+
+      // Active users (posted in last 7 days)
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      let activeUsers7dSet = new Set();
+      postsSnap.docs.forEach(d => {
+        const data = d.data();
+        const created = data.createdAt?.toDate?.() || null;
+        if (created && created > weekAgo) activeUsers7dSet.add(data.userId);
+      });
+
+      // Retention: users who signed up > N days ago, retained = has any history
+      const calcRetention = (days) => {
+        const retained = [];
+        const churned = [];
+        userIds.forEach(uid => {
+          const signup = userSignupDates[uid];
+          if (!signup || (now - signup.getTime()) < days * 24 * 60 * 60 * 1000) return;
+          if ((userCompletions[uid] || 0) > 0) {
+            retained.push(uid);
+          } else {
+            churned.push(uid);
+          }
+        });
+        const eligible = retained.length + churned.length;
+        return {
+          pct: eligible > 0 ? Math.round((retained.length / eligible) * 100) : 0,
+          retainedCount: retained.length,
+          churnedCount: churned.length,
+          retained,
+          churned,
+        };
+      };
+      const retention7 = calcRetention(7);
+      const retention30 = calcRetention(30);
+
+      // Build drill-down lists
+      const userList = userIds.map(uid => ({
+        uid,
+        name: profileMap[uid],
+        photo: profilePhotoMap[uid],
+        email: profileEmailMap[uid],
+        signupDate: userSignupDates[uid],
+        activeSeconds: userActiveSeconds[uid] || 0,
+        completions: userCompletions[uid] || 0,
+        sets: userSets[uid] || 0,
+        posts: userPostCounts[uid] || 0,
+        followers: userFollowerCounts[uid] || 0,
+        reactionsReceived: userReactionsReceived[uid] || 0,
+        joinsReceived: userJoinsReceived[uid] || 0,
+        sharesSent: userSharesSent[uid] || 0,
+        savesReceived: userSavesReceived[uid] || 0,
+        pinned: userPinnedCounts[uid] || 0,
+        workoutsCreated: userWorkoutsCreated[uid] || 0,
+        workoutsForked: userWorkoutsForked[uid] || 0,
+      }));
+
+      const workoutRanking = Object.entries(workoutNameCounts)
+        .map(([name, count]) => ({ name, count, users: workoutUserCounts[name] || {} }))
+        .sort((a, b) => b.count - a.count);
+
+      setAdminStats({
+        totalUsers,
+        totalPosts,
+        totalWorkouts,
+        totalCompletions,
+        totalSets,
+        totalActiveSeconds,
+        activeUsers7d: activeUsers7dSet.size,
+        newestUser,
+        totalReactions,
+        totalFollows,
+        workoutsShared,
+        workoutsSaved,
+        totalJoins,
+        avgSetsPerCompletion: totalCompletions > 0 ? (totalSets / totalCompletions).toFixed(1) : '0',
+        mostPopularWorkout,
+        mostPopularCount: maxCount,
+        topUser,
+        // Drill-down data
+        _users: userList,
+        _activeUsers7d: [...activeUsers7dSet],
+        _workoutRanking: workoutRanking,
+        totalPinned,
+        totalForked,
+        mostOwnedWorkout,
+        _ownershipRanking: ownershipRanking,
+        retention7,
+        retention30,
+        adoption7,
+        adoption30,
+      });
+    } catch (err) {
+      console.error('Failed to load admin stats:', err);
+      setAdminStats({ error: err.message });
+    } finally {
+      setAdminLoading(false);
+    }
+  }, []);
+
+  // Drill-down helpers
+  const openDetail = (title, items) => setAdminDetail({ title, items });
+  const closeDetail = () => setAdminDetail(null);
+
+  const drillUsers = (sortKey, title, valueFormatter) => {
+    if (!adminStats?._users) return;
+    const sorted = [...adminStats._users].sort((a, b) => (b[sortKey] || 0) - (a[sortKey] || 0));
+    openDetail(title, sorted.map((u, i) => ({
+      rank: i + 1,
+      name: u.name,
+      photo: u.photo,
+      email: u.email,
+      value: valueFormatter ? valueFormatter(u) : u[sortKey],
+    })));
+  };
 
   // Reset color popup when menu closes
   useEffect(() => {
@@ -359,9 +827,289 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             </>
           )}
 
+          {isAdmin && (
+            <>
+              <div className="sidemenu-divider" />
+              <div className="sidemenu-item" onClick={loadAdminStats}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20V10"/>
+                  <path d="M18 20V4"/>
+                  <path d="M6 20v-4"/>
+                </svg>
+                <span className="sidemenu-item-label">Admin</span>
+              </div>
+            </>
+          )}
+
         </div>
 
       </div>
+
+      {/* Admin stats popup */}
+      {showAdminPopup && (
+        <div className="sidemenu-color-popup-overlay" onClick={() => { setShowAdminPopup(false); setAdminDetail(null); }}>
+          <div className="sidemenu-admin-popup" onClick={e => e.stopPropagation()}>
+            <div className="sidemenu-admin-header">
+              <span>Admin Dashboard</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" onClick={() => setShowAdminPopup(false)} style={{ cursor: 'pointer', opacity: 0.5 }}>
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </div>
+            {adminLoading ? (
+              <div className="sidemenu-admin-loading">Loading stats...</div>
+            ) : adminStats?.error ? (
+              <div className="sidemenu-admin-loading" style={{ color: '#ff4444' }}>Error: {adminStats.error}</div>
+            ) : adminStats ? (
+              <>
+                <div className="sidemenu-admin-section-label">Users</div>
+                <div className="sidemenu-admin-grid">
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    const sorted = [...adminStats._users].sort((a, b) => (b.signupDate || 0) - (a.signupDate || 0));
+                    openDetail('All Users', sorted.map((u, i) => ({
+                      rank: i + 1, name: u.name, photo: u.photo, email: u.email,
+                      value: u.signupDate ? u.signupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalUsers}</span>
+                    <span className="sidemenu-admin-stat-label">Total Users</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    const activeUids = adminStats._activeUsers7d;
+                    const activeList = adminStats._users.filter(u => activeUids.includes(u.uid));
+                    activeList.sort((a, b) => b.posts - a.posts);
+                    openDetail('Active Users (7d)', activeList.map((u, i) => ({
+                      rank: i + 1, name: u.name, photo: u.photo, email: u.email, value: `${u.posts} posts`,
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.activeUsers7d}</span>
+                    <span className="sidemenu-admin-stat-label">Active (7d)</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    const sorted = [...adminStats._users].sort((a, b) => (b.signupDate || 0) - (a.signupDate || 0));
+                    openDetail('Users by Signup', sorted.map((u, i) => ({
+                      rank: i + 1, name: u.name, photo: u.photo, email: u.email,
+                      value: u.signupDate ? u.signupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value" style={{ fontSize: '0.85rem' }}>{adminStats.newestUser?.name || '—'}</span>
+                    <span className="sidemenu-admin-stat-label">Newest User</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('followers', 'Users by Followers', u => u.followers)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalFollows}</span>
+                    <span className="sidemenu-admin-stat-label">Total Follows</span>
+                  </div>
+                </div>
+
+                <div className="sidemenu-admin-section-label">Workouts</div>
+                <div className="sidemenu-admin-grid">
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('activeSeconds', 'Users by Active Time', u => formatTime(u.activeSeconds))}>
+                    <span className="sidemenu-admin-stat-value">{formatTime(adminStats.totalActiveSeconds)}</span>
+                    <span className="sidemenu-admin-stat-label">Total Active Time</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('completions', 'Users by Completions', u => u.completions)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalCompletions}</span>
+                    <span className="sidemenu-admin-stat-label">Completions</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('sets', 'Users by Sets', u => u.sets)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalSets}</span>
+                    <span className="sidemenu-admin-stat-label">Total Sets</span>
+                  </div>
+                  <div className="sidemenu-admin-stat">
+                    <span className="sidemenu-admin-stat-value">{adminStats.avgSetsPerCompletion}</span>
+                    <span className="sidemenu-admin-stat-label">Avg Sets/Completion</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('workoutsCreated', 'Users by Workouts Created', u => `${u.workoutsCreated || 0} created`)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalWorkouts}</span>
+                    <span className="sidemenu-admin-stat-label">Workouts Created</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('workoutsForked', 'Users by Workouts Forked', u => `${u.workoutsForked || 0} forked`)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalForked}</span>
+                    <span className="sidemenu-admin-stat-label">Forked</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('Workouts by Completions', adminStats._workoutRanking.map((w, i) => ({
+                      rank: i + 1, name: w.name, value: `${w.count}x`,
+                      onTap: () => {
+                        const users = Object.entries(w.users)
+                          .map(([uid, cnt]) => {
+                            const u = adminStats._users.find(x => x.uid === uid);
+                            return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: `${cnt}x`, cnt };
+                          })
+                          .sort((a, b) => b.cnt - a.cnt);
+                        openDetail(`${w.name} — Completions`, users.map((u, j) => ({ rank: j + 1, ...u })));
+                      },
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value" style={{ fontSize: '0.85rem' }}>{adminStats.mostPopularWorkout || '—'}</span>
+                    <span className="sidemenu-admin-stat-label">Most Completed ({adminStats.mostPopularCount || 0}x)</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('Workouts by Owners', adminStats._ownershipRanking.map((w, i) => ({
+                      rank: i + 1, name: w.name, value: `${w.count} ${w.count === 1 ? 'owner' : 'owners'}`,
+                      onTap: () => {
+                        const users = w.uids.map(uid => {
+                          const u = adminStats._users.find(x => x.uid === uid);
+                          return { rank: null, name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: '' };
+                        });
+                        openDetail(`${w.name} — Owners`, users.map((u, j) => ({ ...u, rank: j + 1 })));
+                      },
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value" style={{ fontSize: '0.85rem' }}>{adminStats.mostOwnedWorkout?.name || '—'}</span>
+                    <span className="sidemenu-admin-stat-label">Most Owned ({adminStats.mostOwnedWorkout?.count || 0})</span>
+                  </div>
+                </div>
+
+                <div className="sidemenu-admin-section-label">Social</div>
+                <div className="sidemenu-admin-grid">
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('posts', 'Users by Posts', u => u.posts)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalPosts}</span>
+                    <span className="sidemenu-admin-stat-label">Posts</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('reactionsReceived', 'Users by Reactions Received', u => u.reactionsReceived)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalReactions}</span>
+                    <span className="sidemenu-admin-stat-label">Reactions</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('joinsReceived', 'Users by Joins Received', u => u.joinsReceived)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalJoins}</span>
+                    <span className="sidemenu-admin-stat-label">Workout Joins</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('sharesSent', 'Users by Shares Sent', u => u.sharesSent)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.workoutsShared}</span>
+                    <span className="sidemenu-admin-stat-label">Workouts Shared</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('savesReceived', 'Users by Saves Received', u => u.savesReceived)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.workoutsSaved}</span>
+                    <span className="sidemenu-admin-stat-label">Workouts Saved</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('pinned', 'Users by Pinned Workouts', u => u.pinned)}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalPinned}</span>
+                    <span className="sidemenu-admin-stat-label">Workouts Pinned</span>
+                  </div>
+                </div>
+
+                <div className="sidemenu-admin-section-label">Retention</div>
+                <div className="sidemenu-admin-grid">
+                  {[{ label: '7 Day', data: adminStats.retention7 }, { label: '30 Day', data: adminStats.retention30 }].map(({ label, data }) => (
+                    <div key={label} className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                      const retained = (data.retained || []).map(uid => {
+                        const u = adminStats._users.find(x => x.uid === uid);
+                        return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: formatTime(u?.activeSeconds || 0) };
+                      });
+                      const churned = (data.churned || []).map(uid => {
+                        const u = adminStats._users.find(x => x.uid === uid);
+                        return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: 'churned' };
+                      });
+                      openDetail(`${label} Retention — ${data.pct}%`, [
+                        ...retained.map((r, i) => ({ rank: i + 1, ...r })),
+                        ...churned.map((c, i) => ({ rank: retained.length + i + 1, ...c })),
+                      ]);
+                    }}>
+                      <span className="sidemenu-admin-stat-value">{data.pct}%</span>
+                      <span className="sidemenu-admin-stat-label">{label} ({data.retainedCount} / {data.retainedCount + data.churnedCount})</span>
+                    </div>
+                  ))}
+                </div>
+
+                {[{ label: '7 Day Adoption', data: adminStats.adoption7 }, { label: '30 Day Adoption', data: adminStats.adoption30 }].map(({ label, data }) => (
+                  data.eligible > 0 && <React.Fragment key={label}>
+                    <div className="sidemenu-admin-section-label">{label} ({data.eligible} users)</div>
+                    <div className="sidemenu-admin-grid">
+                      {Object.values(data.features).map(f => (
+                        <div key={f.label} className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                          const adopted = f.adopted.map(uid => {
+                            const u = adminStats._users.find(x => x.uid === uid);
+                            return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: 'yes' };
+                          });
+                          const not = f.notAdopted.map(uid => {
+                            const u = adminStats._users.find(x => x.uid === uid);
+                            return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: '—' };
+                          });
+                          openDetail(`${f.label} — ${label}`, [
+                            ...adopted.map((r, i) => ({ rank: i + 1, ...r })),
+                            ...not.map((r, i) => ({ rank: adopted.length + i + 1, ...r })),
+                          ]);
+                        }}>
+                          <span className="sidemenu-admin-stat-value">{f.pct}%</span>
+                          <span className="sidemenu-admin-stat-label">{f.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </React.Fragment>
+                ))}
+
+                <div
+                  className="sidemenu-admin-ga-link"
+                  onClick={() => window.open('https://analytics.google.com/analytics/web/', '_blank')}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                  <span>Open Google Analytics</span>
+                </div>
+                <div
+                  className="sidemenu-admin-ga-link"
+                  onClick={() => window.open('https://docs.google.com/spreadsheets/d/1yOkKrvjObVx_ph3rCX_chIkX4l1F1rA6qW--EFXQO3o/edit?resourcekey=&gid=351051000#gid=351051000', '_blank')}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                  <span>Dev Feedback Responses</span>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Admin detail drill-down (overlays on top of dashboard) */}
+      {adminDetail && (
+        <div className="sidemenu-admin-detail-overlay" onClick={(e) => { e.stopPropagation(); closeDetail(); }}>
+          <div className="sidemenu-admin-popup sidemenu-admin-detail-popup" onClick={e => e.stopPropagation()}>
+            <div className="sidemenu-admin-header">
+              <div className="sidemenu-admin-back" onClick={closeDetail}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+              </div>
+              <span>{adminDetail.title}</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" onClick={closeDetail} style={{ cursor: 'pointer', opacity: 0.5 }}>
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </div>
+            <div className="sidemenu-admin-detail-list">
+              {adminDetail.items.map((item, i) => (
+                <div key={i} className={`sidemenu-admin-detail-row${item.onTap ? ' sidemenu-admin-detail-row-tap' : ''}`} style={{ animationDelay: `${Math.min(i * 20, 300)}ms` }} onClick={item.onTap || undefined}>
+                  <span className="sidemenu-admin-detail-rank">{item.rank != null ? item.rank : i + 1}</span>
+                  {item.photo !== undefined && (
+                    <div className="sidemenu-admin-detail-avatar">
+                      {item.photo ? (
+                        <img src={item.photo} alt="" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="sidemenu-admin-detail-avatar-placeholder">
+                          {(item.name || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="sidemenu-admin-detail-name-col">
+                    <span className="sidemenu-admin-detail-name">{item.name}</span>
+                    {item.email && <span className="sidemenu-admin-detail-email">{item.email}</span>}
+                  </div>
+                  <span className="sidemenu-admin-detail-value">{item.value}</span>
+                </div>
+              ))}
+              {adminDetail.items.length === 0 && (
+                <div className="sidemenu-admin-loading">No data</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Color picker popup — fixed center of screen */}
       {colorPopup && (
