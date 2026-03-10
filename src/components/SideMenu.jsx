@@ -45,6 +45,8 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         getDocs(collection(db, 'notifications')),
       ]);
 
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      const activeUsersTodaySet = new Set();
       const totalUsers = profilesSnap.size;
       const totalPosts = postsSnap.size;
       const totalWorkouts = workoutsSnap.size;
@@ -129,6 +131,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             if (uid && ts && (!userFirstReaction[uid] || ts < userFirstReaction[uid])) {
               userFirstReaction[uid] = ts;
             }
+            if (uid && ts && ts > todayStart) activeUsersTodaySet.add(uid);
           });
         } catch (_) { /* skip */ }
       }));
@@ -214,6 +217,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             workoutUserCounts[wn][uid] = (workoutUserCounts[wn][uid] || 0) + 1;
             const compAt = data.completedAt?.toDate?.() || null;
             if (compAt && (!firstComp || compAt < firstComp)) firstComp = compAt;
+            if (compAt && compAt > todayStart) activeUsersTodaySet.add(uid);
           });
           userActiveSeconds[uid] = userSeconds;
           userCompletions[uid] = userComp;
@@ -236,6 +240,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
           followingSnap.docs.forEach(d => {
             const ts = d.data().followedAt?.toDate?.() || null;
             if (ts && (!firstFollow || ts < firstFollow)) firstFollow = ts;
+            if (ts && ts > todayStart) activeUsersTodaySet.add(uid);
           });
           if (firstFollow) userFirstFollow[uid] = firstFollow;
         } catch (_) { /* skip */ }
@@ -371,11 +376,39 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
       // Active users (posted in last 7 days)
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       let activeUsers7dSet = new Set();
+      // Posts — track poster + joiners
       postsSnap.docs.forEach(d => {
         const data = d.data();
         const created = data.createdAt?.toDate?.() || null;
         if (created && created > weekAgo) activeUsers7dSet.add(data.userId);
+        if (created && created > todayStart) {
+          activeUsersTodaySet.add(data.userId);
+          // Joiners active today (use lastCompletedAt as proxy for join time)
+          const lastCompleted = data.lastCompletedAt?.toDate?.() || null;
+          if (lastCompleted && lastCompleted > todayStart) {
+            (data.joinedUserIds || []).forEach(uid => activeUsersTodaySet.add(uid));
+          }
+        }
       });
+      // Notifications — actorUid performed an action today
+      notificationsSnap.docs.forEach(d => {
+        const data = d.data();
+        const created = data.createdAt?.toDate?.() || null;
+        if (created && created > todayStart && data.actorUid) activeUsersTodaySet.add(data.actorUid);
+      });
+      // History — completed a workout today
+      // (checked per-user below, seed from already-loaded history data)
+      // Followers — followed someone today
+      // (followedAt checked per-user below)
+
+      // New users this week
+      const newUsersThisWeek = [];
+      profilesSnap.docs.forEach(d => {
+        const data = d.data();
+        const created = data.createdAt?.toDate?.() || null;
+        if (created && created > weekAgo) newUsersThisWeek.push({ uid: d.id, name: data.displayName, photo: data.photoURL, email: data.email, date: created });
+      });
+      newUsersThisWeek.sort((a, b) => b.date - a.date);
 
       // Retention: users who signed up > N days ago, retained = has any history
       const calcRetention = (days) => {
@@ -435,6 +468,10 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         totalSets,
         totalActiveSeconds,
         activeUsers7d: activeUsers7dSet.size,
+        activeUsersToday: activeUsersTodaySet.size,
+        _activeUsersToday: [...activeUsersTodaySet],
+        newUsersThisWeek: newUsersThisWeek.length,
+        _newUsersThisWeek: newUsersThisWeek,
         newestUser,
         totalReactions,
         totalFollows,
@@ -897,6 +934,26 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => drillUsers('followers', 'Users by Followers', u => u.followers)}>
                     <span className="sidemenu-admin-stat-value">{adminStats.totalFollows}</span>
                     <span className="sidemenu-admin-stat-label">Total Follows</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    const todayUids = adminStats._activeUsersToday || [];
+                    const todayList = adminStats._users.filter(u => todayUids.includes(u.uid));
+                    todayList.sort((a, b) => b.posts - a.posts);
+                    openDetail('Active Today', todayList.map((u, i) => ({
+                      rank: i + 1, name: u.name, photo: u.photo, email: u.email, value: `${u.posts} posts`,
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.activeUsersToday}</span>
+                    <span className="sidemenu-admin-stat-label">Active Today</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('New Users This Week', (adminStats._newUsersThisWeek || []).map((u, i) => ({
+                      rank: i + 1, name: u.name, photo: u.photo, email: u.email,
+                      value: u.date ? u.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.newUsersThisWeek}</span>
+                    <span className="sidemenu-admin-stat-label">New This Week</span>
                   </div>
                 </div>
 
