@@ -2113,7 +2113,7 @@ const Main = () => {
                 {feedDetailOwner?.photoURL ? (
                   <img src={feedDetailOwner.photoURL} alt="" className="stats-detail-creator-icon" referrerPolicy="no-referrer" />
                 ) : (
-                  <img src="/logo192.png" alt="" className="stats-detail-creator-icon" />
+                  <img src="/logo192.png" alt="" className="stats-detail-creator-icon" style={{ transform: 'scale(1.15)', border: 'none' }} />
                 )}
               </div>
               <div className={`stats-detail-title-group ${feedDetailTags.length > 0 ? 'has-tags' : ''}`}>
