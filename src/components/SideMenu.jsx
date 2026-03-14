@@ -783,20 +783,20 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
           </div>
         </div>
 
-        {!isPro && (
-          <div className="sidemenu-pro-banner">
-            <div className="sidemenu-pro-banner-text">
-              <span className="sidemenu-pro-badge">PRO</span>
-              <span className="sidemenu-pro-banner-title">Unlock all features</span>
-            </div>
-            <span className="sidemenu-pro-banner-subtitle">Custom colors, shuffle, and more</span>
-            <button className="sidemenu-pro-btn" onClick={() => onProTap && onProTap()}>
-              Upgrade
-            </button>
-          </div>
-        )}
-
         <div className="sidemenu-items">
+          {!isPro && (
+            <div className="sidemenu-pro-banner">
+              <div className="sidemenu-pro-banner-text">
+                <span className="sidemenu-pro-badge">PRO</span>
+                <span className="sidemenu-pro-banner-title">Unlock all features</span>
+              </div>
+              <span className="sidemenu-pro-banner-subtitle">Custom colors, shuffle, and more</span>
+              <button className="sidemenu-pro-btn" onClick={() => onProTap && onProTap()}>
+                Upgrade
+              </button>
+            </div>
+          )}
+
           <div className="sidemenu-item" onClick={handleSignOut}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
