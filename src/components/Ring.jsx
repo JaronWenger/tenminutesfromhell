@@ -14,6 +14,7 @@ const Ring = ({
   flickering = false,
   restTime = 15,
   activeLastMinute = true,
+  isRestExercise = false,
   drawIn = false,
   revealTime = false,
   isCompleted = false,
@@ -60,6 +61,10 @@ const Ring = ({
     }
     const currentSeconds = timeLeft % 60;
 
+    // Rest exercise — always show rest color (entire minute is inactive)
+    if (isRestExercise) {
+      return restColor;
+    }
     // Rest/prep seconds 1-15 of each minute (except the last minute)
     if (currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true)) {
       return restColor;

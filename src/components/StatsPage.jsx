@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser } from '../firebase/social';
 import { getUserHistory, getWorkoutsBatchV2, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
-import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
+import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
 import './StatsPage.css';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -157,8 +157,9 @@ const StatsPage = ({
       if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
         const rest = e.restTime != null ? e.restTime : 15;
         const activePerExercise = 60 - rest;
+        const activeCount = countActiveExercises(e.exercises);
         const lastMinuteBonus = (e.activeLastMinute !== false) ? rest : 0;
-        map[key] = (map[key] || 0) + ((e.exercises.length * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
+        map[key] = (map[key] || 0) + ((activeCount * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
       } else {
         map[key] = (map[key] || 0) + (e.duration || 0);
       }
@@ -198,8 +199,9 @@ const StatsPage = ({
       if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
         const rest = e.restTime != null ? e.restTime : 15;
         const activePerExercise = 60 - rest;
+        const activeCount = countActiveExercises(e.exercises);
         const lastMinuteBonus = (e.activeLastMinute !== false) ? rest : 0;
-        return sum + ((e.exercises.length * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
+        return sum + ((activeCount * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
       }
       return sum + (e.duration || 0);
     }, 0);
@@ -937,8 +939,9 @@ const StatsPage = ({
         if (e.workoutType === 'timer' && (e.exercises || []).length > 0) {
           const rest = e.restTime != null ? e.restTime : 15;
           const activePerExercise = 60 - rest;
+          const activeCount = countActiveExercises(e.exercises);
           const lastMinuteBonus = (e.activeLastMinute !== false) ? rest : 0;
-          return sum + ((e.exercises.length * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
+          return sum + ((activeCount * activePerExercise + lastMinuteBonus) * (e.setCount || 1));
         }
         return sum + (e.duration || 0);
       }, 0);
@@ -1606,7 +1609,8 @@ const StatsPage = ({
                     const workout = workoutId ? allWorkouts.find(w => w.id === workoutId) : allWorkouts.find(w => w.name === name);
                     const exercises = workout ? workout.exercises : [];
                     const wRestTime = workout?.restTime != null ? workout.restTime : globalRestTime;
-                    const activeSeconds = exercises.length * (60 - wRestTime) + (exercises.length > 0 ? wRestTime : 0);
+                    const activeCount = countActiveExercises(exercises);
+                    const activeSeconds = activeCount * (60 - wRestTime) + (activeCount > 0 ? wRestTime : 0);
                     return (
                       <div key={`${name}-${setCount}`} className="stats-workout-card stats-completed-card">
                         <div className="stats-card-left">

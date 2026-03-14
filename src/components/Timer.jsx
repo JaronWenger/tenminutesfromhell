@@ -232,6 +232,7 @@ const Timer = ({
   // Side plank halfway flicker detection
   const currentExercise = workoutList[workoutIndex] || '';
   const isSidePlank = currentExercise.toLowerCase().includes('side plank');
+  const isRestExercise = /\brest\b/i.test(currentExercise);
   const isRestPhase = currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true);
   const isActivePhase = !isRestPhase;
   const activeSeconds = 60 - restTime;
@@ -270,6 +271,7 @@ const Timer = ({
         flickering={isHalfwayFlicker}
         restTime={restTime}
         activeLastMinute={activeLastMinute}
+        isRestExercise={isRestExercise}
         drawIn={initialLoad}
         revealTime={revealTime}
         isCompleted={timeLeft === 0 && !isRunning && targetTime > 0}

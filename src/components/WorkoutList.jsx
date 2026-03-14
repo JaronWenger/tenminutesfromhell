@@ -31,7 +31,8 @@ const WorkoutList = ({
         const isCompleted = index < workoutIndex || (timeLeft === 0 && index < workoutList.length) || (isLastRest && index === workoutIndex);
         const isUpcoming = index > workoutIndex || (index === workoutIndex && !isRunning && timeLeft > 0);
         const currentSeconds = timeLeft % 60;
-        const isWarning = isActive && currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true);
+        const isExerciseRest = /\brest\b/i.test(workout);
+        const isWarning = isActive && (isExerciseRest || (currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true)));
 
         return (
           <div

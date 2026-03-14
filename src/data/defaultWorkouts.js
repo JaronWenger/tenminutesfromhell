@@ -316,3 +316,8 @@ export const DEFAULT_STOPWATCH_WORKOUTS = [
     ]
   }
 ];
+
+export const isRestExercise = (name) => /\brest\b/i.test(name);
+
+export const countActiveExercises = (exercises) =>
+  (exercises || []).filter(e => !isRestExercise(e)).length;

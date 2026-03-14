@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../firebase/auth';
 import { collection, getDocs, getDoc, doc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
+import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
 import './SideMenu.css';
 
 const ACTIVE_DEFAULT = '#ff3b30';
@@ -24,7 +24,8 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
   const [showAdminPopup, setShowAdminPopup] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminStats, setAdminStats] = useState(null);
-  const [adminDetail, setAdminDetail] = useState(null); // { title, items: [{ label, sublabel, value }] }
+  const [adminDetail, setAdminDetail] = useState(null); // { title, items: [{ label, sublabel, value }], filterFn? }
+  const [adminDetailFilter, setAdminDetailFilter] = useState('all');
 
   const formatTime = (s) => {
     const h = Math.floor(s / 3600);
@@ -46,7 +47,22 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
       ]);
 
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const activeUsersTodaySet = new Set();
+      const activeUsers7dSet = new Set();
+      // Per-user activity signals: uid -> { signal: count }
+      const userSignalsToday = {};
+      const userSignals7d = {};
+      const addSignal = (uid, signal, date) => {
+        if (date && date > todayStart) {
+          if (!userSignalsToday[uid]) userSignalsToday[uid] = {};
+          userSignalsToday[uid][signal] = (userSignalsToday[uid][signal] || 0) + 1;
+        }
+        if (date && date > weekAgo) {
+          if (!userSignals7d[uid]) userSignals7d[uid] = {};
+          userSignals7d[uid][signal] = (userSignals7d[uid][signal] || 0) + 1;
+        }
+      };
       const totalUsers = profilesSnap.size;
       const totalPosts = postsSnap.size;
       const totalWorkouts = workoutsSnap.size;
@@ -132,6 +148,8 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
               userFirstReaction[uid] = ts;
             }
             if (uid && ts && ts > todayStart) activeUsersTodaySet.add(uid);
+            if (uid && ts && ts > weekAgo) activeUsers7dSet.add(uid);
+            if (uid && ts) addSignal(uid, 'reacted', ts);
           });
         } catch (_) { /* skip */ }
       }));
@@ -205,8 +223,9 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             const exercises = data.exercises || [];
             const rest = data.restTime ?? 15;
             const alm = data.activeLastMinute ?? true;
-            const activePerSet = exercises.length > 0
-              ? (exercises.length - 1) * (60 - rest) + (60 - (alm ? 0 : rest))
+            const activeCount = countActiveExercises(exercises);
+            const activePerSet = activeCount > 0
+              ? (activeCount - 1) * (60 - rest) + (60 - (alm ? 0 : rest))
               : 0;
             const seconds = activePerSet * sets;
             totalActiveSeconds += seconds;
@@ -218,6 +237,8 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             const compAt = data.completedAt?.toDate?.() || null;
             if (compAt && (!firstComp || compAt < firstComp)) firstComp = compAt;
             if (compAt && compAt > todayStart) activeUsersTodaySet.add(uid);
+            if (compAt && compAt > weekAgo) activeUsers7dSet.add(uid);
+            if (compAt) addSignal(uid, 'completed', compAt);
           });
           userActiveSeconds[uid] = userSeconds;
           userCompletions[uid] = userComp;
@@ -241,6 +262,8 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             const ts = d.data().followedAt?.toDate?.() || null;
             if (ts && (!firstFollow || ts < firstFollow)) firstFollow = ts;
             if (ts && ts > todayStart) activeUsersTodaySet.add(uid);
+            if (ts && ts > weekAgo) activeUsers7dSet.add(uid);
+            if (ts) addSignal(uid, 'followed', ts);
           });
           if (firstFollow) userFirstFollow[uid] = firstFollow;
         } catch (_) { /* skip */ }
@@ -250,6 +273,10 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
           const prefsSnap = await getDoc(doc(db, 'users', uid, 'settings', 'preferences'));
           if (prefsSnap.exists()) {
             const p = prefsSnap.data();
+            const prefsUpdated = p.updatedAt?.toDate?.() || null;
+            if (prefsUpdated && prefsUpdated > todayStart) activeUsersTodaySet.add(uid);
+            if (prefsUpdated && prefsUpdated > weekAgo) activeUsers7dSet.add(uid);
+            if (prefsUpdated) addSignal(uid, 'settings', prefsUpdated);
             const pinned = (p.pinnedWorkouts || []).length;
             totalPinned += pinned;
             userPinnedCounts[uid] = pinned;
@@ -277,6 +304,10 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         try {
           const libSnap = await getDocs(collection(db, 'users', uid, 'library'));
           libSnap.docs.forEach(ld => {
+            const addedAt = ld.data().addedAt?.toDate?.() || null;
+            if (addedAt && addedAt > todayStart) activeUsersTodaySet.add(uid);
+            if (addedAt && addedAt > weekAgo) activeUsers7dSet.add(uid);
+            if (addedAt) addSignal(uid, 'library', addedAt);
             workoutOwnerCounts[ld.id] = (workoutOwnerCounts[ld.id] || 0) + 1;
             if (!workoutOwnerUids[ld.id]) workoutOwnerUids[ld.id] = [];
             workoutOwnerUids[ld.id].push(uid);
@@ -373,33 +404,65 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         }
       });
 
-      // Active users (posted in last 7 days)
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      let activeUsers7dSet = new Set();
+      // Active users (any meaningful app activity in last 7 days / today)
+      const openedAppTodaySet = new Set();
+      const openedApp7dSet = new Set();
+
+      // Profile updatedAt = app opened (ensureUserProfile runs on every login)
+      const userLastOpened = {};
+      profilesSnap.docs.forEach(d => {
+        const data = d.data();
+        const updated = data.updatedAt?.toDate?.() || data.updatedAt || null;
+        const ts = updated instanceof Date ? updated : (updated?.seconds ? new Date(updated.seconds * 1000) : null);
+        if (ts) userLastOpened[d.id] = ts;
+        if (ts && ts > weekAgo) openedApp7dSet.add(d.id);
+        if (ts && ts > todayStart) openedAppTodaySet.add(d.id);
+      });
+
       // Posts — track poster + joiners
       postsSnap.docs.forEach(d => {
         const data = d.data();
         const created = data.createdAt?.toDate?.() || null;
         if (created && created > weekAgo) activeUsers7dSet.add(data.userId);
+        if (created) addSignal(data.userId, 'posted', created);
         if (created && created > todayStart) {
           activeUsersTodaySet.add(data.userId);
-          // Joiners active today (use lastCompletedAt as proxy for join time)
           const lastCompleted = data.lastCompletedAt?.toDate?.() || null;
           if (lastCompleted && lastCompleted > todayStart) {
-            (data.joinedUserIds || []).forEach(uid => activeUsersTodaySet.add(uid));
+            (data.joinedUserIds || []).forEach(uid => { activeUsersTodaySet.add(uid); addSignal(uid, 'joined', lastCompleted); });
+          }
+          if (lastCompleted && lastCompleted > weekAgo) {
+            (data.joinedUserIds || []).forEach(uid => { activeUsers7dSet.add(uid); addSignal(uid, 'joined', lastCompleted); });
+          }
+        }
+        if (created && created > weekAgo) {
+          const lastCompleted = data.lastCompletedAt?.toDate?.() || null;
+          if (lastCompleted && lastCompleted > weekAgo) {
+            (data.joinedUserIds || []).forEach(uid => { activeUsers7dSet.add(uid); addSignal(uid, 'joined', lastCompleted); });
           }
         }
       });
-      // Notifications — actorUid performed an action today
+
+      // Workout edits — ownerUid edited a workout
+      workoutsSnap.docs.forEach(d => {
+        const data = d.data();
+        const updated = data.updatedAt?.toDate?.() || null;
+        const owner = data.ownerUid;
+        if (!owner || !updated) return;
+        if (updated > weekAgo) activeUsers7dSet.add(owner);
+        if (updated > todayStart) activeUsersTodaySet.add(owner);
+        addSignal(owner, 'edited', updated);
+      });
+
+      // Notifications — actorUid performed an action
       notificationsSnap.docs.forEach(d => {
         const data = d.data();
         const created = data.createdAt?.toDate?.() || null;
+        if (created && created > weekAgo && data.actorUid) activeUsers7dSet.add(data.actorUid);
         if (created && created > todayStart && data.actorUid) activeUsersTodaySet.add(data.actorUid);
+        if (created && data.actorUid) addSignal(data.actorUid, 'shared', created);
       });
-      // History — completed a workout today
-      // (checked per-user below, seed from already-loaded history data)
-      // Followers — followed someone today
-      // (followedAt checked per-user below)
+      // History + followers checked per-user below
 
       // New users this week
       const newUsersThisWeek = [];
@@ -454,6 +517,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         pinned: userPinnedCounts[uid] || 0,
         workoutsCreated: userWorkoutsCreated[uid] || 0,
         workoutsForked: userWorkoutsForked[uid] || 0,
+        lastOpened: userLastOpened[uid] || null,
       }));
 
       const workoutRanking = Object.entries(workoutNameCounts)
@@ -470,6 +534,13 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         activeUsers7d: activeUsers7dSet.size,
         activeUsersToday: activeUsersTodaySet.size,
         _activeUsersToday: [...activeUsersTodaySet],
+        openedAppToday: openedAppTodaySet.size,
+        _openedAppToday: [...openedAppTodaySet],
+        openedApp7d: openedApp7dSet.size,
+        _openedApp7d: [...openedApp7dSet],
+        _userLastOpened: userLastOpened,
+        _userSignalsToday: userSignalsToday,
+        _userSignals7d: userSignals7d,
         newUsersThisWeek: newUsersThisWeek.length,
         _newUsersThisWeek: newUsersThisWeek,
         newestUser,
@@ -504,7 +575,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
   }, []);
 
   // Drill-down helpers
-  const openDetail = (title, items) => setAdminDetail({ title, items });
+  const openDetail = (title, items, opts) => { setAdminDetail({ title, items, ...opts }); setAdminDetailFilter('all'); };
   const closeDetail = () => setAdminDetail(null);
 
   const drillUsers = (sortKey, title, valueFormatter) => {
@@ -901,25 +972,60 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                 <div className="sidemenu-admin-section-label">Users</div>
                 <div className="sidemenu-admin-grid">
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
-                    const sorted = [...adminStats._users].sort((a, b) => (b.signupDate || 0) - (a.signupDate || 0));
-                    openDetail('All Users', sorted.map((u, i) => ({
-                      rank: i + 1, name: u.name, photo: u.photo, email: u.email,
-                      value: u.signupDate ? u.signupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
-                    })));
+                    const todayUids = adminStats._activeUsersToday || [];
+                    const signals = adminStats._userSignalsToday || {};
+                    const todayList = adminStats._users.filter(u => todayUids.includes(u.uid));
+                    todayList.sort((a, b) => b.posts - a.posts);
+                    const allItems = todayList.map((u, i) => ({
+                      rank: i + 1, name: u.name, photo: u.photo, email: u.email, uid: u.uid,
+                      value: Object.keys(signals[u.uid] || {}).join(', ') || '—',
+                      signals: signals[u.uid] || {},
+                    }));
+                    openDetail('Active Today', allItems, { signalMap: signals });
                   }}>
-                    <span className="sidemenu-admin-stat-value">{adminStats.totalUsers}</span>
-                    <span className="sidemenu-admin-stat-label">Total Users</span>
+                    <span className="sidemenu-admin-stat-value">{adminStats.activeUsersToday}</span>
+                    <span className="sidemenu-admin-stat-label">Active Today</span>
                   </div>
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
-                    const activeUids = adminStats._activeUsers7d;
+                    const activeUids = adminStats._activeUsers7d || [];
+                    const signals = adminStats._userSignals7d || {};
                     const activeList = adminStats._users.filter(u => activeUids.includes(u.uid));
                     activeList.sort((a, b) => b.posts - a.posts);
-                    openDetail('Active Users (7d)', activeList.map((u, i) => ({
-                      rank: i + 1, name: u.name, photo: u.photo, email: u.email, value: `${u.posts} posts`,
-                    })));
+                    const allItems = activeList.map((u, i) => ({
+                      rank: i + 1, name: u.name, photo: u.photo, email: u.email, uid: u.uid,
+                      value: Object.keys(signals[u.uid] || {}).join(', ') || '—',
+                      signals: signals[u.uid] || {},
+                    }));
+                    openDetail('Active Users (7d)', allItems, { signalMap: signals });
                   }}>
                     <span className="sidemenu-admin-stat-value">{adminStats.activeUsers7d}</span>
                     <span className="sidemenu-admin-stat-label">Active (7d)</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    const todayUids = adminStats._openedAppToday || [];
+                    const lastOpened = adminStats._userLastOpened || {};
+                    const todayList = adminStats._users.filter(u => todayUids.includes(u.uid));
+                    todayList.sort((a, b) => (lastOpened[b.uid] || 0) - (lastOpened[a.uid] || 0));
+                    openDetail('Opened App Today', todayList.map((u, i) => {
+                      const d = lastOpened[u.uid];
+                      return { rank: i + 1, name: u.name, photo: u.photo, email: u.email, value: d ? d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '—' };
+                    }));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.openedAppToday}</span>
+                    <span className="sidemenu-admin-stat-label">Opened App Today</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    const uids7d = adminStats._openedApp7d || [];
+                    const lastOpened = adminStats._userLastOpened || {};
+                    const list7d = adminStats._users.filter(u => uids7d.includes(u.uid));
+                    list7d.sort((a, b) => (lastOpened[b.uid] || 0) - (lastOpened[a.uid] || 0));
+                    openDetail('Opened App (7d)', list7d.map((u, i) => {
+                      const d = lastOpened[u.uid];
+                      return { rank: i + 1, name: u.name, photo: u.photo, email: u.email, value: d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—' };
+                    }));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.openedApp7d}</span>
+                    <span className="sidemenu-admin-stat-label">Opened App (7d)</span>
                   </div>
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
                     const sorted = [...adminStats._users].sort((a, b) => (b.signupDate || 0) - (a.signupDate || 0));
@@ -936,15 +1042,14 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-stat-label">Total Follows</span>
                   </div>
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
-                    const todayUids = adminStats._activeUsersToday || [];
-                    const todayList = adminStats._users.filter(u => todayUids.includes(u.uid));
-                    todayList.sort((a, b) => b.posts - a.posts);
-                    openDetail('Active Today', todayList.map((u, i) => ({
-                      rank: i + 1, name: u.name, photo: u.photo, email: u.email, value: `${u.posts} posts`,
+                    const sorted = [...adminStats._users].sort((a, b) => (b.signupDate || 0) - (a.signupDate || 0));
+                    openDetail('All Users', sorted.map((u, i) => ({
+                      rank: i + 1, name: u.name, photo: u.photo, email: u.email,
+                      value: u.signupDate ? u.signupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
                     })));
                   }}>
-                    <span className="sidemenu-admin-stat-value">{adminStats.activeUsersToday}</span>
-                    <span className="sidemenu-admin-stat-label">Active Today</span>
+                    <span className="sidemenu-admin-stat-value">{adminStats.totalUsers}</span>
+                    <span className="sidemenu-admin-stat-label">Total Users</span>
                   </div>
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
                     openDetail('New Users This Week', (adminStats._newUsersThisWeek || []).map((u, i) => ({
@@ -1138,10 +1243,41 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
             </div>
+            {adminDetail.signalMap && (() => {
+              const SIGNAL_LABELS = { all: 'All', completed: 'Completed', posted: 'Posted', edited: 'Edited', reacted: 'Reacted', followed: 'Followed', shared: 'Shared', joined: 'Joined', settings: 'Settings', library: 'Library' };
+              const signalCounts = {};
+              adminDetail.items.forEach(item => {
+                Object.keys(item.signals || {}).forEach(s => { signalCounts[s] = (signalCounts[s] || 0) + 1; });
+              });
+              const activeSignals = Object.keys(SIGNAL_LABELS).filter(s => s === 'all' || signalCounts[s]);
+              return (
+                <div className="sidemenu-admin-filter-row" style={{ display: 'flex', gap: '6px', padding: '8px 16px', overflowX: 'auto', flexShrink: 0 }}>
+                  {activeSignals.map(s => (
+                    <div
+                      key={s}
+                      onClick={() => setAdminDetailFilter(s)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        background: adminDetailFilter === s ? 'rgba(255,255,255,0.15)' : 'transparent',
+                        color: adminDetailFilter === s ? '#fff' : 'rgba(255,255,255,0.4)',
+                        border: `1px solid ${adminDetailFilter === s ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                      }}
+                    >
+                      {SIGNAL_LABELS[s]}{s !== 'all' ? ` (${signalCounts[s]})` : ''}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             <div className="sidemenu-admin-detail-list">
-              {adminDetail.items.map((item, i) => (
-                <div key={i} className={`sidemenu-admin-detail-row${item.onTap ? ' sidemenu-admin-detail-row-tap' : ''}`} style={{ animationDelay: `${Math.min(i * 20, 300)}ms` }} onClick={item.onTap || undefined}>
-                  <span className="sidemenu-admin-detail-rank">{item.rank != null ? item.rank : i + 1}</span>
+              {(adminDetailFilter === 'all' ? adminDetail.items : adminDetail.items.filter(item => item.signals?.[adminDetailFilter])).map((item, i) => (
+                <div key={item.uid || i} className={`sidemenu-admin-detail-row${item.onTap ? ' sidemenu-admin-detail-row-tap' : ''}`} style={{ animationDelay: `${Math.min(i * 20, 300)}ms` }} onClick={item.onTap || undefined}>
+                  <span className="sidemenu-admin-detail-rank">{i + 1}</span>
                   {item.photo !== undefined && (
                     <div className="sidemenu-admin-detail-avatar">
                       {item.photo ? (
@@ -1157,7 +1293,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-detail-name">{item.name}</span>
                     {item.email && <span className="sidemenu-admin-detail-email">{item.email}</span>}
                   </div>
-                  <span className="sidemenu-admin-detail-value">{item.value}</span>
+                  <span className="sidemenu-admin-detail-value">{adminDetailFilter !== 'all' && item.signals?.[adminDetailFilter] ? `${item.signals[adminDetailFilter]}×` : `${item.signals?.posted || 0} posts`}</span>
                 </div>
               ))}
               {adminDetail.items.length === 0 && (

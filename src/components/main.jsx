@@ -945,7 +945,7 @@ const Main = () => {
         toastTimerRef.current = setTimeout(() => {
           setToastClosing(true);
           setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 400);
-        }, 3000);
+        }, 7000);
       }
 
         const refreshHistory = () => getUserHistory(user.uid)

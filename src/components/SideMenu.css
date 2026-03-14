@@ -722,3 +722,11 @@
     animation: sidemenu-fade-out 0.22s ease forwards;
   }
 }
+
+.sidemenu-admin-filter-row {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sidemenu-admin-filter-row::-webkit-scrollbar {
+  display: none;
+}
