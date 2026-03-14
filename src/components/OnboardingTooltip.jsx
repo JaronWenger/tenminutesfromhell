@@ -51,6 +51,8 @@ const OnboardingTooltip = ({ targetSelector, text, arrowDirection = 'down', arro
     setReady(false);
     let cancelled = false;
     const wait = async () => {
+      // Explicitly load Caveat so it's ready before we render the tooltip
+      try { await document.fonts.load('700 1em Caveat'); } catch {}
       await document.fonts.ready;
       if (delay) await new Promise(r => setTimeout(r, delay));
       if (!cancelled) { setDelayDone(true); }
