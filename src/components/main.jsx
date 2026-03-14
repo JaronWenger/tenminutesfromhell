@@ -15,7 +15,7 @@ import OnboardingTooltip from './OnboardingTooltip';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { recordWorkoutHistory, updateWorkoutHistory, getUserHistory, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, setDeletedDefaults } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, logProInterest } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, setProStatus, logProInterest } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -274,11 +274,13 @@ const Main = () => {
   // Weekly schedule state
   const [weeklySchedule, setWeeklyScheduleState] = useState({ 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null });
   const [scheduleWorkout, setScheduleWorkout] = useState(null);
+  const [schedulePickerDay, setSchedulePickerDay] = useState(null); // day index when picking workout
   const [scheduleClosing, setScheduleClosing] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState({});
 
   const openSchedulePopup = useCallback((workout) => {
     setScheduleClosing(false);
+    setSchedulePickerDay(null);
     setScheduleDraft({ ...weeklySchedule });
     setScheduleWorkout(workout);
   }, [weeklySchedule]);
@@ -2067,6 +2069,8 @@ const Main = () => {
             if (showFeedPage) setFeedCloseRequested(true);
             if (showSideMenu) setSideMenuCloseRequested(true);
             if (showLoginModal) setLoginModalCloseRequested(true);
+            if (scheduleWorkout) closeSchedulePopup();
+            if (showProPopup) closeProPopup();
           }}
         />
       )}
@@ -2242,10 +2246,19 @@ const Main = () => {
         onToggleInAppNotifications={handleToggleInAppNotifications}
         isPro={isPro}
         onProTap={openProPopup}
+        onTogglePro={() => {
+          const newVal = !isPro;
+          setIsPro(newVal);
+          if (user) setProStatus(user.uid, newVal, null).catch(() => {});
+        }}
         weeklySchedule={weeklySchedule}
         onScheduleOpen={() => {
-          const w = findSelectedWorkout();
-          if (w) openSchedulePopup(w);
+          setSideMenuCloseRequested(true);
+          // Open schedule in "browse" mode — no specific workout pre-selected
+          setScheduleClosing(false);
+          setSchedulePickerDay(null);
+          setScheduleDraft({ ...weeklySchedule });
+          setScheduleWorkout({ id: null, name: 'Weekly Schedule' });
         }}
         isTestAccount={isTestAccount}
         testOnboardingMode={testOnboardingMode}
@@ -2398,34 +2411,44 @@ const Main = () => {
             <div className="schedule-days-vertical">
               {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((dayName, i) => {
                 const assigned = scheduleDraft[i];
-                const isThisWorkout = assigned === scheduleWorkout.name;
+                const isBrowse = !scheduleWorkout.id;
+                const isThisWorkout = !isBrowse && assigned === scheduleWorkout.id;
                 const isToday = i === new Date().getDay();
+                const assignedName = assigned
+                  ? (timerWorkoutData.find(w => w.id === assigned)?.name || assigned)
+                  : null;
                 return (
                   <button
                     key={i}
-                    className={`schedule-row${isThisWorkout ? ' active' : ''}${isToday ? ' today' : ''}`}
-                    onClick={() => handleScheduleDaySelect(i)}
+                    className={`schedule-row${isThisWorkout ? ' active' : ''}${isToday ? ' today' : ''}${isBrowse && assigned ? ' has-workout' : ''}`}
+                    onClick={() => {
+                      if (isBrowse) { setSchedulePickerDay(i); return; }
+                      if (!isPro) { closeSchedulePopup(); openProPopup(); return; }
+                      handleScheduleDaySelect(i);
+                    }}
                   >
                     <span className="schedule-row-day">{dayName}</span>
                     <div className="schedule-row-right">
                       {assigned ? (
                         <span className={`schedule-row-workout${isThisWorkout ? ' current' : ''}`}>
-                          {assigned}
+                          {assignedName}
                         </span>
                       ) : (
-                        <span className="schedule-row-rest">Rest</span>
+                        <span className="schedule-row-rest">{isBrowse ? 'Tap to assign' : 'Rest'}</span>
                       )}
-                      <span className={`schedule-row-check${isThisWorkout ? ' checked' : ''}`}>
-                        {isThisWorkout ? (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        ) : (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"/>
-                          </svg>
-                        )}
-                      </span>
+                      {!isBrowse && (
+                        <span className={`schedule-row-check${isThisWorkout ? ' checked' : ''}`}>
+                          {isThisWorkout ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10"/>
+                            </svg>
+                          )}
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
@@ -2439,6 +2462,52 @@ const Main = () => {
               Save
             </button>
           </div>
+          {schedulePickerDay !== null && (
+            <div className="schedule-picker-overlay" onClick={() => setSchedulePickerDay(null)}>
+              <div className="schedule-picker-popup" onClick={e => e.stopPropagation()}>
+                <div className="schedule-picker-header">
+                  <span className="schedule-picker-title">
+                    {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][schedulePickerDay]}
+                  </span>
+                  <button className="stats-pin-picker-close" onClick={() => setSchedulePickerDay(null)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+                <div className="schedule-picker-list">
+                  {timerWorkoutData.map(w => {
+                    const isSelected = scheduleDraft[schedulePickerDay] === w.id;
+                    const isScheduledElsewhere = !isSelected && Object.values(scheduleDraft).includes(w.id);
+                    return (
+                      <button
+                        key={w.id}
+                        className={`schedule-picker-item ${isSelected ? 'active' : ''}`}
+                        onClick={() => {
+                          if (!isPro) { setSchedulePickerDay(null); closeSchedulePopup(); openProPopup(); return; }
+                          setScheduleDraft(prev => ({
+                            ...prev,
+                            [schedulePickerDay]: isSelected ? null : w.id
+                          }));
+                          setSchedulePickerDay(null);
+                        }}
+                      >
+                        <span className="schedule-picker-item-name">{w.name}</span>
+                        {(isSelected || isScheduledElsewhere) && (
+                          <svg className="schedule-picker-item-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {showProPopup && (

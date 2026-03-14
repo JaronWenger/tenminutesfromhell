@@ -14,7 +14,7 @@ const EARTH_COLORS = ['#F4845F', '#B8860B', '#E6194B', '#059669', '#DC2626', '#0
 
 const ADMIN_EMAIL = 'jarongwenger@gmail.com';
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isPro, onProTap, weeklySchedule, onScheduleOpen, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isPro, onProTap, onTogglePro, weeklySchedule, onScheduleOpen, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
@@ -922,7 +922,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
 
           <div
             className="sidemenu-item"
-            onClick={() => isPro ? (onScheduleOpen && onScheduleOpen()) : (onProTap && onProTap())}
+            onClick={() => onScheduleOpen && onScheduleOpen()}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -930,10 +930,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
               <line x1="8" y1="2" x2="8" y2="6"/>
               <line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
-            <span className="sidemenu-item-label">
-              Weekly Schedule
-              {!isPro && <span className="sidemenu-pro-tag">PRO</span>}
-            </span>
+            <span className="sidemenu-item-label">Weekly Schedule {!isPro && <span className="sidemenu-pro-tag">PRO</span>}</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -968,6 +965,16 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
 
           {isAdmin && (
             <>
+              <div className="sidemenu-divider" />
+              <div className="sidemenu-item" onClick={onTogglePro}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <span className="sidemenu-item-label">Pro</span>
+                <div className={`sidemenu-toggle ${isPro ? 'on' : ''}`}>
+                  <div className="sidemenu-toggle-knob" />
+                </div>
+              </div>
               <div className="sidemenu-divider" />
               <div className="sidemenu-item" onClick={loadAdminStats}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

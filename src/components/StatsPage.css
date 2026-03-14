@@ -1883,6 +1883,109 @@
   text-overflow: ellipsis;
 }
 
+.schedule-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: stats-pin-picker-fade-in 0.2s ease forwards;
+}
+
+.schedule-picker-popup {
+  width: calc(100% - 48px);
+  max-width: 400px;
+  max-height: 70vh;
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  animation: stats-pin-picker-slide-up 0.25s ease forwards;
+}
+
+.schedule-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.schedule-picker-title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  opacity: 0.5;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.schedule-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.schedule-picker-list::-webkit-scrollbar {
+  display: none;
+}
+
+.schedule-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 59, 48, 0.4);
+  border-radius: 6px;
+  background: rgba(255, 59, 48, 0.15);
+  color: #ff3b30;
+  text-shadow: 0 0 8px rgba(255, 59, 48, 0.5);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.schedule-picker-item:active {
+  background: rgba(255, 59, 48, 0.3);
+  border-color: rgba(255, 59, 48, 0.6);
+}
+
+.schedule-picker-item.active {
+  background: rgba(255, 59, 48, 0.35);
+  border-color: rgba(255, 59, 48, 0.7);
+}
+
+.schedule-picker-item-name {
+  flex: 1;
+  text-align: center;
+}
+
+.schedule-picker-item-icon {
+  position: absolute;
+  right: 14px;
+  color: #ff3b30;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.schedule-row.has-workout .schedule-row-workout {
+  color: rgba(255, 59, 48, 0.7);
+}
+
 .schedule-close {
   width: 30px;
   height: 30px;
