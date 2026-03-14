@@ -34,6 +34,8 @@ export const ensureUserProfile = async (user) => {
       workoutCount: 0,
       autoShare: null,
       isPrivate: false,
+      isPro: false,
+      subscriptionId: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -216,6 +218,35 @@ export const setAccountPrivate = async (userId, isPrivate) => {
     isPrivate,
     updatedAt: serverTimestamp()
   }, { merge: true });
+};
+
+// ── Pro Subscription ──
+
+export const setProStatus = async (userId, isPro, subscriptionId = null) => {
+  await setDoc(doc(db, 'userProfiles', userId), {
+    isPro,
+    subscriptionId,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const logProInterest = async (userId, displayName, email) => {
+  await addDoc(collection(db, 'proInterest'), {
+    userId,
+    displayName: displayName || 'Unknown',
+    email: email || null,
+    createdAt: serverTimestamp()
+  });
+};
+
+export const getProStatus = async (userId) => {
+  const snap = await getDoc(doc(db, 'userProfiles', userId));
+  if (!snap.exists()) return { isPro: false, subscriptionId: null };
+  const data = snap.data();
+  return {
+    isPro: data.isPro ?? false,
+    subscriptionId: data.subscriptionId ?? null
+  };
 };
 
 // ── Follow Requests ──
@@ -849,12 +880,15 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
   });
 
   // Only show posts created after the user started following that person
+  // (with 10-minute grace period so new followers can join recent workouts)
+  const FOLLOW_GRACE_MS = 10 * 60 * 1000;
   allPosts = allPosts.filter(post => {
     if (post.userId === userId) return true; // own posts always visible
     if (hasFollowedJoiner(post)) return true; // visible via a followed joiner
     const startCutoff = followStartCutoffs[post.userId];
     if (!startCutoff) return true; // no followedAt data — keep (safety fallback)
-    return post.createdAt && post.createdAt >= startCutoff;
+    const graceStart = new Date(startCutoff.getTime() - FOLLOW_GRACE_MS);
+    return post.createdAt && post.createdAt >= graceStart;
   });
 
   // Hide posts from private accounts where viewer is not a follower

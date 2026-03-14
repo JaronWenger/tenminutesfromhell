@@ -15,7 +15,7 @@ import OnboardingTooltip from './OnboardingTooltip';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { recordWorkoutHistory, updateWorkoutHistory, getUserHistory, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, setDeletedDefaults } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setShowCardPhotosPreference, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, logProInterest } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -175,6 +175,9 @@ const Main = () => {
   const [pendingShareData, setPendingShareData] = useState(null);
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
   const [isPrivate, setIsPrivate] = useState(false);
+  const [isPro, setIsPro] = useState(false);
+  const [showProPopup, setShowProPopup] = useState(false);
+  const [proPopupClosing, setProPopupClosing] = useState(false);
   const [pendingFollowRequests, setPendingFollowRequests] = useState({}); // { targetUid: notificationId }
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
@@ -197,7 +200,6 @@ const Main = () => {
   const [activeColor, setActiveColor] = useState('#ff3b30');
   const [restColor, setRestColor] = useState('#007aff');
   const [sidePlankAlertEnabled, setSidePlankAlertEnabled] = useState(true);
-  const [showCardPhotos, setShowCardPhotos] = useState(true);
   const [inAppNotifications, setInAppNotifications] = useState(true);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastClosing, setToastClosing] = useState(false);
@@ -281,6 +283,12 @@ const Main = () => {
     setScheduleWorkout(workout);
   }, [weeklySchedule]);
 
+  const openProPopup = useCallback(() => setShowProPopup(true), []);
+  const closeProPopup = useCallback(() => {
+    setProPopupClosing(true);
+    setTimeout(() => { setShowProPopup(false); setProPopupClosing(false); }, 250);
+  }, []);
+
   const closeSchedulePopup = useCallback(() => {
     setScheduleClosing(true);
     setTimeout(() => {
@@ -362,10 +370,10 @@ const Main = () => {
       setActiveColor('#ff3b30');
       setRestColor('#007aff');
       setSidePlankAlertEnabled(true);
-      setShowCardPhotos(true);
       setPinnedWorkoutsState([]);
       setFollowingIds([]);
       setFollowerIds([]);
+      setIsPro(false);
       setPrepTime(10);
       setRestTime(15);
       setActiveLastMinute(true);
@@ -409,6 +417,7 @@ const Main = () => {
         const [myProfile] = await getUserProfiles([user.uid]);
         if (!cancelled && myProfile) {
           setIsPrivate(myProfile.isPrivate === true);
+          setIsPro(myProfile.isPro === true);
         }
       } catch (err) {
         console.error('Failed to ensure user profile:', err);
@@ -420,7 +429,6 @@ const Main = () => {
         if (prefs.activeColor) setActiveColor(prefs.activeColor);
         if (prefs.restColor) setRestColor(prefs.restColor);
         setSidePlankAlertEnabled(prefs.sidePlankAlert);
-        setShowCardPhotos(prefs.showCardPhotos);
         if (prefs.inAppNotifications !== undefined) setInAppNotifications(prefs.inAppNotifications);
         setPinnedWorkoutsState(prefs.pinnedWorkouts || []);
         setPrepTime(prefs.prepTime);
@@ -750,14 +758,6 @@ const Main = () => {
       setPinnedWorkouts(user.uid, newPinned).catch(err => console.error('Failed to save pinned workouts:', err));
     }
   }, [user]);
-
-  const handleToggleShowCardPhotos = useCallback(async () => {
-    const newValue = !showCardPhotos;
-    setShowCardPhotos(newValue);
-    if (user) {
-      setShowCardPhotosPreference(user.uid, newValue).catch(err => console.error('Failed to save show card photos:', err));
-    }
-  }, [user, showCardPhotos]);
 
   const handleToggleInAppNotifications = useCallback(async () => {
     const newValue = !inAppNotifications;
@@ -1854,10 +1854,12 @@ const Main = () => {
             defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
 
             requestCloseDetail={homeDetailCloseRequested}
-            showCardPhotos={showCardPhotos}
+
             onShareWorkout={openSendWorkout}
             onScheduleWorkout={openSchedulePopup}
             weeklySchedule={weeklySchedule}
+            isPro={isPro}
+            onProTap={openProPopup}
             onWorkoutTap={() => { setHomeDetailOpen(true); if (onboarding.home.active && onboarding.home.step === 0) advanceStep('home'); }}
             onDetailClosed={() => setHomeDetailOpen(false)}
           />
@@ -1908,10 +1910,12 @@ const Main = () => {
             defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
 
             requestCloseDetail={homeDetailCloseRequested}
-            showCardPhotos={showCardPhotos}
+
             onShareWorkout={openSendWorkout}
             onScheduleWorkout={openSchedulePopup}
             weeklySchedule={weeklySchedule}
+            isPro={isPro}
+            onProTap={openProPopup}
           />
         );
     }
@@ -2034,10 +2038,12 @@ const Main = () => {
             onStartWorkout={(name, id) => { setTimerDetailWorkout(null); handleHomeStartWorkout(name, id); }}
             defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
             requestCloseDetail={false}
-            showCardPhotos={showCardPhotos}
+
             onShareWorkout={openSendWorkout}
             onScheduleWorkout={openSchedulePopup}
             weeklySchedule={weeklySchedule}
+            isPro={isPro}
+            onProTap={openProPopup}
             requestOpenDetail={timerDetailWorkout}
             requestOpenInEdit={timerDetailEditMode}
             onOpenDetailConsumed={() => { setTimerDetailEditMode(false); }}
@@ -2232,10 +2238,15 @@ const Main = () => {
         activeColor={activeColor}
         restColor={restColor}
         onColorChange={handleColorChange}
-        showCardPhotos={showCardPhotos}
-        onToggleShowCardPhotos={handleToggleShowCardPhotos}
         inAppNotifications={inAppNotifications}
         onToggleInAppNotifications={handleToggleInAppNotifications}
+        isPro={isPro}
+        onProTap={openProPopup}
+        weeklySchedule={weeklySchedule}
+        onScheduleOpen={() => {
+          const w = findSelectedWorkout();
+          if (w) openSchedulePopup(w);
+        }}
         isTestAccount={isTestAccount}
         testOnboardingMode={testOnboardingMode}
         onToggleTestOnboarding={() => {
@@ -2426,6 +2437,48 @@ const Main = () => {
               onClick={handleScheduleSave}
             >
               Save
+            </button>
+          </div>
+        </div>
+      )}
+      {showProPopup && (
+        <div className={`pro-popup-overlay ${proPopupClosing ? 'pro-popup-closing' : ''}`}>
+          <div className="pro-popup">
+            <button className="pro-popup-close" onClick={closeProPopup}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+            <h1 className="pro-popup-title">Get more out of every workout.</h1>
+            <div className="pro-popup-timeline">
+              <div className="pro-popup-timeline-line" />
+              <div className="pro-popup-step">
+                <div className="pro-popup-dot" />
+                <div className="pro-popup-step-content">
+                  <span className="pro-popup-step-title">Today</span>
+                  <span className="pro-popup-step-desc">Unlock custom timer colors, shuffle mode, weekly scheduling, and everything that comes next.</span>
+                </div>
+              </div>
+              <div className="pro-popup-step">
+                <div className="pro-popup-dot" />
+                <div className="pro-popup-step-content">
+                  <span className="pro-popup-step-title">5 days before</span>
+                  <span className="pro-popup-step-desc">We'll remind you before your trial ends. No surprises.</span>
+                </div>
+              </div>
+              <div className="pro-popup-step">
+                <div className="pro-popup-dot" />
+                <div className="pro-popup-step-content">
+                  <span className="pro-popup-step-title">In 7 days</span>
+                  <span className="pro-popup-step-desc">Just $4.99/month. Cancel anytime, keep your workouts.</span>
+                </div>
+              </div>
+            </div>
+            <button className="pro-popup-cta" onClick={() => {
+              if (user) logProInterest(user.uid, user.displayName, user.email).catch(() => {});
+              closeProPopup();
+            }}>
+              Start free trial
             </button>
           </div>
         </div>

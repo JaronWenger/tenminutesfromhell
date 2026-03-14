@@ -33,10 +33,11 @@ const Home = ({
   requestOpenInEdit = false,
   onOpenDetailConsumed,
   onDetailClosed,
-  showCardPhotos = true,
   onShareWorkout,
   onScheduleWorkout,
   weeklySchedule = {},
+  isPro = false,
+  onProTap,
   detailOnly = false,
   onWorkoutTap
 }) => {
@@ -1043,8 +1044,11 @@ const Home = ({
 
     // Trigger schedule if fully swiped right (blue state)
     if (endOffset >= 80 && endIndex != null && onScheduleWorkout) {
-      const workout = displayedWorkouts[endIndex];
-      if (workout) onScheduleWorkout(workout);
+      if (!isPro) { onProTap && onProTap(); }
+      else {
+        const workout = displayedWorkouts[endIndex];
+        if (workout) onScheduleWorkout(workout);
+      }
     }
 
     // Always snap back to normal
@@ -1379,8 +1383,7 @@ const Home = ({
                           }}
                           onTouchEnd={() => handleSwipeEnd()}
                         >
-                          {showCardPhotos && (
-                            !workout.isCustom && (defaultWorkoutIds.has(workout.defaultId) || defaultWorkoutIds.has(workout.id)) ? (
+                          {!workout.isCustom && (defaultWorkoutIds.has(workout.defaultId) || defaultWorkoutIds.has(workout.id)) ? (
                               <div className="workout-card-avatar-wrap workout-card-avatar-logo"><img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="workout-card-avatar" /></div>
                             ) : workout.creatorPhotoURL ? (
                               <img src={workout.creatorPhotoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
@@ -1393,7 +1396,7 @@ const Home = ({
                                 </svg>
                               </div>
                             )
-                          )}
+                          }
                           <div className="workout-card-left">
                             <div className="workout-card-name-row">
                               <span className="workout-card-name">{workout.name}</span>
@@ -1914,9 +1917,9 @@ const Home = ({
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
               Share
             </button>
-            <button className="workout-card-menu-item" onClick={() => { setCardMenuIndex(null); setCardMenuPos(null); if (onScheduleWorkout) onScheduleWorkout(workout); }}>
+            <button className={`workout-card-menu-item${!isPro ? ' workout-card-menu-item-locked' : ''}`} onClick={() => { if (!isPro) { setCardMenuIndex(null); setCardMenuPos(null); onProTap && onProTap(); return; } setCardMenuIndex(null); setCardMenuPos(null); if (onScheduleWorkout) onScheduleWorkout(workout); }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              Schedule
+              Schedule {!isPro && <span className="workout-card-menu-pro-tag">PRO</span>}
             </button>
             <button className="workout-card-menu-item" onClick={() => { setCardMenuIndex(null); setCardMenuPos(null); onStartWorkout(workout.name, workout.id); }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>

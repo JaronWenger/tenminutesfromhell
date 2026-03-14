@@ -14,7 +14,7 @@ const EARTH_COLORS = ['#F4845F', '#B8860B', '#E6194B', '#059669', '#DC2626', '#0
 
 const ADMIN_EMAIL = 'jarongwenger@gmail.com';
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, showCardPhotos, onToggleShowCardPhotos, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isPro, onProTap, weeklySchedule, onScheduleOpen, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
@@ -39,11 +39,12 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     setAdminDetail(null);
     try {
       // Fetch all collections in parallel
-      const [profilesSnap, postsSnap, workoutsSnap, notificationsSnap] = await Promise.all([
+      const [profilesSnap, postsSnap, workoutsSnap, notificationsSnap, proInterestSnap] = await Promise.all([
         getDocs(collection(db, 'userProfiles')),
         getDocs(collection(db, 'posts')),
         getDocs(collection(db, 'workouts')),
         getDocs(collection(db, 'notifications')),
+        getDocs(collection(db, 'proInterest')).catch(() => ({ size: 0, docs: [] })),
       ]);
 
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -290,7 +291,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
               p.restColor !== '#007aff' ||
               p.autoShare === true ||
               p.inAppNotifications === false ||
-              p.showCardPhotos === true ||
               p.isPrivate === true
             );
           } else {
@@ -565,6 +565,16 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         retention30,
         adoption7,
         adoption30,
+        proInterestCount: proInterestSnap.size,
+        _proInterest: proInterestSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            userId: data.userId,
+            displayName: data.displayName || 'Unknown',
+            email: data.email || null,
+            createdAt: data.createdAt?.toDate?.() || null,
+          };
+        }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
       });
     } catch (err) {
       console.error('Failed to load admin stats:', err);
@@ -773,6 +783,19 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
           </div>
         </div>
 
+        {!isPro && (
+          <div className="sidemenu-pro-banner">
+            <div className="sidemenu-pro-banner-text">
+              <span className="sidemenu-pro-badge">PRO</span>
+              <span className="sidemenu-pro-banner-title">Unlock all features</span>
+            </div>
+            <span className="sidemenu-pro-banner-subtitle">Custom colors, shuffle, and more</span>
+            <button className="sidemenu-pro-btn" onClick={() => onProTap && onProTap()}>
+              Upgrade
+            </button>
+          </div>
+        )}
+
         <div className="sidemenu-items">
           <div className="sidemenu-item" onClick={handleSignOut}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -834,19 +857,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
 
           <div className="sidemenu-divider" />
 
-          <div className="sidemenu-item" onClick={onToggleShowCardPhotos}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-            <span className="sidemenu-item-label">Show profiles on workouts</span>
-            <div className={`sidemenu-toggle ${showCardPhotos === true ? 'on' : ''}`}>
-              <div className="sidemenu-toggle-knob" />
-            </div>
-          </div>
-
-          <div className="sidemenu-divider" />
-
           <div className="sidemenu-color-section">
             <span className="sidemenu-color-header">Timer Colors</span>
             <div className="sidemenu-color-row">
@@ -894,7 +904,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
 
           <div className="sidemenu-divider" />
 
-          <div className="sidemenu-item" onClick={onToggleShuffleExercises}>
+          <div className="sidemenu-item" onClick={() => isPro ? onToggleShuffleExercises() : onProTap && onProTap()}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="16 3 21 3 21 8"/>
               <line x1="4" y1="20" x2="21" y2="3"/>
@@ -902,10 +912,31 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
               <line x1="15" y1="15" x2="21" y2="21"/>
               <line x1="4" y1="4" x2="9" y2="9"/>
             </svg>
-            <span className="sidemenu-item-label">Shuffle exercises</span>
+            <span className="sidemenu-item-label">Shuffle exercises {!isPro && <span className="sidemenu-pro-tag">PRO</span>}</span>
             <div className={`sidemenu-toggle ${shuffleExercises === true ? 'on' : ''}`}>
               <div className="sidemenu-toggle-knob" />
             </div>
+          </div>
+
+          <div className="sidemenu-divider" />
+
+          <div
+            className="sidemenu-item"
+            onClick={() => isPro ? (onScheduleOpen && onScheduleOpen()) : (onProTap && onProTap())}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span className="sidemenu-item-label">
+              Weekly Schedule
+              {!isPro && <span className="sidemenu-pro-tag">PRO</span>}
+            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
           </div>
 
           <div className="sidemenu-divider" />
@@ -1150,6 +1181,22 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   </div>
                 </div>
 
+                <div className="sidemenu-admin-section-label">Pro Interest</div>
+                <div className="sidemenu-admin-grid">
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-wide sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('Pro Interest Taps', (adminStats._proInterest || []).map((p, i) => ({
+                      rank: i + 1,
+                      name: p.displayName,
+                      photo: null,
+                      email: p.email,
+                      value: p.createdAt ? p.createdAt.toLocaleDateString() : '',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.proInterestCount || 0}</span>
+                    <span className="sidemenu-admin-stat-label">CTA Taps</span>
+                  </div>
+                </div>
+
                 <div className="sidemenu-admin-section-label">Retention</div>
                 <div className="sidemenu-admin-grid">
                   {[{ label: '7 Day', data: adminStats.retention7 }, { label: '30 Day', data: adminStats.retention30 }].map(({ label, data }) => (
@@ -1321,23 +1368,30 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                 />
               ))}
             </div>
-            <div className="sidemenu-color-popup-swatches">
+            {!isPro && <div className="sidemenu-color-pro-label" onClick={() => { setColorPopup(null); onProTap && onProTap(); }}><span className="sidemenu-color-pro-line" /><span>PRO</span><span className="sidemenu-color-pro-line" /></div>}
+            <div
+              className={`sidemenu-color-popup-swatches ${!isPro ? 'sidemenu-pro-locked-colors' : ''}`}
+              onClick={() => { if (!isPro) { setColorPopup(null); onProTap && onProTap(); } }}
+            >
               {NEON_COLORS.map(hex => (
                 <div
                   key={hex}
                   className={`sidemenu-swatch ${(colorPopup === 'active' ? activeColor : restColor) === hex ? 'selected' : ''}`}
                   style={{ background: hex }}
-                  onClick={() => { onColorChange(colorPopup, hex); setColorPopup(null); }}
+                  onClick={(e) => { if (!isPro) return; e.stopPropagation(); onColorChange(colorPopup, hex); setColorPopup(null); }}
                 />
               ))}
             </div>
-            <div className="sidemenu-color-popup-swatches">
+            <div
+              className={`sidemenu-color-popup-swatches ${!isPro ? 'sidemenu-pro-locked-colors' : ''}`}
+              onClick={() => { if (!isPro) { setColorPopup(null); onProTap && onProTap(); } }}
+            >
               {EARTH_COLORS.map(hex => (
                 <div
                   key={hex}
                   className={`sidemenu-swatch ${(colorPopup === 'active' ? activeColor : restColor) === hex ? 'selected' : ''}`}
                   style={{ background: hex }}
-                  onClick={() => { onColorChange(colorPopup, hex); setColorPopup(null); }}
+                  onClick={(e) => { if (!isPro) return; e.stopPropagation(); onColorChange(colorPopup, hex); setColorPopup(null); }}
                 />
               ))}
             </div>

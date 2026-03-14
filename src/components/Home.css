@@ -458,6 +458,21 @@
   color: #ff3b30;
 }
 
+.workout-card-menu-item-locked {
+  opacity: 0.4;
+}
+
+.workout-card-menu-pro-tag {
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #ff9500;
+  background: rgba(255, 149, 0, 0.12);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 2px;
+}
+
 /* ── Swipe Actions ── */
 .workout-card-action {
   position: absolute;

@@ -44,6 +44,140 @@ code {
     monospace;
 }
 
+/* ── Pro Upgrade Popup ── */
+.pro-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  animation: pro-popup-fade-in 0.3s ease forwards;
+}
+
+.pro-popup-overlay.pro-popup-closing {
+  animation: pro-popup-fade-out 0.25s ease forwards;
+}
+
+@keyframes pro-popup-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pro-popup-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.pro-popup {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 28px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  overflow-y: auto;
+}
+
+.pro-popup-close {
+  align-self: flex-end;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.pro-popup-close:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.pro-popup-title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+  margin: 0 0 36px;
+  flex-shrink: 0;
+}
+
+.pro-popup-timeline {
+  position: relative;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  flex: 1;
+}
+
+.pro-popup-timeline-line {
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: linear-gradient(180deg, #ff3b30, #ff9500);
+  border-radius: 1px;
+}
+
+.pro-popup-dot {
+  position: absolute;
+  left: -18px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5722;
+  box-shadow: 0 0 8px rgba(255, 87, 34, 0.4);
+  flex-shrink: 0;
+}
+
+.pro-popup-step {
+  position: relative;
+  padding-left: 8px;
+}
+
+.pro-popup-step-title {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.pro-popup-step-desc {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.45;
+}
+
+.pro-popup-cta {
+  margin-top: auto;
+  padding: 16px 0;
+  border: none;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #ff3b30, #ff6b2b);
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+
+.pro-popup-cta:active {
+  opacity: 0.7;
+}
+
 /* ── In-App Toast Notification ── */
 .app-toast-wrap {
   position: fixed;
