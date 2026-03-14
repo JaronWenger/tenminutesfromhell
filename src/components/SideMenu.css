@@ -324,7 +324,7 @@
 
 /* ── Menu Items ── */
 .sidemenu-items {
-  padding: 8px 0 calc(100px + env(safe-area-inset-bottom, 12px));
+  padding: 8px 0 200px;
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
