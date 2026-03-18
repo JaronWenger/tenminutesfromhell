@@ -1347,7 +1347,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-detail-name">{item.name}</span>
                     {item.email && <span className="sidemenu-admin-detail-email">{item.email}</span>}
                   </div>
-                  <span className="sidemenu-admin-detail-value">{adminDetailFilter !== 'all' && item.signals?.[adminDetailFilter] ? `${item.signals[adminDetailFilter]}×` : `${item.signals?.posted || 0} posts`}</span>
+                  <span className="sidemenu-admin-detail-value">{adminDetailFilter !== 'all' && item.signals?.[adminDetailFilter] ? `${item.signals[adminDetailFilter]}×` : item.value}</span>
                 </div>
               ))}
               {adminDetail.items.length === 0 && (
