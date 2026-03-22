@@ -73,7 +73,6 @@ const Main = () => {
           const session = JSON.parse(raw);
           const TWO_HOURS = 2 * 60 * 60 * 1000;
           if (session.workoutId && Date.now() - session.savedAt <= TWO_HOURS) {
-            console.log('[session] flag SET in logged-out path, workoutId:', session.workoutId);
             restoringSessionRef.current = true;
             setTimerSelectedWorkoutId(session.workoutId);
           }
@@ -174,15 +173,12 @@ const Main = () => {
 
   const saveTimerSession = useCallback(() => {
     if (timerState.timeLeft > 0 && timerState.timeLeft < timerState.targetTime && timerSelectedWorkoutId) {
-      console.log('[session] SAVING timeLeft:', timerState.timeLeft, 'targetTime:', timerState.targetTime, 'workoutId:', timerSelectedWorkoutId);
       localStorage.setItem('timerSession', JSON.stringify({
         workoutId: timerSelectedWorkoutId,
         timeLeft: timerState.timeLeft,
         targetTime: timerState.targetTime,
         savedAt: Date.now()
       }));
-    } else {
-      console.log('[session] save skipped: timeLeft:', timerState.timeLeft, 'targetTime:', timerState.targetTime, 'id:', timerSelectedWorkoutId);
     }
   }, [timerState.timeLeft, timerState.targetTime, timerSelectedWorkoutId]);
 
@@ -496,10 +492,7 @@ const Main = () => {
               const session = JSON.parse(raw);
               const TWO_HOURS = 2 * 60 * 60 * 1000;
               if (session.workoutId === resolvedId && Date.now() - session.savedAt <= TWO_HOURS) {
-                console.log('[session] flag SET in prefs load, resolvedId:', resolvedId);
                 restoringSessionRef.current = true;
-              } else {
-                console.log('[session] flag NOT set: workoutId:', session.workoutId, 'resolvedId:', resolvedId, 'expired:', Date.now() - session.savedAt > TWO_HOURS);
               }
             }
           } catch {}
@@ -905,15 +898,10 @@ const Main = () => {
       restoringSessionRef.current = false;
       try {
         const raw = localStorage.getItem('timerSession');
-        console.log('[session] restore branch, raw:', raw, 'newTotalTime:', newTotalTime);
         if (raw) {
           const session = JSON.parse(raw);
           const TWO_HOURS = 2 * 60 * 60 * 1000;
-          const expired = Date.now() - session.savedAt > TWO_HOURS;
-          const targetMatch = session.targetTime === newTotalTime;
-          console.log('[session] expired:', expired, 'targetMatch:', targetMatch, 'session:', session);
-          if (!expired && targetMatch) {
-            console.log('[session] RESTORING timeLeft:', session.timeLeft);
+          if (Date.now() - session.savedAt <= TWO_HOURS && session.targetTime === newTotalTime) {
             setTimerState(prev => ({
               ...prev,
               timeLeft: session.timeLeft,
@@ -924,17 +912,13 @@ const Main = () => {
             return;
           }
         }
-      } catch (e) { console.log('[session] restore error:', e); }
+      } catch {}
       clearTimerSession();
     }
 
     // Skip reset while still waiting for workoutReady during restore
-    if (restoringSessionRef.current) {
-      console.log('[session] skipping reset (waiting for workoutReady)');
-      return;
-    }
+    if (restoringSessionRef.current) return;
 
-    console.log('[session] RESETTING to full:', newTotalTime, 'workoutReady:', workoutReady);
     // Only clear saved session once app is ready (avoid wiping it on initial render)
     if (workoutReady) clearTimerSession();
     setTimerState(prev => ({
