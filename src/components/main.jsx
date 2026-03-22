@@ -57,18 +57,42 @@ const Main = () => {
     return () => clearTimeout(t);
   }, [showPwaBanner]);
 
+  // Timer session persistence — ref must be declared before effects that use it
+  const restoringSessionRef = useRef(false);
+
   // If not logged in (auth resolved, no user), workout is ready immediately
   // If logged in, wait for preferences to load (setWorkoutReady called after prefs load)
   // Safety timeout: if prefs take too long, show content anyway after 2.5s
   useEffect(() => {
     if (workoutReady) return;
     if (!authLoading && !user) {
+      // Check for saved timer session (logged-out user)
+      try {
+        const raw = localStorage.getItem('timerSession');
+        if (raw) {
+          const session = JSON.parse(raw);
+          const TWO_HOURS = 2 * 60 * 60 * 1000;
+          if (session.workoutId && Date.now() - session.savedAt <= TWO_HOURS) {
+            restoringSessionRef.current = true;
+            setTimerSelectedWorkoutId(session.workoutId);
+          }
+        }
+      } catch {}
       setWorkoutReady(true);
       return;
     }
     const timeout = setTimeout(() => setWorkoutReady(true), 2500);
     return () => clearTimeout(timeout);
   }, [authLoading, user, workoutReady]);
+
+  // Clear timer session on sign-out
+  const prevUserRef = useRef(user);
+  useEffect(() => {
+    if (prevUserRef.current && !user) {
+      localStorage.removeItem('timerSession');
+    }
+    prevUserRef.current = user;
+  }, [user]);
 
   // Workout data as state (defaults, overridable by Firestore)
   const [timerWorkoutData, setTimerWorkoutData] = useState(DEFAULT_TIMER_WORKOUTS);
@@ -118,6 +142,24 @@ const Main = () => {
       selectedWorkoutIndex: 0
     };
   });
+
+  // Timer session persistence — resume after pause/exit
+  const wasRunningRef = useRef(false);
+
+  const saveTimerSession = useCallback(() => {
+    if (timerState.timeLeft > 0 && timerState.timeLeft < timerState.targetTime && timerSelectedWorkoutId) {
+      localStorage.setItem('timerSession', JSON.stringify({
+        workoutId: timerSelectedWorkoutId,
+        timeLeft: timerState.timeLeft,
+        targetTime: timerState.targetTime,
+        savedAt: Date.now()
+      }));
+    }
+  }, [timerState.timeLeft, timerState.targetTime, timerSelectedWorkoutId]);
+
+  const clearTimerSession = useCallback(() => {
+    localStorage.removeItem('timerSession');
+  }, []);
 
   // Stopwatch state
   const [stopwatchState, setStopwatchState] = useState({
@@ -441,6 +483,20 @@ const Main = () => {
         // Auto-select today's scheduled workout, or fall back to saved selection
         const todayDay = new Date().getDay();
         const scheduledId = prefs.weeklySchedule?.[todayDay];
+        const resolvedId = scheduledId || prefs.selectedWorkoutId || null;
+        // Check for a saved timer session matching this workout
+        if (resolvedId) {
+          try {
+            const raw = localStorage.getItem('timerSession');
+            if (raw) {
+              const session = JSON.parse(raw);
+              const TWO_HOURS = 2 * 60 * 60 * 1000;
+              if (session.workoutId === resolvedId && Date.now() - session.savedAt <= TWO_HOURS) {
+                restoringSessionRef.current = true;
+              }
+            }
+          } catch {}
+        }
         if (scheduledId) {
           setTimerSelectedWorkoutId(scheduledId);
         } else if (prefs.selectedWorkoutId) {
@@ -695,14 +751,23 @@ const Main = () => {
     }
   }, [user, refreshWorkouts]);
 
-  // Refresh on app foreground
+  // Refresh on app foreground + save timer session on background/close
   useEffect(() => {
     const handleVisibility = () => {
-      if (!document.hidden) refreshWorkoutsIfStale();
+      if (document.hidden) {
+        saveTimerSession();
+      } else {
+        refreshWorkoutsIfStale();
+      }
     };
+    const handlePageHide = () => { saveTimerSession(); };
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [refreshWorkoutsIfStale]);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [refreshWorkoutsIfStale, saveTimerSession]);
 
   // Share workout post helper
   const handleShareWorkout = useCallback(async (workoutData) => {
@@ -824,15 +889,55 @@ const Main = () => {
 
   // Recalculate timer when workout selection changes
   useEffect(() => {
+    if (restoringSessionRef.current) return;
     const selected = findSelectedWorkout();
     if (!selected) return;
     const newTotalTime = (selected.exercises.length * 60) + prepTime;
+    clearTimerSession();
     setTimerState(prev => ({
       ...prev,
       timeLeft: newTotalTime,
       targetTime: newTotalTime
     }));
-  }, [timerSelectedWorkoutId, findSelectedWorkout, prepTime]);
+  }, [timerSelectedWorkoutId, findSelectedWorkout, prepTime, clearTimerSession]);
+
+  // Restore timer session after workoutReady
+  useEffect(() => {
+    if (!workoutReady || !restoringSessionRef.current) return;
+    restoringSessionRef.current = false;
+    try {
+      const raw = localStorage.getItem('timerSession');
+      if (!raw) return;
+      const session = JSON.parse(raw);
+      const TWO_HOURS = 2 * 60 * 60 * 1000;
+      if (Date.now() - session.savedAt > TWO_HOURS) { clearTimerSession(); return; }
+      const selected = findSelectedWorkout();
+      if (!selected) { clearTimerSession(); return; }
+      const expectedTarget = (selected.exercises.length * 60) + prepTime;
+      if (session.targetTime !== expectedTarget) { clearTimerSession(); return; }
+      setTimerState(prev => ({
+        ...prev,
+        timeLeft: session.timeLeft,
+        targetTime: session.targetTime,
+        isRunning: false
+      }));
+      clearTimerSession();
+    } catch { clearTimerSession(); }
+  }, [workoutReady, findSelectedWorkout, prepTime, clearTimerSession]);
+
+  // Save session on pause (running→stopped transition)
+  useEffect(() => {
+    const wasRunning = wasRunningRef.current;
+    wasRunningRef.current = timerState.isRunning;
+    if (wasRunning && !timerState.isRunning) {
+      // Transitioned from running to stopped
+      if (timerState.timeLeft > 0 && timerState.timeLeft < timerState.targetTime) {
+        saveTimerSession();
+      } else {
+        clearTimerSession();
+      }
+    }
+  }, [timerState.isRunning, timerState.timeLeft, timerState.targetTime, saveTimerSession, clearTimerSession]);
 
   // Legacy: resolve timerSelectedWorkoutId from name when workout data loads
   useEffect(() => {
@@ -912,6 +1017,7 @@ const Main = () => {
   useEffect(() => {
     if (timerState.timeLeft === 0 && !timerState.isRunning && timerState.targetTime > 0 && !timerCompletedRef.current) {
       timerCompletedRef.current = true;
+      clearTimerSession();
 
       // Release wake lock
       if (wakeLockRef.current) {
@@ -1424,6 +1530,7 @@ const Main = () => {
   }, [user, timerSelectedWorkoutId, timerWorkoutData, deletedDefaultsState, pinnedWorkouts, weeklySchedule]);
 
   const handleHomeStartWorkout = useCallback((workoutName, workoutId) => {
+    clearTimerSession();
     const wId = workoutId || null;
     setTimerSelectedWorkoutId(wId);
     setTimerSelectedWorkout(workoutName); // display cache
@@ -1437,7 +1544,7 @@ const Main = () => {
       );
     }
     setActiveTab('timer');
-  }, [user, findWorkoutById, prepTime]);
+  }, [user, findWorkoutById, prepTime, clearTimerSession]);
 
   // Feed post detail popup
   const openFeedDetail = useCallback(async (post) => {
