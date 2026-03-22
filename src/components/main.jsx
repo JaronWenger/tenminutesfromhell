@@ -143,24 +143,6 @@ const Main = () => {
     };
   });
 
-  // Timer session persistence — resume after pause/exit
-  const wasRunningRef = useRef(false);
-
-  const saveTimerSession = useCallback(() => {
-    if (timerState.timeLeft > 0 && timerState.timeLeft < timerState.targetTime && timerSelectedWorkoutId) {
-      localStorage.setItem('timerSession', JSON.stringify({
-        workoutId: timerSelectedWorkoutId,
-        timeLeft: timerState.timeLeft,
-        targetTime: timerState.targetTime,
-        savedAt: Date.now()
-      }));
-    }
-  }, [timerState.timeLeft, timerState.targetTime, timerSelectedWorkoutId]);
-
-  const clearTimerSession = useCallback(() => {
-    localStorage.removeItem('timerSession');
-  }, []);
-
   // Stopwatch state
   const [stopwatchState, setStopwatchState] = useState({
     time: 0,
@@ -185,6 +167,24 @@ const Main = () => {
   const [timerSelectedWorkout, setTimerSelectedWorkout] = useState('8-Minute Abs');
   const [timerSelectedWorkoutId, setTimerSelectedWorkoutId] = useState('default-hiit-them-abs');
   const [stopwatchSelectedWorkout, setStopwatchSelectedWorkout] = useState('Back & Bis');
+
+  // Timer session persistence helpers
+  const wasRunningRef = useRef(false);
+
+  const saveTimerSession = useCallback(() => {
+    if (timerState.timeLeft > 0 && timerState.timeLeft < timerState.targetTime && timerSelectedWorkoutId) {
+      localStorage.setItem('timerSession', JSON.stringify({
+        workoutId: timerSelectedWorkoutId,
+        timeLeft: timerState.timeLeft,
+        targetTime: timerState.targetTime,
+        savedAt: Date.now()
+      }));
+    }
+  }, [timerState.timeLeft, timerState.targetTime, timerSelectedWorkoutId]);
+
+  const clearTimerSession = useCallback(() => {
+    localStorage.removeItem('timerSession');
+  }, []);
 
   // Find the currently selected timer workout by ID
   const findSelectedWorkout = useCallback(() => {
