@@ -887,43 +887,45 @@ const Main = () => {
     setPendingShareData(null);
   }, [user]);
 
-  // Recalculate timer when workout selection changes
+  // Recalculate timer when workout selection changes — or restore saved session
   useEffect(() => {
-    if (restoringSessionRef.current) return;
     const selected = findSelectedWorkout();
     if (!selected) return;
     const newTotalTime = (selected.exercises.length * 60) + prepTime;
+
+    // If restoring a session, try to apply it instead of resetting
+    if (restoringSessionRef.current && workoutReady) {
+      restoringSessionRef.current = false;
+      try {
+        const raw = localStorage.getItem('timerSession');
+        if (raw) {
+          const session = JSON.parse(raw);
+          const TWO_HOURS = 2 * 60 * 60 * 1000;
+          if (Date.now() - session.savedAt <= TWO_HOURS && session.targetTime === newTotalTime) {
+            setTimerState(prev => ({
+              ...prev,
+              timeLeft: session.timeLeft,
+              targetTime: session.targetTime,
+              isRunning: false
+            }));
+            clearTimerSession();
+            return;
+          }
+        }
+      } catch {}
+      clearTimerSession();
+    }
+
+    // Skip reset while still waiting for workoutReady during restore
+    if (restoringSessionRef.current) return;
+
     clearTimerSession();
     setTimerState(prev => ({
       ...prev,
       timeLeft: newTotalTime,
       targetTime: newTotalTime
     }));
-  }, [timerSelectedWorkoutId, findSelectedWorkout, prepTime, clearTimerSession]);
-
-  // Restore timer session after workoutReady
-  useEffect(() => {
-    if (!workoutReady || !restoringSessionRef.current) return;
-    restoringSessionRef.current = false;
-    try {
-      const raw = localStorage.getItem('timerSession');
-      if (!raw) return;
-      const session = JSON.parse(raw);
-      const TWO_HOURS = 2 * 60 * 60 * 1000;
-      if (Date.now() - session.savedAt > TWO_HOURS) { clearTimerSession(); return; }
-      const selected = findSelectedWorkout();
-      if (!selected) { clearTimerSession(); return; }
-      const expectedTarget = (selected.exercises.length * 60) + prepTime;
-      if (session.targetTime !== expectedTarget) { clearTimerSession(); return; }
-      setTimerState(prev => ({
-        ...prev,
-        timeLeft: session.timeLeft,
-        targetTime: session.targetTime,
-        isRunning: false
-      }));
-      clearTimerSession();
-    } catch { clearTimerSession(); }
-  }, [workoutReady, findSelectedWorkout, prepTime, clearTimerSession]);
+  }, [timerSelectedWorkoutId, findSelectedWorkout, prepTime, clearTimerSession, workoutReady]);
 
   // Save session on pause (running→stopped transition)
   useEffect(() => {
