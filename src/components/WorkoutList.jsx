@@ -14,12 +14,12 @@ const WorkoutList = ({
 }) => {
   const workoutListRef = useRef(null);
 
-  // Scroll to top when timer starts
+  // Reset scroll to top when timer starts
   useEffect(() => {
     if (isRunning && workoutListRef.current) {
       workoutListRef.current.scrollTo({
         top: 0,
-        behavior: 'smooth'
+        behavior: 'instant'
       });
     }
   }, [isRunning]);
