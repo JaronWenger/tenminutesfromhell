@@ -31,7 +31,8 @@ const Ring = ({
     if (!revealTime || drawInPhase !== 'title') return;
     setDrawInPhase('fadeout');
     const timer = setTimeout(() => setDrawInPhase('time'), 300);
-    return () => clearTimeout(timer);
+    const doneTimer = setTimeout(() => setDrawInPhase('done'), 800);
+    return () => { clearTimeout(timer); clearTimeout(doneTimer); };
   }, [revealTime]);
 
   useEffect(() => {
@@ -100,7 +101,7 @@ const Ring = ({
           cy="150"
         />
         <circle
-          className="progress-ring-fill"
+          className={`progress-ring-fill ${drawInPhase !== 'done' ? 'draw-in-hidden' : ''}`}
           stroke={getProgressColor()}
           strokeWidth="8"
           fill="transparent"
@@ -108,7 +109,7 @@ const Ring = ({
           cx="150"
           cy="150"
           strokeDasharray={strokeDasharray}
-          strokeDashoffset={strokeDashoffset}
+          strokeDashoffset={drawInPhase !== 'done' ? circumference : strokeDashoffset}
           strokeLinecap="round"
           transform="rotate(-90 150 150)"
           style={{ filter: getProgressColor() === '#ffffff'
