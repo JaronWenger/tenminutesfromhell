@@ -132,9 +132,24 @@ const Main = () => {
     return (exercises.length * 60) + prepTime;
   }, [getExerciseList, prepTime]);
 
-  // Timer state
+  // Timer state — initialize from saved session if available (avoids visual flash)
   const [timerState, setTimerState] = useState(() => {
     const initial = (DEFAULT_TIMER_WORKOUTS[0].exercises.length * 60) + 10;
+    try {
+      const raw = localStorage.getItem('timerSession');
+      if (raw) {
+        const session = JSON.parse(raw);
+        const TWO_HOURS = 2 * 60 * 60 * 1000;
+        if (session.timeLeft > 0 && session.targetTime > 0 && Date.now() - session.savedAt <= TWO_HOURS) {
+          return {
+            timeLeft: session.timeLeft,
+            isRunning: false,
+            targetTime: session.targetTime,
+            selectedWorkoutIndex: 0
+          };
+        }
+      }
+    } catch {}
     return {
       timeLeft: initial,
       isRunning: false,
@@ -165,7 +180,19 @@ const Main = () => {
   const [currentEditLevel, setCurrentEditLevel] = useState('categories');
   const [currentEditingWorkout, setCurrentEditingWorkout] = useState(null);
   const [timerSelectedWorkout, setTimerSelectedWorkout] = useState('8-Minute Abs');
-  const [timerSelectedWorkoutId, setTimerSelectedWorkoutId] = useState('default-hiit-them-abs');
+  const [timerSelectedWorkoutId, setTimerSelectedWorkoutId] = useState(() => {
+    try {
+      const raw = localStorage.getItem('timerSession');
+      if (raw) {
+        const session = JSON.parse(raw);
+        const TWO_HOURS = 2 * 60 * 60 * 1000;
+        if (session.workoutId && Date.now() - session.savedAt <= TWO_HOURS) {
+          return session.workoutId;
+        }
+      }
+    } catch {}
+    return 'default-hiit-them-abs';
+  });
   const [stopwatchSelectedWorkout, setStopwatchSelectedWorkout] = useState('Back & Bis');
 
   // Timer session persistence helpers
@@ -919,13 +946,12 @@ const Main = () => {
     // Skip reset while still waiting for workoutReady during restore
     if (restoringSessionRef.current) return;
 
-    // Only clear saved session once app is ready (avoid wiping it on initial render)
-    if (workoutReady) clearTimerSession();
-    setTimerState(prev => ({
-      ...prev,
-      timeLeft: newTotalTime,
-      targetTime: newTotalTime
-    }));
+    // Only reset if targetTime actually changed (workout edited, not just data refresh)
+    setTimerState(prev => {
+      if (prev.targetTime === newTotalTime) return prev;
+      if (workoutReady) clearTimerSession();
+      return { ...prev, timeLeft: newTotalTime, targetTime: newTotalTime };
+    });
   }, [timerSelectedWorkoutId, findSelectedWorkout, prepTime, clearTimerSession, workoutReady]);
 
   // Save session on pause (running→stopped transition)

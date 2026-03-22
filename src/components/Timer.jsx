@@ -174,15 +174,13 @@ const Timer = ({
   };
 
   const selectWorkout = (index) => {
-    if (!isRunning) {
-      setSelectedWorkoutIndex(index);
-      updateParentState({ selectedWorkoutIndex: index });
-      // Calculate new time based on selected workout
-      const newTimeLeft = targetTime - (index * 60);
-      const finalTimeLeft = Math.max(0, newTimeLeft);
-      setTimeLeft(finalTimeLeft);
-      updateParentState({ timeLeft: finalTimeLeft });
-    }
+    setSelectedWorkoutIndex(index);
+    updateParentState({ selectedWorkoutIndex: index });
+    // Calculate new time based on selected workout
+    const newTimeLeft = targetTime - (index * 60);
+    const finalTimeLeft = Math.max(0, newTimeLeft);
+    setTimeLeft(finalTimeLeft);
+    updateParentState({ timeLeft: finalTimeLeft });
   };
 
   const resetTimer = () => {

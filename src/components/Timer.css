@@ -138,6 +138,10 @@
   animation: fadeInUp var(--stagger-duration, 0.4s) ease var(--stagger-delay, 0ms) both;
 }
 
+.workout-item.fade-in-item.completed.selectable {
+  animation: fadeInUpDim var(--stagger-duration, 0.4s) ease var(--stagger-delay, 0ms) both;
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -145,6 +149,17 @@
   }
   to {
     opacity: 0.85;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUpDim {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 0.6;
     transform: translateY(0);
   }
 }

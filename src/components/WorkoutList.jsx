@@ -37,10 +37,10 @@ const WorkoutList = ({
         return (
           <div
             key={index}
-            className={`workout-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isUpcoming ? 'upcoming' : ''} ${isWarning ? 'warning' : ''} ${!isRunning ? 'selectable' : ''} ${staggerIn ? 'fade-in-item' : ''}`}
-            onClick={() => onWorkoutSelect && onWorkoutSelect(index)}
+            className={`workout-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isUpcoming ? 'upcoming' : ''} ${isWarning ? 'warning' : ''} ${!isRunning || isUpcoming ? 'selectable' : ''} ${staggerIn ? 'fade-in-item' : ''}`}
+            onClick={() => onWorkoutSelect && (!isRunning || isUpcoming) && onWorkoutSelect(index)}
             style={{
-              cursor: !isRunning ? 'pointer' : 'default',
+              cursor: (!isRunning || isUpcoming) ? 'pointer' : 'default',
               ...(staggerIn ? { '--stagger-delay': `${100 + index * 40}ms` } : {})
             }}
           >
