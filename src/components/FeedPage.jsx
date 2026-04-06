@@ -629,6 +629,12 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                       </span>
                       <span className="feed-post-subtitle">Welcome{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}! Complete a workout and share with your friends <span style={{ opacity: 1, color: 'white' }}>🔥</span></span>
                     </div>
+                    <button
+                      className="feed-welcome-people-btn"
+                      onClick={(e) => { e.stopPropagation(); setActiveTab('people'); }}
+                    >
+                      People<span style={{ marginLeft: 5, fontSize: '1.4em', lineHeight: 0, WebkitTextStroke: '0.5px' }}>→</span>
+                    </button>
                   </div>
                 </div>
                 );

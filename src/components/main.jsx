@@ -32,30 +32,12 @@ const Main = () => {
   const [initialLoad, setInitialLoad] = useState(true);
   const [workoutReady, setWorkoutReady] = useState(false);
 
-  // PWA install banner — show on mobile browsers only
-  const [showPwaBanner, setShowPwaBanner] = useState(() => {
+  // PWA install prompt — show on mobile browsers only (popup style)
+  const [showPwaPrompt, setShowPwaPrompt] = useState(() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     return isMobile && !isStandalone;
   });
-
-  const pwaBannerRef = useRef(null);
-  useEffect(() => {
-    if (!showPwaBanner) return;
-    const t = setTimeout(() => {
-      const wrap = pwaBannerRef.current;
-      if (wrap) {
-        wrap.style.animation = 'none';
-        // Force reflow so animation:none takes effect
-        void wrap.offsetHeight;
-        wrap.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 1, 1), opacity 0.4s ease';
-        wrap.style.transform = 'translateY(calc(-100% - 40px))';
-        wrap.style.opacity = '0';
-      }
-      setTimeout(() => { setShowPwaBanner(false); }, 400);
-    }, 6000);
-    return () => clearTimeout(t);
-  }, [showPwaBanner]);
 
   // Timer session persistence — ref must be declared before effects that use it
   const restoringSessionRef = useRef(false);
@@ -241,6 +223,7 @@ const Main = () => {
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [sideMenuCloseRequested, setSideMenuCloseRequested] = useState(false);
   const [showSharePrompt, setShowSharePrompt] = useState(false);
+  const [showFollowPrompt, setShowFollowPrompt] = useState(false);
   const [pendingShareData, setPendingShareData] = useState(null);
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
   const [isPrivate, setIsPrivate] = useState(false);
@@ -282,7 +265,7 @@ const Main = () => {
   // Onboarding state
   const [onboarding, setOnboarding] = useState({
     timer: { active: false, step: 0, completed: null },
-    home:  { active: false, step: 0, completed: null },
+    home:  { active: false, step: 0, completed: null, dismissed: [] },
     stats: { active: false, step: 0, completed: null },
   });
 
@@ -313,7 +296,7 @@ const Main = () => {
   }, [user, isTestOnboarding]);
 
   const completeOnboarding = useCallback((page) => {
-    setOnboarding(prev => ({ ...prev, [page]: { active: false, step: 0, completed: true } }));
+    setOnboarding(prev => ({ ...prev, [page]: { active: false, step: 0, completed: true, ...(page === 'home' ? { dismissed: [] } : {}) } }));
     persistOnboardingCompleted(page);
   }, [persistOnboardingCompleted]);
 
@@ -329,6 +312,23 @@ const Main = () => {
         return { ...prev, [page]: { active: false, step: 0, completed: true } };
       }
       return { ...prev, [page]: { ...pageState, step: nextStep } };
+    });
+  }, [persistOnboardingCompleted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Home onboarding: dismiss individual steps independently (both show at once)
+  const HOME_STEP_KEYS = ['home_workout', 'home_bell'];
+  const dismissHomeStep = useCallback((stepIndex) => {
+    setOnboarding(prev => {
+      if (prev.home.completed || (prev.home.dismissed || []).includes(stepIndex)) return prev;
+      const newDismissed = [...(prev.home.dismissed || []), stepIndex];
+      // Persist this individual step
+      setTimeout(() => persistOnboardingCompleted(HOME_STEP_KEYS[stepIndex]), 0);
+      if (newDismissed.length >= ONBOARDING_STEPS.home.length) {
+        // All steps dismissed — complete home onboarding
+        setTimeout(() => persistOnboardingCompleted('home'), 0);
+        return { ...prev, home: { active: false, step: 0, completed: true, dismissed: [] } };
+      }
+      return { ...prev, home: { ...prev.home, dismissed: newDismissed } };
     });
   }, [persistOnboardingCompleted]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -456,7 +456,7 @@ const Main = () => {
       // Use null (unknown) so tooltips don't flash before Firestore confirms on next login
       setOnboarding({
         timer: { active: false, step: 0, completed: null },
-        home:  { active: false, step: 0, completed: null },
+        home:  { active: false, step: 0, completed: null, dismissed: [] },
         stats: { active: false, step: 0, completed: null },
       });
       return () => { cancelled = true; };
@@ -535,9 +535,14 @@ const Main = () => {
         // Load onboarding state BEFORE workoutReady (skip for test account in onboarding mode — always reset)
         // completed: null (unknown) → false (not done) or true (done)
         const oc = (!isTestOnboarding && prefs.onboardingCompleted) || {};
+        // Home onboarding: restore individually dismissed steps
+        const homeDismissed = [];
+        if (oc.home_workout) homeDismissed.push(0);
+        if (oc.home_bell) homeDismissed.push(1);
+        const homeCompleted = !!oc.home || homeDismissed.length >= 2;
         setOnboarding(prev => ({
           timer: { ...prev.timer, completed: !!oc.timer },
-          home:  { ...prev.home,  completed: !!oc.home },
+          home:  { ...prev.home,  completed: homeCompleted, dismissed: homeCompleted ? [] : homeDismissed },
           stats: { ...prev.stats, completed: !!oc.stats },
         }));
         // Load workouts from V2 top-level collection
@@ -671,6 +676,13 @@ const Main = () => {
       return () => clearTimeout(t);
     }
   }, [user, activeTab, workoutReady, onboarding.home.completed, onboarding.home.active, onboarding.stats.completed, onboarding.stats.active]);
+
+  // Onboarding: show follow prompt on first home visit (after tooltips appear)
+  useEffect(() => {
+    if (!onboarding.home.active) return;
+    const t = setTimeout(() => setShowFollowPrompt(true), 600);
+    return () => clearTimeout(t);
+  }, [onboarding.home.active]);
 
   // Onboarding: timer step 0 auto-advances when timer starts running
   useEffect(() => {
@@ -1980,7 +1992,7 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
-            onBellClick={() => { if (onboarding.home.active) { completeOnboarding('home'); } if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
+            onBellClick={() => { if (onboarding.home.active) { dismissHomeStep(1); } if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
             hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
@@ -1998,7 +2010,7 @@ const Main = () => {
             weeklySchedule={weeklySchedule}
             isPro={isPro}
             onProTap={openProPopup}
-            onWorkoutTap={() => { setHomeDetailOpen(true); if (onboarding.home.active && onboarding.home.step === 0) advanceStep('home'); }}
+            onWorkoutTap={() => { setHomeDetailOpen(true); if (onboarding.home.active) dismissHomeStep(0); }}
             onDetailClosed={() => setHomeDetailOpen(false)}
           />
         );
@@ -2036,7 +2048,7 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
-            onBellClick={() => { if (onboarding.home.active) { completeOnboarding('home'); } if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
+            onBellClick={() => { if (onboarding.home.active) { dismissHomeStep(1); } if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
             hasUnread={hasUnread}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
@@ -2069,48 +2081,32 @@ const Main = () => {
         '--color-rest-rgb': hexToRgb(restColor),
       }}
     >
-      {showPwaBanner && (
-        <div className="pwa-banner-wrap" ref={pwaBannerRef}>
-          <div
-            className="pwa-banner"
-            ref={(el) => {
-              if (!el || el._swipeAttached) return;
-              el._swipeAttached = true;
-              let startY = 0, dy = 0;
-              el.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; dy = 0; el.style.transition = 'none'; }, { passive: true });
-              el.addEventListener('touchmove', (e) => {
-                dy = e.touches[0].clientY - startY;
-                if (dy < 0) el.style.transform = `translateY(${dy}px)`;
-              }, { passive: true });
-              el.addEventListener('touchend', () => {
-                if (dy < -40) {
-                  el.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
-                  el.style.transform = 'translateY(-100%)';
-                  el.style.opacity = '0';
-                  setTimeout(() => { setShowPwaBanner(false); }, 200);
-                } else {
-                  el.style.transition = 'transform 0.2s ease';
-                  el.style.transform = 'translateY(0)';
-                }
-              });
-            }}
-          >
-            <div className="pwa-banner-icon">
-              <img src="/logo192.png" alt="HIITem" />
+      {showPwaPrompt && (
+        <div className="share-prompt-overlay" onClick={() => setShowPwaPrompt(false)}>
+          <div className="share-prompt-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="follow-prompt-close"
+              onClick={() => setShowPwaPrompt(false)}
+              aria-label="Close"
+            >✕</button>
+            <div className="share-prompt-icon">
+              <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" style={{ width: 48, height: 48, borderRadius: 12 }} />
             </div>
-            <div className="pwa-banner-text">
-              <div className="pwa-banner-title-row">
-                <span className="pwa-banner-title">HIITem</span>
-                <span className="pwa-banner-now">now</span>
-              </div>
-              <span className="pwa-banner-body">{(() => {
+            <h3 className="share-prompt-title">Add to Home Screen</h3>
+            <p className="share-prompt-text">
+              {(() => {
                 const ua = navigator.userAgent;
                 const isIOS = /iPhone|iPad|iPod/i.test(ua);
-                if (!isIOS) return 'Tap ⋮ → "Add to Home Screen"';
+                if (!isIOS) return <>Tap the menu <strong>⋮</strong> in your browser, then tap <strong>"Add to Home Screen"</strong>.</>;
                 const isSafari = !(/CriOS|FxiOS|OPiOS|EdgiOS|GSA\//i.test(ua));
-                if (isSafari) return <>Tap Share <svg className="pwa-share-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> then "Add to Home Screen"</>;
-                return <>Open in Safari, tap Share <svg className="pwa-share-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> then "Add to Home Screen"</>;
-              })()}</span>
+                if (isSafari) return <>Tap <strong>···</strong> at the bottom of Safari, then tap <strong>Share</strong> <svg style={{ verticalAlign: 'middle' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>, then tap <strong>"Add to Home Screen"</strong>.</>;
+                return <>For the best experience, open this page in <strong>Safari</strong>, then tap the <strong>Share</strong> button <svg style={{ verticalAlign: 'middle' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> and tap <strong>"Add to Home Screen"</strong>.</>;
+              })()}
+            </p>
+            <div className="share-prompt-buttons">
+              <button className="share-prompt-btn share-prompt-btn-secondary" onClick={() => setShowPwaPrompt(false)}>
+                Got It
+              </button>
             </div>
           </div>
         </div>
@@ -2406,7 +2402,7 @@ const Main = () => {
           // Workout data is handled by the main loading effect (depends on isTestOnboarding)
           setOnboarding({
             timer: { active: false, step: 0, completed: !newVal },
-            home:  { active: false, step: 0, completed: !newVal },
+            home:  { active: false, step: 0, completed: !newVal, dismissed: [] },
             stats: { active: false, step: 0, completed: !newVal },
           });
         }}
@@ -2426,6 +2422,41 @@ const Main = () => {
           onShare={handleSharePromptAccept}
           onDismiss={handleSharePromptDismiss}
         />
+      )}
+      {showFollowPrompt && (
+        <div className="share-prompt-overlay" onClick={() => setShowFollowPrompt(false)}>
+          <div className="share-prompt-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="follow-prompt-close"
+              onClick={() => setShowFollowPrompt(false)}
+              aria-label="Close"
+            >✕</button>
+            <div className="share-prompt-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <line x1="19" y1="8" x2="19" y2="14"/>
+                <line x1="22" y1="11" x2="16" y2="11"/>
+              </svg>
+            </div>
+            <h3 className="share-prompt-title">Find Friends</h3>
+            <p className="share-prompt-text">
+              Follow friends and others to share workouts, see their activity, and stay motivated together.
+            </p>
+            <div className="share-prompt-buttons">
+              <button
+                className="share-prompt-btn share-prompt-btn-primary"
+                onClick={() => {
+                  setShowFollowPrompt(false);
+                  setFeedInitialTab('people');
+                  setShowFeedPage(true);
+                }}
+              >
+                Find People
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {sendWorkout && (
         <div
@@ -2751,8 +2782,9 @@ const Main = () => {
           </div>
         </div>
       )}
-      {/* Onboarding tooltips */}
-      {(() => {
+      {/* Onboarding tooltips — hidden when follow prompt is showing */}
+      {!showFollowPrompt && (() => {
+        const tooltips = [];
         const pages = ['timer', 'home', 'stats'];
         for (const page of pages) {
           const state = onboarding[page];
@@ -2761,11 +2793,42 @@ const Main = () => {
           if (page === 'timer' && (activeTab !== 'timer' || timerDetailWorkout)) continue;
           if (page === 'home' && (activeTab !== 'home' || showSideMenu || showFeedPage)) continue;
           if (page === 'stats' && activeTab !== 'stats') continue;
+
+          // Home: render all non-dismissed steps simultaneously
+          if (page === 'home') {
+            ONBOARDING_STEPS.home.forEach((stepConfig, i) => {
+              if ((state.dismissed || []).includes(i)) return;
+              if (stepConfig.pendingDetailClose && homeDetailOpen) return;
+              tooltips.push(
+                <OnboardingTooltip
+                  key={`home-${i}`}
+                  targetSelector={stepConfig.target}
+                  text={stepConfig.text}
+                  arrowDirection={stepConfig.arrow}
+                  arrowTargetSelector={stepConfig.arrowTarget || null}
+                  separateArrowTarget={stepConfig.separateArrowTarget || null}
+                  autoDismiss={stepConfig.autoDismiss || null}
+                  noOverlay={stepConfig.noOverlay || false}
+                  noArrow={stepConfig.noArrow || false}
+                  delay={stepConfig.delay || 0}
+                  offsetX={stepConfig.offsetX || 0}
+                  offsetY={stepConfig.offsetY || 0}
+                  arrowConfig={stepConfig.arrowConfig}
+                  arrowScale={stepConfig.arrowScale || 1}
+                  textScale={stepConfig.textScale || 1}
+                  visible={true}
+                  onDismiss={() => dismissHomeStep(i)}
+                />
+              );
+            });
+            continue;
+          }
+
+          // Timer / Stats: sequential single-tooltip flow
           const stepConfig = ONBOARDING_STEPS[page][state.step];
           if (!stepConfig) continue;
           if (page === 'timer' && stepConfig.timeBased && !timerState.isRunning) continue;
-          if (stepConfig.pendingDetailClose && homeDetailOpen) continue;
-          return (
+          tooltips.push(
             <OnboardingTooltip
               key={stepConfig.countdown ? `${page}-countdown` : `${page}-${state.step}`}
               targetSelector={stepConfig.target}
@@ -2789,7 +2852,7 @@ const Main = () => {
             />
           );
         }
-        return null;
+        return tooltips.length ? <>{tooltips}</> : null;
       })()}
     </main>
   );

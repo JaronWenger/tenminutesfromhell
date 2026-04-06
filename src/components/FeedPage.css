@@ -574,6 +574,28 @@
   padding: 4px;
 }
 
+.feed-welcome-people-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 59, 48, 0.45);
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.12);
+  white-space: nowrap;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.feed-welcome-people-btn:active {
+  background: rgba(255, 59, 48, 0.22);
+  box-shadow: 0 0 14px rgba(255, 59, 48, 0.28);
+}
+
 .feed-post-subtitle strong {
   color: rgba(255, 255, 255, 0.7);
   font-weight: 600;

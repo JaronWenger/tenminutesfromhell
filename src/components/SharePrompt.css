@@ -23,6 +23,7 @@
 
 /* ── Card ── */
 .share-prompt-card {
+  position: relative;
   background: rgba(30, 30, 35, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
@@ -91,4 +92,22 @@
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Follow Prompt Close Button ── */
+.follow-prompt-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+.follow-prompt-close:active {
+  color: rgba(255, 255, 255, 0.6);
 }
