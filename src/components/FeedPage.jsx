@@ -633,7 +633,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                       className="feed-welcome-people-btn"
                       onClick={(e) => { e.stopPropagation(); setActiveTab('people'); }}
                     >
-                      People<span style={{ marginLeft: 5, fontSize: '1.4em', lineHeight: 0, WebkitTextStroke: '0.5px' }}>→</span>
+                      People<span style={{ marginLeft: 4, fontSize: '1em', lineHeight: 0 }}>→</span>
                     </button>
                   </div>
                 </div>

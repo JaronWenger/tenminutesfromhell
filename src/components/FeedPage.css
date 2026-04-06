@@ -577,9 +577,9 @@
 .feed-welcome-people-btn {
   margin-left: auto;
   flex-shrink: 0;
-  padding: 7px 16px;
+  padding: 6px 12px;
   border-radius: 10px;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.3px;
   cursor: pointer;

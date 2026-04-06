@@ -67,11 +67,17 @@ const Main = () => {
     return () => clearTimeout(timeout);
   }, [authLoading, user, workoutReady]);
 
-  // Clear timer session on sign-out
+  // Handle sign-in / sign-out transitions
   const prevUserRef = useRef(user);
   useEffect(() => {
     if (prevUserRef.current && !user) {
+      // Sign-out: clear timer session
       localStorage.removeItem('timerSession');
+    } else if (!prevUserRef.current && user) {
+      // Sign-in: navigate to timer page and close overlays
+      setActiveTab('timer');
+      setShowSideMenu(false);
+      setShowLoginModal(false);
     }
     prevUserRef.current = user;
   }, [user]);
@@ -677,12 +683,12 @@ const Main = () => {
     }
   }, [user, activeTab, workoutReady, onboarding.home.completed, onboarding.home.active, onboarding.stats.completed, onboarding.stats.active]);
 
-  // Onboarding: show follow prompt on first home visit (after tooltips appear)
+  // Onboarding: show follow prompt immediately for new users (before any tooltips)
   useEffect(() => {
-    if (!onboarding.home.active) return;
-    const t = setTimeout(() => setShowFollowPrompt(true), 600);
+    if (!user || !workoutReady || onboarding.timer.completed !== false) return;
+    const t = setTimeout(() => setShowFollowPrompt(true), 500);
     return () => clearTimeout(t);
-  }, [onboarding.home.active]);
+  }, [user, workoutReady, onboarding.timer.completed]);
 
   // Onboarding: timer step 0 auto-advances when timer starts running
   useEffect(() => {
@@ -2790,7 +2796,7 @@ const Main = () => {
           const state = onboarding[page];
           if (!state.active || state.completed || state.completed === null) continue;
           // Only show if on the right tab (timer is always rendered when activeTab==='timer')
-          if (page === 'timer' && (activeTab !== 'timer' || timerDetailWorkout)) continue;
+          if (page === 'timer' && (activeTab !== 'timer' || timerDetailWorkout || showFeedPage || showSideMenu)) continue;
           if (page === 'home' && (activeTab !== 'home' || showSideMenu || showFeedPage)) continue;
           if (page === 'stats' && activeTab !== 'stats') continue;
 
