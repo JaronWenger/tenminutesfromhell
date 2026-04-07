@@ -106,21 +106,12 @@
   color: rgba(255, 59, 48, 0.9);
 }
 
-/* ── Content (scrollbar hidden on all platforms including iOS) ── */
-.feed-content-wrap {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-}
-
+/* ── Content ── */
 .feed-content {
-  position: absolute;
-  inset: 0;
+  flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 0 16px 60vh;
-  width: calc(100% + 20px);
-  padding-right: calc(16px + 20px);
 }
 
 .feed-empty {

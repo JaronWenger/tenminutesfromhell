@@ -578,7 +578,6 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
       </div>
 
       {/* Content */}
-      <div className="feed-content-wrap">
       <div
         className="feed-content"
         onTouchStart={handleContentTouchStart}
@@ -1193,7 +1192,6 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
 
           </>
         )}
-      </div>
       </div>
 
       {/* Fixed bottom invite — outside scroll container */}
