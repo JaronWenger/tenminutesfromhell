@@ -112,6 +112,12 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 0 16px 60vh;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+.feed-content::-webkit-scrollbar {
+  display: none;
 }
 
 .feed-empty {
@@ -806,13 +812,11 @@
   border-color: rgba(255, 59, 48, 0.4);
 }
 
-/* ── People sticky header ── */
+/* ── People fixed header ── */
 .feed-people-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  flex-shrink: 0;
   background: #0a0a0c;
-  padding-bottom: 4px;
+  padding: 0 16px 4px;
 }
 
 /* ── Sub-tabs (Strava-style pill row) ── */
