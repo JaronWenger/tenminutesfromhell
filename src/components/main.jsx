@@ -230,6 +230,7 @@ const Main = () => {
   const [sideMenuCloseRequested, setSideMenuCloseRequested] = useState(false);
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [showFollowPrompt, setShowFollowPrompt] = useState(false);
+  const [followPromptCompleted, setFollowPromptCompleted] = useState(null); // null=unknown, false=not done, true=done
   const [pendingShareData, setPendingShareData] = useState(null);
   const [autoShareEnabled, setAutoShareEnabled] = useState(null); // null = unset, true/false = decided
   const [isPrivate, setIsPrivate] = useState(false);
@@ -551,6 +552,7 @@ const Main = () => {
           home:  { ...prev.home,  completed: homeCompleted, dismissed: homeCompleted ? [] : homeDismissed },
           stats: { ...prev.stats, completed: !!oc.stats },
         }));
+        setFollowPromptCompleted(!!oc.follow_prompt);
         // Load workouts from V2 top-level collection
         try {
           const { workouts } = await getUserWorkoutsV2(user.uid);
@@ -685,10 +687,10 @@ const Main = () => {
 
   // Onboarding: show follow prompt immediately for new users (before any tooltips)
   useEffect(() => {
-    if (!user || !workoutReady || onboarding.timer.completed !== false) return;
+    if (!user || !workoutReady || followPromptCompleted !== false) return;
     const t = setTimeout(() => setShowFollowPrompt(true), 500);
     return () => clearTimeout(t);
-  }, [user, workoutReady, onboarding.timer.completed]);
+  }, [user, workoutReady, followPromptCompleted]);
 
   // Onboarding: timer step 0 auto-advances when timer starts running
   useEffect(() => {
@@ -2087,7 +2089,7 @@ const Main = () => {
         '--color-rest-rgb': hexToRgb(restColor),
       }}
     >
-      {showPwaPrompt && (
+      {showPwaPrompt && !showFollowPrompt && (
         <div className="share-prompt-overlay" onClick={() => setShowPwaPrompt(false)}>
           <div className="share-prompt-card" onClick={(e) => e.stopPropagation()}>
             <button
@@ -2099,21 +2101,33 @@ const Main = () => {
               <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" style={{ width: 48, height: 48, borderRadius: 12 }} />
             </div>
             <h3 className="share-prompt-title">Add to Home Screen</h3>
-            <p className="share-prompt-text">
-              {(() => {
-                const ua = navigator.userAgent;
-                const isIOS = /iPhone|iPad|iPod/i.test(ua);
-                if (!isIOS) return <>Tap the menu <strong>⋮</strong> in your browser, then tap <strong>"Add to Home Screen"</strong>.</>;
-                const isSafari = !(/CriOS|FxiOS|OPiOS|EdgiOS|GSA\//i.test(ua));
-                if (isSafari) return <>Tap <strong>···</strong> at the bottom of Safari, then tap <strong>Share</strong> <svg style={{ verticalAlign: 'middle' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>, then tap <strong>"Add to Home Screen"</strong>.</>;
-                return <>For the best experience, open this page in <strong>Safari</strong>, then tap the <strong>Share</strong> button <svg style={{ verticalAlign: 'middle' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> and tap <strong>"Add to Home Screen"</strong>.</>;
-              })()}
-            </p>
-            <div className="share-prompt-buttons">
-              <button className="share-prompt-btn share-prompt-btn-secondary" onClick={() => setShowPwaPrompt(false)}>
-                Got It
-              </button>
-            </div>
+            {(() => {
+              const ua = navigator.userAgent;
+              const isIOS = /iPhone|iPad|iPod/i.test(ua);
+              const isSafari = isIOS && !(/CriOS|FxiOS|OPiOS|EdgiOS|GSA\//i.test(ua));
+              const isNonSafariIOS = isIOS && !isSafari;
+              return <>
+                <p className="share-prompt-text">
+                  {!isIOS && <>Tap the menu <strong>⋮</strong> in your browser, then tap <strong>"Add to Home Screen"</strong>.</>}
+                  {isSafari && <>Tap <strong>···</strong> at the bottom of Safari, then tap <strong>Share</strong> <svg style={{ verticalAlign: 'middle' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>, then tap <strong>"Add to Home Screen"</strong>.</>}
+                  {isNonSafariIOS && <>Open this link in <strong>Safari</strong> to add to your home screen.</>}
+                </p>
+                {isNonSafariIOS && (
+                  <div className="share-prompt-buttons">
+                    <button
+                      className="share-prompt-btn share-prompt-btn-primary"
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                        const btn = document.querySelector('.pwa-copy-btn-text');
+                        if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy Link'; }, 1500); }
+                      }}
+                    >
+                      <span className="pwa-copy-btn-text">Copy Link</span>
+                    </button>
+                  </div>
+                )}
+              </>;
+            })()}
           </div>
         </div>
       )}
@@ -2411,6 +2425,7 @@ const Main = () => {
             home:  { active: false, step: 0, completed: !newVal, dismissed: [] },
             stats: { active: false, step: 0, completed: !newVal },
           });
+          setFollowPromptCompleted(!newVal);
         }}
         onOpenProfile={() => {
           setSideMenuCloseRequested(true);
@@ -2430,11 +2445,11 @@ const Main = () => {
         />
       )}
       {showFollowPrompt && (
-        <div className="share-prompt-overlay" onClick={() => setShowFollowPrompt(false)}>
+        <div className="share-prompt-overlay" onClick={() => { setShowFollowPrompt(false); setFollowPromptCompleted(true); persistOnboardingCompleted('follow_prompt'); }}>
           <div className="share-prompt-card" onClick={(e) => e.stopPropagation()}>
             <button
               className="follow-prompt-close"
-              onClick={() => setShowFollowPrompt(false)}
+              onClick={() => { setShowFollowPrompt(false); setFollowPromptCompleted(true); persistOnboardingCompleted('follow_prompt'); }}
               aria-label="Close"
             >✕</button>
             <div className="share-prompt-icon">
@@ -2454,6 +2469,8 @@ const Main = () => {
                 className="share-prompt-btn share-prompt-btn-primary"
                 onClick={() => {
                   setShowFollowPrompt(false);
+                  setFollowPromptCompleted(true);
+                  persistOnboardingCompleted('follow_prompt');
                   setFeedInitialTab('people');
                   setShowFeedPage(true);
                 }}
