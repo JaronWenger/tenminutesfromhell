@@ -578,6 +578,7 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
       </div>
 
       {/* Content */}
+      <div className="feed-content-wrap">
       <div
         className="feed-content"
         onTouchStart={handleContentTouchStart}
@@ -1049,62 +1050,64 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
           </>
         )}
 
-        {/* People Tab */}
+        {/* People Tab — sticky header (search + sub-tabs) */}
         {user && !loading && activeTab === 'people' && (
           <>
-            {/* Search Bar */}
-            <div className="feed-search-wrap">
-              <svg className="feed-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <input
-                className="feed-search"
-                type="text"
-                placeholder="Search for people"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
+            <div className="feed-people-sticky">
+              {/* Search Bar */}
+              <div className="feed-search-wrap">
+                <svg className="feed-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  className="feed-search"
+                  type="text"
+                  placeholder="Search for people"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+              </div>
 
-            {/* Sub-tabs */}
-            <div className="feed-subtabs">
-              <button
-                className={`feed-subtab ${peopleSubTab === 'suggested' ? 'active' : ''}`}
-                onClick={() => setPeopleSubTab('suggested')}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                <span>Suggested</span>
-              </button>
-              <button
-                className={`feed-subtab ${peopleSubTab === 'contacts' ? 'active' : ''}`}
-                onClick={() => setPeopleSubTab('contacts')}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-                <span>Contacts</span>
-              </button>
-              <button
-                className={`feed-subtab ${peopleSubTab === 'qr' ? 'active' : ''}`}
-                onClick={() => setPeopleSubTab('qr')}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="2" width="8" height="8" rx="1"/>
-                  <rect x="14" y="2" width="8" height="8" rx="1"/>
-                  <rect x="2" y="14" width="8" height="8" rx="1"/>
-                  <rect x="14" y="14" width="4" height="4" rx="0.5"/>
-                  <line x1="22" y1="14" x2="22" y2="22"/>
-                  <line x1="18" y1="22" x2="22" y2="22"/>
-                </svg>
-                <span>QR Code</span>
-              </button>
+              {/* Sub-tabs */}
+              <div className="feed-subtabs">
+                <button
+                  className={`feed-subtab ${peopleSubTab === 'suggested' ? 'active' : ''}`}
+                  onClick={() => setPeopleSubTab('suggested')}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                  <span>Suggested</span>
+                </button>
+                <button
+                  className={`feed-subtab ${peopleSubTab === 'contacts' ? 'active' : ''}`}
+                  onClick={() => setPeopleSubTab('contacts')}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  <span>Contacts</span>
+                </button>
+                <button
+                  className={`feed-subtab ${peopleSubTab === 'qr' ? 'active' : ''}`}
+                  onClick={() => setPeopleSubTab('qr')}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="2" width="8" height="8" rx="1"/>
+                    <rect x="14" y="2" width="8" height="8" rx="1"/>
+                    <rect x="2" y="14" width="8" height="8" rx="1"/>
+                    <rect x="14" y="14" width="4" height="4" rx="0.5"/>
+                    <line x1="22" y1="14" x2="22" y2="22"/>
+                    <line x1="18" y1="22" x2="22" y2="22"/>
+                  </svg>
+                  <span>QR Code</span>
+                </button>
+              </div>
             </div>
 
             {/* Suggested Sub-tab */}
@@ -1188,22 +1191,26 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
               </div>
             )}
 
-            {/* Sticky bottom invite */}
-            <div className="feed-bottom-invite">
-              <button className="feed-bottom-invite-btn" onClick={handleShareInvite}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="18" cy="5" r="3"/>
-                  <circle cx="6" cy="12" r="3"/>
-                  <circle cx="18" cy="19" r="3"/>
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                </svg>
-                Invite Friends
-              </button>
-            </div>
           </>
         )}
       </div>
+      </div>
+
+      {/* Fixed bottom invite — outside scroll container */}
+      {user && !loading && activeTab === 'people' && (
+        <div className="feed-bottom-invite">
+          <button className="feed-bottom-invite-btn" onClick={handleShareInvite}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+            Invite Friends
+          </button>
+        </div>
+      )}
 
       {/* Reaction tooltip — fixed overlay to escape overflow:hidden containers */}
       {reactionTooltip && (
