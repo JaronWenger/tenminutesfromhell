@@ -1237,7 +1237,7 @@ const Home = ({
     };
   }, [isEditingTitle]);
 
-  const isDefaultWorkout = detailWorkout ? (!detailWorkout.forked && (defaultWorkoutIds.has(detailWorkout.defaultId) || defaultWorkoutIds.has(detailWorkout.id))) : false;
+  const isDefaultWorkout = detailWorkout ? (!detailWorkout.forked && !detailWorkout.isCustom && (defaultWorkoutIds.has(detailWorkout.defaultId) || defaultWorkoutIds.has(detailWorkout.id))) : false;
 
   const displayRestTime = detailWorkout
     ? (detailWorkout.restTime != null ? detailWorkout.restTime : globalRestTime)
@@ -1309,7 +1309,7 @@ const Home = ({
                 const isSelected = timerSelectedWorkoutId ? (workout.id === timerSelectedWorkoutId) : (timerSelectedWorkout === workout.name);
                 const isSwipeActive = swipingIndex === index;
                 const header = scheduleHeaders[index];
-                const draggableKey = header ? `${workout.name}-day${header.dayIndex}` : workout.name;
+                const draggableKey = header ? `${workout.id || workout.name}-day${header.dayIndex}` : (workout.id || workout.name);
 
                 return (
                   <React.Fragment key={draggableKey}>
@@ -1380,17 +1380,19 @@ const Home = ({
                           }}
                           onTouchEnd={() => handleSwipeEnd()}
                         >
-                          {!workout.isCustom && (defaultWorkoutIds.has(workout.defaultId) || defaultWorkoutIds.has(workout.id)) ? (
+                          {!workout.isCustom && !workout.forked && (defaultWorkoutIds.has(workout.defaultId) || defaultWorkoutIds.has(workout.id)) ? (
                               <div className="workout-card-avatar-wrap workout-card-avatar-logo"><img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="workout-card-avatar" /></div>
                             ) : workout.creatorPhotoURL ? (
                               <img src={workout.creatorPhotoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
+                            ) : workout.creatorUid && workout.creatorUid !== user?.uid ? (
+                              <div className="workout-card-avatar workout-card-avatar-fallback">
+                                {(workout.creatorName || '?')[0].toUpperCase()}
+                              </div>
                             ) : user?.photoURL ? (
                               <img src={user.photoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
                             ) : (
                               <div className="workout-card-avatar workout-card-avatar-fallback">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                                </svg>
+                                {(user?.displayName || '?')[0].toUpperCase()}
                               </div>
                             )
                           }
@@ -1507,13 +1509,15 @@ const Home = ({
                     <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="home-detail-creator-icon home-detail-app-icon" />
                   ) : detailWorkout.creatorPhotoURL ? (
                     <img src={detailWorkout.creatorPhotoURL} alt="" className="home-detail-creator-icon" referrerPolicy="no-referrer" />
+                  ) : detailWorkout.creatorUid && detailWorkout.creatorUid !== user?.uid ? (
+                    <div className="home-detail-creator-icon home-detail-user-icon">
+                      {(detailWorkout.creatorName || '?')[0].toUpperCase()}
+                    </div>
                   ) : user?.photoURL ? (
-                    <img src={user.photoURL} alt="" className="home-detail-creator-icon" />
+                    <img src={user.photoURL} alt="" className="home-detail-creator-icon" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="home-detail-creator-icon home-detail-user-icon">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                      </svg>
+                      {(user?.displayName || '?')[0].toUpperCase()}
                     </div>
                   )}
                 </div>

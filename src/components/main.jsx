@@ -2274,6 +2274,10 @@ const Main = () => {
               <div className="stats-detail-creator">
                 {feedDetailOwner?.photoURL ? (
                   <img src={feedDetailOwner.photoURL} alt="" className="stats-detail-creator-icon" referrerPolicy="no-referrer" />
+                ) : feedDetailOwner?.displayName ? (
+                  <div className="stats-detail-creator-icon stats-detail-creator-fallback">
+                    {feedDetailOwner.displayName[0].toUpperCase()}
+                  </div>
                 ) : (
                   <img src="/logo192.png" alt="" className="stats-detail-creator-icon" style={{ transform: 'scale(1.15)', border: 'none' }} />
                 )}
