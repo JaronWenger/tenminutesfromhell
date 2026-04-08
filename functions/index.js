@@ -9,7 +9,7 @@ const db = admin.firestore();
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 
-const ALLOWED_ORIGINS = ["https://hiitem.com", "http://localhost:3000", "http://localhost:3001"];
+const ALLOWED_ORIGINS = ["https://hiitem.com", "https://www.hiitem.com", "http://localhost:3000", "http://localhost:3001"];
 
 function setCors(req, res) {
   const origin = req.headers.origin;
