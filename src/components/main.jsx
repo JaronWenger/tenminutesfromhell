@@ -67,6 +67,18 @@ const Main = () => {
     return () => clearTimeout(timeout);
   }, [authLoading, user, workoutReady]);
 
+  // Handle Stripe checkout success return
+  const [showProWelcome, setShowProWelcome] = useState(false);
+  const [proWelcomeClosing, setProWelcomeClosing] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      setIsPro(true);
+      setShowProWelcome(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // Handle sign-in / sign-out transitions
   const prevUserRef = useRef(user);
   useEffect(() => {
@@ -2737,11 +2749,70 @@ const Main = () => {
                 </div>
               </div>
             </div>
-            <button className="pro-popup-cta" onClick={() => {
-              if (user) logProInterest(user.uid, user.displayName, user.email).catch(() => {});
-              closeProPopup();
+            <button className="pro-popup-cta" onClick={async () => {
+              if (!user) return;
+              logProInterest(user.uid, user.displayName, user.email).catch(() => {});
+              try {
+                const res = await fetch('https://us-central1-tenminutesfromhell.cloudfunctions.net/createCheckoutSession', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ uid: user.uid, email: user.email }),
+                });
+                const { url } = await res.json();
+                if (url) window.location.href = url;
+              } catch (err) {
+                console.error('Checkout error:', err);
+              }
             }}>
               Start free trial
+            </button>
+          </div>
+        </div>
+      )}
+      {showProWelcome && (
+        <div className={`pro-popup-overlay ${proWelcomeClosing ? 'pro-popup-closing' : ''}`} onClick={() => {
+          setProWelcomeClosing(true);
+          setTimeout(() => { setShowProWelcome(false); setProWelcomeClosing(false); }, 300);
+        }}>
+          <div className="pro-popup" onClick={e => e.stopPropagation()}>
+            <button className="pro-popup-close" onClick={() => {
+              setProWelcomeClosing(true);
+              setTimeout(() => { setShowProWelcome(false); setProWelcomeClosing(false); }, 300);
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+            <h1 className="pro-popup-title">Welcome to Pro!</h1>
+            <div className="pro-popup-timeline">
+              <div className="pro-popup-timeline-line" />
+              <div className="pro-popup-step">
+                <div className="pro-popup-dot" style={{ background: '#34c759' }} />
+                <div className="pro-popup-step-content">
+                  <span className="pro-popup-step-title">Custom colors</span>
+                  <span className="pro-popup-step-desc">Personalize your timer with any color combination.</span>
+                </div>
+              </div>
+              <div className="pro-popup-step">
+                <div className="pro-popup-dot" style={{ background: '#34c759' }} />
+                <div className="pro-popup-step-content">
+                  <span className="pro-popup-step-title">Shuffle mode</span>
+                  <span className="pro-popup-step-desc">Randomize your exercises to keep workouts fresh.</span>
+                </div>
+              </div>
+              <div className="pro-popup-step">
+                <div className="pro-popup-dot" style={{ background: '#34c759' }} />
+                <div className="pro-popup-step-content">
+                  <span className="pro-popup-step-title">Weekly schedule</span>
+                  <span className="pro-popup-step-desc">Plan your workouts for each day of the week.</span>
+                </div>
+              </div>
+            </div>
+            <button className="pro-popup-cta" onClick={() => {
+              setProWelcomeClosing(true);
+              setTimeout(() => { setShowProWelcome(false); setProWelcomeClosing(false); }, 300);
+            }}>
+              Let's go
             </button>
           </div>
         </div>
