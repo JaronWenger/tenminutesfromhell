@@ -39,12 +39,13 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     setAdminDetail(null);
     try {
       // Fetch all collections in parallel
-      const [profilesSnap, postsSnap, workoutsSnap, notificationsSnap, proInterestSnap] = await Promise.all([
+      const [profilesSnap, postsSnap, workoutsSnap, notificationsSnap, proInterestSnap, stripeRedirectsSnap] = await Promise.all([
         getDocs(collection(db, 'userProfiles')),
         getDocs(collection(db, 'posts')),
         getDocs(collection(db, 'workouts')),
         getDocs(collection(db, 'notifications')),
         getDocs(collection(db, 'proInterest')).catch(() => ({ size: 0, docs: [] })),
+        getDocs(collection(db, 'stripeRedirects')).catch(() => ({ size: 0, docs: [] })),
       ]);
 
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -575,6 +576,33 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             createdAt: data.createdAt?.toDate?.() || null,
           };
         }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+        stripeRedirectCount: stripeRedirectsSnap.size,
+        _stripeRedirects: stripeRedirectsSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            userId: data.userId,
+            displayName: data.displayName || 'Unknown',
+            email: data.email || null,
+            createdAt: data.createdAt?.toDate?.() || null,
+          };
+        }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+        _proSubscribers: profilesSnap.docs
+          .filter(d => d.data().subscriptionStatus)
+          .map(d => {
+            const data = d.data();
+            return {
+              uid: d.id,
+              displayName: data.displayName || 'Unknown',
+              email: data.email || null,
+              photo: data.photoURL || null,
+              subscriptionStatus: data.subscriptionStatus,
+              isPro: data.isPro ?? false,
+              proSince: data.proSince?.toDate?.() || null,
+            };
+          }),
+        proTrialingCount: profilesSnap.docs.filter(d => d.data().subscriptionStatus === 'trialing').length,
+        proActiveCount: profilesSnap.docs.filter(d => d.data().subscriptionStatus === 'active').length,
+        proCanceledCount: profilesSnap.docs.filter(d => d.data().subscriptionStatus === 'canceled').length,
       });
     } catch (err) {
       console.error('Failed to load admin stats:', err);
@@ -1188,10 +1216,10 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   </div>
                 </div>
 
-                <div className="sidemenu-admin-section-label">Pro Interest</div>
+                <div className="sidemenu-admin-section-label">Pro Funnel</div>
                 <div className="sidemenu-admin-grid">
-                  <div className="sidemenu-admin-stat sidemenu-admin-stat-wide sidemenu-admin-stat-tap" onClick={() => {
-                    openDetail('Pro Interest Taps', (adminStats._proInterest || []).map((p, i) => ({
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('CTA Taps', (adminStats._proInterest || []).map((p, i) => ({
                       rank: i + 1,
                       name: p.displayName,
                       photo: null,
@@ -1201,6 +1229,54 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   }}>
                     <span className="sidemenu-admin-stat-value">{adminStats.proInterestCount || 0}</span>
                     <span className="sidemenu-admin-stat-label">CTA Taps</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('Stripe Redirects', (adminStats._stripeRedirects || []).map((p, i) => ({
+                      rank: i + 1,
+                      name: p.displayName,
+                      photo: null,
+                      email: p.email,
+                      value: p.createdAt ? p.createdAt.toLocaleDateString() : '',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.stripeRedirectCount || 0}</span>
+                    <span className="sidemenu-admin-stat-label">Stripe Visits</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('Trialing Users', (adminStats._proSubscribers || []).filter(u => u.subscriptionStatus === 'trialing').map((u, i) => ({
+                      rank: i + 1,
+                      name: u.displayName,
+                      photo: u.photo,
+                      email: u.email,
+                      value: u.proSince ? u.proSince.toLocaleDateString() : '',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.proTrialingCount || 0}</span>
+                    <span className="sidemenu-admin-stat-label">Trialing</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('Paying Users', (adminStats._proSubscribers || []).filter(u => u.subscriptionStatus === 'active').map((u, i) => ({
+                      rank: i + 1,
+                      name: u.displayName,
+                      photo: u.photo,
+                      email: u.email,
+                      value: u.proSince ? u.proSince.toLocaleDateString() : '',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.proActiveCount || 0}</span>
+                    <span className="sidemenu-admin-stat-label">Paying</span>
+                  </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('Canceled Users', (adminStats._proSubscribers || []).filter(u => u.subscriptionStatus === 'canceled').map((u, i) => ({
+                      rank: i + 1,
+                      name: u.displayName,
+                      photo: u.photo,
+                      email: u.email,
+                      value: u.proSince ? u.proSince.toLocaleDateString() : '',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.proCanceledCount || 0}</span>
+                    <span className="sidemenu-admin-stat-label">Canceled</span>
                   </div>
                 </div>
 

@@ -15,7 +15,7 @@ import OnboardingTooltip from './OnboardingTooltip';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { recordWorkoutHistory, updateWorkoutHistory, getUserHistory, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, setDeletedDefaults } from '../firebase/firestore';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, setProStatus, logProInterest } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, setProStatus, logProInterest, logStripeRedirect } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -2759,7 +2759,10 @@ const Main = () => {
                   body: JSON.stringify({ uid: user.uid, email: user.email }),
                 });
                 const { url } = await res.json();
-                if (url) window.location.href = url;
+                if (url) {
+                  await logStripeRedirect(user.uid, user.displayName, user.email).catch(() => {});
+                  window.location.href = url;
+                }
               } catch (err) {
                 console.error('Checkout error:', err);
               }

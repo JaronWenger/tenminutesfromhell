@@ -128,15 +128,19 @@ exports.stripeWebhook = onRequest(
           const session = event.data.object;
           const uid = session.metadata?.firebaseUID;
           if (uid && session.subscription) {
+            // Fetch subscription to get actual status (trialing vs active)
+            const sub = await stripe.subscriptions.retrieve(session.subscription);
             await db.doc(`userProfiles/${uid}`).set(
               {
                 isPro: true,
                 subscriptionId: session.subscription,
+                subscriptionStatus: sub.status || "active",
+                proSince: admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               },
               { merge: true }
             );
-            console.log(`Pro activated for ${uid}`);
+            console.log(`Pro activated for ${uid} (status: ${sub.status})`);
           }
           break;
         }
@@ -150,6 +154,7 @@ exports.stripeWebhook = onRequest(
               {
                 isPro: isActive,
                 subscriptionId: isActive ? subscription.id : null,
+                subscriptionStatus: subscription.status,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               },
               { merge: true }
@@ -167,6 +172,7 @@ exports.stripeWebhook = onRequest(
               {
                 isPro: false,
                 subscriptionId: null,
+                subscriptionStatus: "canceled",
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               },
               { merge: true }

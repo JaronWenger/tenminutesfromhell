@@ -239,6 +239,15 @@ export const logProInterest = async (userId, displayName, email) => {
   });
 };
 
+export const logStripeRedirect = async (userId, displayName, email) => {
+  await addDoc(collection(db, 'stripeRedirects'), {
+    userId,
+    displayName: displayName || 'Unknown',
+    email: email || null,
+    createdAt: serverTimestamp()
+  });
+};
+
 export const getProStatus = async (userId) => {
   const snap = await getDoc(doc(db, 'userProfiles', userId));
   if (!snap.exists()) return { isPro: false, subscriptionId: null };
