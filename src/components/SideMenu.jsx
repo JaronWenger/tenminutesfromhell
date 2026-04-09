@@ -28,6 +28,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
   const [adminDetail, setAdminDetail] = useState(null); // { title, items: [{ label, sublabel, value }], filterFn? }
   const [adminDetailFilter, setAdminDetailFilter] = useState('all');
   const [adminProfileUser, setAdminProfileUser] = useState(null);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   const formatTime = (s) => {
     const h = Math.floor(s / 3600);
@@ -828,7 +829,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         </div>
 
         <div className="sidemenu-items">
-          {!isPro && (
+          {!isPro ? (
             <div className="sidemenu-pro-banner">
               <div className="sidemenu-pro-banner-text">
                 <span className="sidemenu-pro-badge">PRO</span>
@@ -838,6 +839,35 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
               <button className="sidemenu-pro-btn" onClick={() => onProTap && onProTap()}>
                 Upgrade
               </button>
+            </div>
+          ) : (
+            <div className="sidemenu-item" style={{ opacity: portalLoading ? 0.5 : 1 }} onClick={async () => {
+              if (portalLoading) return;
+              setPortalLoading(true);
+              try {
+                const res = await fetch('https://us-central1-tenminutesfromhell.cloudfunctions.net/createPortalSession', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ uid: user.uid }),
+                });
+                const { url } = await res.json();
+                if (url) window.location.href = url;
+                else setPortalLoading(false);
+              } catch (err) {
+                console.error('Portal session error:', err);
+                setPortalLoading(false);
+              }
+            }}>
+              {portalLoading ? (
+                <span className="pro-popup-cta-spinner" style={{ width: 18, height: 18, borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }} />
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                  <line x1="1" y1="10" x2="23" y2="10"/>
+                </svg>
+              )}
+              <span className="sidemenu-item-label">Manage Plan</span>
+              <span className="sidemenu-pro-tag">PRO</span>
             </div>
           )}
 
