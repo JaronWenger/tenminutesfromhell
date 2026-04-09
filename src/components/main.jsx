@@ -249,6 +249,7 @@ const Main = () => {
   const [isPro, setIsPro] = useState(false);
   const [showProPopup, setShowProPopup] = useState(false);
   const [proPopupClosing, setProPopupClosing] = useState(false);
+  const [proCheckoutLoading, setProCheckoutLoading] = useState(false);
   const [pendingFollowRequests, setPendingFollowRequests] = useState({}); // { targetUid: notificationId }
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalCloseRequested, setLoginModalCloseRequested] = useState(false);
@@ -2749,9 +2750,11 @@ const Main = () => {
                 </div>
               </div>
             </div>
-            <button className="pro-popup-cta" onClick={async () => {
-              if (!user) return;
+            <button className="pro-popup-cta" disabled={proCheckoutLoading} onClick={async () => {
+              if (!user || proCheckoutLoading) return;
+              setProCheckoutLoading(true);
               logProInterest(user.uid, user.displayName, user.email).catch(() => {});
+              logStripeRedirect(user.uid, user.displayName, user.email).catch(() => {});
               try {
                 const res = await fetch('https://us-central1-tenminutesfromhell.cloudfunctions.net/createCheckoutSession', {
                   method: 'POST',
@@ -2759,15 +2762,14 @@ const Main = () => {
                   body: JSON.stringify({ uid: user.uid, email: user.email }),
                 });
                 const { url } = await res.json();
-                if (url) {
-                  await logStripeRedirect(user.uid, user.displayName, user.email).catch(() => {});
-                  window.location.href = url;
-                }
+                if (url) window.location.href = url;
+                else setProCheckoutLoading(false);
               } catch (err) {
                 console.error('Checkout error:', err);
+                setProCheckoutLoading(false);
               }
             }}>
-              Start free trial
+              {proCheckoutLoading ? <span className="pro-popup-cta-spinner" /> : 'Start free trial'}
             </button>
           </div>
         </div>
