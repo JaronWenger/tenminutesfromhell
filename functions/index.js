@@ -382,6 +382,94 @@ exports.trialEndingReminder = onSchedule(
   }
 );
 
+// ── Send Test Email (admin only) ──
+exports.sendTestEmail = onRequest(
+  { secrets: [gmailAppPassword] },
+  async (req, res) => {
+    setCors(req, res);
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+    const { email, type } = req.body;
+    if (!email) { res.status(400).json({ error: "Missing email" }); return; }
+
+    const transporter = createTransporter(gmailAppPassword.value());
+    const name = "Jaron";
+
+    const templates = {
+      welcome: {
+        subject: "Welcome to HIITem!",
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;color:#222;">
+          <h1 style="color:#ff6b2b;font-size:24px;">Welcome to HIITem, ${name}!</h1>
+          <p>You're all set up and ready to go. Here's what you can do:</p>
+          <ul style="padding-left:20px;line-height:1.8;">
+            <li>Run timed HIIT workouts with 1-minute intervals</li>
+            <li>Create and customize your own workouts</li>
+            <li>Track your activity with heatmaps and stats</li>
+            <li>Follow friends and share workouts</li>
+          </ul>
+          <p><a href="https://hiitem.com" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#ff3b30,#ff6b2b);color:#fff;text-decoration:none;border-radius:24px;font-weight:600;">Start a Workout</a></p>
+          ${emailFooter}
+        </div>`,
+      },
+      pro_confirmed: {
+        subject: "Your Pro trial has started!",
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;color:#222;">
+          <h1 style="color:#ff6b2b;font-size:24px;">Welcome to Pro, ${name}!</h1>
+          <p>Your 7-day free trial is now active. Here's what you've unlocked:</p>
+          <ul style="padding-left:20px;line-height:1.8;">
+            <li>Custom timer colors</li>
+            <li>Shuffle exercises mode</li>
+            <li>Weekly workout schedule</li>
+          </ul>
+          <p>Your trial runs for 7 days. After that it's just $4.99/month — cancel anytime from Settings → Manage Plan.</p>
+          <p><a href="https://hiitem.com" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#ff3b30,#ff6b2b);color:#fff;text-decoration:none;border-radius:24px;font-weight:600;">Open HIITem</a></p>
+          ${emailFooter}
+        </div>`,
+      },
+      trial_ending: {
+        subject: "Your HIITem Pro trial ends in 2 days",
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;color:#222;">
+          <h1 style="color:#ff6b2b;font-size:24px;">Heads up, ${name}!</h1>
+          <p>Your 7-day Pro trial ends in 2 days. After that, your card will be charged $4.99/month.</p>
+          <p>If you'd like to keep Pro features (custom colors, shuffle mode, weekly schedule), you don't need to do anything — it'll continue automatically.</p>
+          <p>If you'd rather cancel, just go to Settings → Manage Plan before your trial ends. No hard feelings!</p>
+          <p><a href="https://hiitem.com" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#ff3b30,#ff6b2b);color:#fff;text-decoration:none;border-radius:24px;font-weight:600;">Open HIITem</a></p>
+          ${emailFooter}
+        </div>`,
+      },
+      payment_failed: {
+        subject: "Payment issue with your HIITem Pro plan",
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;color:#222;">
+          <h1 style="color:#ff3b30;font-size:24px;">Payment failed</h1>
+          <p>Hey ${name}, we had trouble charging your card for HIITem Pro ($4.99/month).</p>
+          <p>Please update your payment method so you don't lose access to Pro features:</p>
+          <p><a href="https://hiitem.com" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#ff3b30,#ff6b2b);color:#fff;text-decoration:none;border-radius:24px;font-weight:600;">Update Payment</a></p>
+          <p style="font-size:13px;color:#666;">Go to Settings → Manage Plan to update your card.</p>
+          ${emailFooter}
+        </div>`,
+      },
+    };
+
+    try {
+      if (type === "all") {
+        for (const [key, tmpl] of Object.entries(templates)) {
+          await sendEmail(transporter, email, `[TEST] ${tmpl.subject}`, tmpl.html);
+        }
+        res.json({ sent: Object.keys(templates).length });
+      } else {
+        const tmpl = templates[type];
+        if (!tmpl) { res.status(400).json({ error: `Unknown type: ${type}` }); return; }
+        await sendEmail(transporter, email, `[TEST] ${tmpl.subject}`, tmpl.html);
+        res.json({ sent: 1 });
+      }
+    } catch (err) {
+      console.error("Test email error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 async function getUidFromCustomer(customerId) {
   const snapshot = await db
     .collection("userProfiles")

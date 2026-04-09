@@ -29,6 +29,8 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
   const [adminDetailFilter, setAdminDetailFilter] = useState('all');
   const [adminProfileUser, setAdminProfileUser] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [testEmailOpen, setTestEmailOpen] = useState(false);
+  const [testEmailSending, setTestEmailSending] = useState(null);
 
   const formatTime = (s) => {
     const h = Math.floor(s / 3600);
@@ -1414,6 +1416,51 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   </svg>
                   <span>Dev Feedback Responses</span>
                 </div>
+
+                <div
+                  className="sidemenu-admin-ga-link"
+                  onClick={() => setTestEmailOpen(!testEmailOpen)}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  <span>Test Emails</span>
+                </div>
+                {testEmailOpen && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                    {[
+                      { key: 'welcome', label: 'Welcome' },
+                      { key: 'pro_confirmed', label: 'Pro Confirmed' },
+                      { key: 'trial_ending', label: 'Trial Ending' },
+                      { key: 'payment_failed', label: 'Payment Failed' },
+                      { key: 'all', label: 'Send All' },
+                    ].map(({ key, label }) => (
+                      <div
+                        key={key}
+                        className="sidemenu-admin-ga-link"
+                        style={{ opacity: testEmailSending === key ? 0.5 : 1, justifyContent: 'center' }}
+                        onClick={async () => {
+                          if (testEmailSending) return;
+                          setTestEmailSending(key);
+                          try {
+                            await fetch('https://us-central1-tenminutesfromhell.cloudfunctions.net/sendTestEmail', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ email: 'jarongwenger@gmail.com', type: key }),
+                            });
+                          } catch (_) {}
+                          setTestEmailSending(null);
+                        }}
+                      >
+                        {testEmailSending === key
+                          ? <span className="pro-popup-cta-spinner" style={{ width: 14, height: 14, borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }} />
+                          : <span>{label}</span>
+                        }
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             ) : null}
           </div>
