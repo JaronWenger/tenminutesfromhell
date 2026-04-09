@@ -645,9 +645,10 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     })));
   };
 
-  // Reset color popup when menu closes
+  // Reset color popup and portal loading when menu opens/closes
   useEffect(() => {
     if (!isOpen) setColorPopup(null);
+    if (isOpen) setPortalLoading(false);
   }, [isOpen]);
 
   // ── Swipe left to close ──
