@@ -4,6 +4,7 @@ import { signOut } from '../firebase/auth';
 import { collection, getDocs, getDoc, doc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
+import ProfilePopup from './ProfilePopup';
 import './SideMenu.css';
 
 const ACTIVE_DEFAULT = '#ff3b30';
@@ -26,6 +27,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
   const [adminStats, setAdminStats] = useState(null);
   const [adminDetail, setAdminDetail] = useState(null); // { title, items: [{ label, sublabel, value }], filterFn? }
   const [adminDetailFilter, setAdminDetailFilter] = useState('all');
+  const [adminProfileUser, setAdminProfileUser] = useState(null);
 
   const formatTime = (s) => {
     const h = Math.floor(s / 3600);
@@ -603,6 +605,19 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         proTrialingCount: profilesSnap.docs.filter(d => d.data().subscriptionStatus === 'trialing').length,
         proActiveCount: profilesSnap.docs.filter(d => d.data().subscriptionStatus === 'active').length,
         proCanceledCount: profilesSnap.docs.filter(d => d.data().subscriptionStatus === 'canceled').length,
+        proRefundedCount: profilesSnap.docs.filter(d => d.data().refunded === true).length,
+        _proRefunded: profilesSnap.docs
+          .filter(d => d.data().refunded === true)
+          .map(d => {
+            const data = d.data();
+            return {
+              uid: d.id,
+              displayName: data.displayName || 'Unknown',
+              email: data.email || null,
+              photo: data.photoURL || null,
+              refundedAt: data.refundedAt?.toDate?.() || null,
+            };
+          }),
       });
     } catch (err) {
       console.error('Failed to load admin stats:', err);
@@ -621,6 +636,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     const sorted = [...adminStats._users].sort((a, b) => (b[sortKey] || 0) - (a[sortKey] || 0));
     openDetail(title, sorted.map((u, i) => ({
       rank: i + 1,
+      uid: u.uid,
       name: u.name,
       photo: u.photo,
       email: u.email,
@@ -1074,7 +1090,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     todayList.sort((a, b) => (lastOpened[b.uid] || 0) - (lastOpened[a.uid] || 0));
                     openDetail('Opened App Today', todayList.map((u, i) => {
                       const d = lastOpened[u.uid];
-                      return { rank: i + 1, name: u.name, photo: u.photo, email: u.email, value: d ? d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '—' };
+                      return { rank: i + 1, uid: u.uid, name: u.name, photo: u.photo, email: u.email, value: d ? d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '—' };
                     }));
                   }}>
                     <span className="sidemenu-admin-stat-value">{adminStats.openedAppToday}</span>
@@ -1087,7 +1103,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     list7d.sort((a, b) => (lastOpened[b.uid] || 0) - (lastOpened[a.uid] || 0));
                     openDetail('Opened App (7d)', list7d.map((u, i) => {
                       const d = lastOpened[u.uid];
-                      return { rank: i + 1, name: u.name, photo: u.photo, email: u.email, value: d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—' };
+                      return { rank: i + 1, uid: u.uid, name: u.name, photo: u.photo, email: u.email, value: d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—' };
                     }));
                   }}>
                     <span className="sidemenu-admin-stat-value">{adminStats.openedApp7d}</span>
@@ -1096,7 +1112,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
                     const sorted = [...adminStats._users].sort((a, b) => (b.signupDate || 0) - (a.signupDate || 0));
                     openDetail('Users by Signup', sorted.map((u, i) => ({
-                      rank: i + 1, name: u.name, photo: u.photo, email: u.email,
+                      rank: i + 1, uid: u.uid, name: u.name, photo: u.photo, email: u.email,
                       value: u.signupDate ? u.signupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—',
                     })));
                   }}>
@@ -1110,7 +1126,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
                     const sorted = [...adminStats._users].sort((a, b) => (b.signupDate || 0) - (a.signupDate || 0));
                     openDetail('All Users', sorted.map((u, i) => ({
-                      rank: i + 1, name: u.name, photo: u.photo, email: u.email,
+                      rank: i + 1, uid: u.uid, name: u.name, photo: u.photo, email: u.email,
                       value: u.signupDate ? u.signupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
                     })));
                   }}>
@@ -1119,7 +1135,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   </div>
                   <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
                     openDetail('New Users This Week', (adminStats._newUsersThisWeek || []).map((u, i) => ({
-                      rank: i + 1, name: u.name, photo: u.photo, email: u.email,
+                      rank: i + 1, uid: u.uid, name: u.name, photo: u.photo, email: u.email,
                       value: u.date ? u.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—',
                     })));
                   }}>
@@ -1161,7 +1177,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                         const users = Object.entries(w.users)
                           .map(([uid, cnt]) => {
                             const u = adminStats._users.find(x => x.uid === uid);
-                            return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: `${cnt}x`, cnt };
+                            return { uid, name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: `${cnt}x`, cnt };
                           })
                           .sort((a, b) => b.cnt - a.cnt);
                         openDetail(`${w.name} — Completions`, users.map((u, j) => ({ rank: j + 1, ...u })));
@@ -1177,7 +1193,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                       onTap: () => {
                         const users = w.uids.map(uid => {
                           const u = adminStats._users.find(x => x.uid === uid);
-                          return { rank: null, name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: '' };
+                          return { rank: null, uid, name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: '' };
                         });
                         openDetail(`${w.name} — Owners`, users.map((u, j) => ({ ...u, rank: j + 1 })));
                       },
@@ -1216,11 +1232,12 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   </div>
                 </div>
 
-                <div className="sidemenu-admin-section-label">Pro Funnel</div>
+                <div className="sidemenu-admin-section-label-pro">Pro Funnel</div>
                 <div className="sidemenu-admin-grid">
-                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-pro sidemenu-admin-stat-tap" onClick={() => {
                     openDetail('CTA Taps', (adminStats._proInterest || []).map((p, i) => ({
                       rank: i + 1,
+                      uid: p.userId,
                       name: p.displayName,
                       photo: null,
                       email: p.email,
@@ -1230,9 +1247,10 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-stat-value">{adminStats.proInterestCount || 0}</span>
                     <span className="sidemenu-admin-stat-label">CTA Taps</span>
                   </div>
-                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-pro sidemenu-admin-stat-tap" onClick={() => {
                     openDetail('Stripe Redirects', (adminStats._stripeRedirects || []).map((p, i) => ({
                       rank: i + 1,
+                      uid: p.userId,
                       name: p.displayName,
                       photo: null,
                       email: p.email,
@@ -1242,7 +1260,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-stat-value">{adminStats.stripeRedirectCount || 0}</span>
                     <span className="sidemenu-admin-stat-label">Stripe Visits</span>
                   </div>
-                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-pro sidemenu-admin-stat-tap" onClick={() => {
                     openDetail('Trialing Users', (adminStats._proSubscribers || []).filter(u => u.subscriptionStatus === 'trialing').map((u, i) => ({
                       rank: i + 1,
                       name: u.displayName,
@@ -1254,7 +1272,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-stat-value">{adminStats.proTrialingCount || 0}</span>
                     <span className="sidemenu-admin-stat-label">Trialing</span>
                   </div>
-                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-pro sidemenu-admin-stat-tap" onClick={() => {
                     openDetail('Paying Users', (adminStats._proSubscribers || []).filter(u => u.subscriptionStatus === 'active').map((u, i) => ({
                       rank: i + 1,
                       name: u.displayName,
@@ -1266,7 +1284,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-stat-value">{adminStats.proActiveCount || 0}</span>
                     <span className="sidemenu-admin-stat-label">Paying</span>
                   </div>
-                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-pro sidemenu-admin-stat-tap" onClick={() => {
                     openDetail('Canceled Users', (adminStats._proSubscribers || []).filter(u => u.subscriptionStatus === 'canceled').map((u, i) => ({
                       rank: i + 1,
                       name: u.displayName,
@@ -1278,6 +1296,19 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-stat-value">{adminStats.proCanceledCount || 0}</span>
                     <span className="sidemenu-admin-stat-label">Canceled</span>
                   </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-pro sidemenu-admin-stat-tap" onClick={() => {
+                    openDetail('Refunded Users', (adminStats._proRefunded || []).map((u, i) => ({
+                      rank: i + 1,
+                      uid: u.uid,
+                      name: u.displayName,
+                      photo: u.photo,
+                      email: u.email,
+                      value: u.refundedAt ? u.refundedAt.toLocaleDateString() : '',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value">{adminStats.proRefundedCount || 0}</span>
+                    <span className="sidemenu-admin-stat-label">Refunded</span>
+                  </div>
                 </div>
 
                 <div className="sidemenu-admin-section-label">Retention</div>
@@ -1286,11 +1317,11 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <div key={label} className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
                       const retained = (data.retained || []).map(uid => {
                         const u = adminStats._users.find(x => x.uid === uid);
-                        return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: formatTime(u?.activeSeconds || 0) };
+                        return { uid, name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: formatTime(u?.activeSeconds || 0) };
                       });
                       const churned = (data.churned || []).map(uid => {
                         const u = adminStats._users.find(x => x.uid === uid);
-                        return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: 'churned' };
+                        return { uid, name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: 'churned' };
                       });
                       openDetail(`${label} Retention — ${data.pct}%`, [
                         ...retained.map((r, i) => ({ rank: i + 1, ...r })),
@@ -1311,11 +1342,11 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                         <div key={f.label} className="sidemenu-admin-stat sidemenu-admin-stat-tap" onClick={() => {
                           const adopted = f.adopted.map(uid => {
                             const u = adminStats._users.find(x => x.uid === uid);
-                            return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: 'yes' };
+                            return { uid, name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: 'yes' };
                           });
                           const not = f.notAdopted.map(uid => {
                             const u = adminStats._users.find(x => x.uid === uid);
-                            return { name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: '—' };
+                            return { uid, name: u?.name || 'Unknown', photo: u?.photo, email: u?.email, value: '—' };
                           });
                           openDetail(`${f.label} — ${label}`, [
                             ...adopted.map((r, i) => ({ rank: i + 1, ...r })),
@@ -1406,7 +1437,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             })()}
             <div className="sidemenu-admin-detail-list">
               {(adminDetailFilter === 'all' ? adminDetail.items : adminDetail.items.filter(item => item.signals?.[adminDetailFilter])).map((item, i) => (
-                <div key={item.uid || i} className={`sidemenu-admin-detail-row${item.onTap ? ' sidemenu-admin-detail-row-tap' : ''}`} style={{ animationDelay: `${Math.min(i * 20, 300)}ms` }} onClick={item.onTap || undefined}>
+                <div key={item.uid || i} className={`sidemenu-admin-detail-row${(item.onTap || item.uid) ? ' sidemenu-admin-detail-row-tap' : ''}`} style={{ animationDelay: `${Math.min(i * 20, 300)}ms` }} onClick={item.onTap || (item.uid ? () => setAdminProfileUser({ uid: item.uid, displayName: item.name, photoURL: item.photo || null }) : undefined)}>
                   <span className="sidemenu-admin-detail-rank">{i + 1}</span>
                   {item.photo !== undefined && (
                     <div className="sidemenu-admin-detail-avatar">
@@ -1431,6 +1462,16 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {adminProfileUser && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10001 }}>
+          <ProfilePopup
+            profile={adminProfileUser}
+            user={user}
+            onClose={() => setAdminProfileUser(null)}
+          />
         </div>
       )}
 

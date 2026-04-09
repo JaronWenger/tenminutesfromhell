@@ -693,6 +693,26 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+.sidemenu-admin-section-label-pro {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #ff6b2b;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+.sidemenu-admin-stat-pro {
+  background: rgba(255, 107, 43, 0.08);
+  border: 1px solid rgba(255, 107, 43, 0.2);
+}
+.sidemenu-admin-stat-pro .sidemenu-admin-stat-label {
+  color: rgba(255, 107, 43, 0.6);
+}
+.sidemenu-admin-stat-pro:active {
+  background: rgba(255, 107, 43, 0.15);
+}
+
 /* ── Admin Detail Drill-Down ── */
 .sidemenu-admin-back {
   cursor: pointer;
@@ -723,6 +743,12 @@
   opacity: 0;
   transform: translateY(-6px);
   animation: sidemenu-admin-row-in 0.25s ease forwards;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.sidemenu-admin-detail-row::-webkit-scrollbar {
+  display: none;
 }
 
 .sidemenu-admin-detail-row:last-child {
@@ -775,10 +801,11 @@
 }
 
 .sidemenu-admin-detail-name-col {
-  flex: 1;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  min-width: 100px;
+  max-width: 45%;
 }
 
 .sidemenu-admin-detail-name {
@@ -803,6 +830,7 @@
   font-weight: 600;
   color: rgba(255, 255, 255, 0.5);
   flex-shrink: 0;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 

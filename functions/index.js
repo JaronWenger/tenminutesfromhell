@@ -182,6 +182,26 @@ exports.stripeWebhook = onRequest(
           break;
         }
 
+        case "charge.refunded": {
+          const charge = event.data.object;
+          const customerId = charge.customer;
+          if (customerId) {
+            const uid = await getUidFromCustomer(customerId);
+            if (uid) {
+              await db.doc(`userProfiles/${uid}`).set(
+                {
+                  refunded: true,
+                  refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+              console.log(`Refund recorded for ${uid}`);
+            }
+          }
+          break;
+        }
+
         default:
           console.log(`Unhandled event type: ${event.type}`);
       }
