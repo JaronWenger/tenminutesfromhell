@@ -33,11 +33,12 @@ const Main = () => {
   const [workoutReady, setWorkoutReady] = useState(false);
 
   // PWA install prompt — show on mobile browsers only (popup style)
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const [showPwaPrompt, setShowPwaPrompt] = useState(() => {
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     return isMobile && !isStandalone;
   });
+  const [pwaSignInDismissed, setPwaSignInDismissed] = useState(false);
 
   // Timer session persistence — ref must be declared before effects that use it
   const restoringSessionRef = useRef(false);
@@ -2451,8 +2452,8 @@ const Main = () => {
         }}
       />
       <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => { setShowLoginModal(false); setLoginModalCloseRequested(false); }}
+        isOpen={showLoginModal || (!pwaSignInDismissed && isStandalone && !authLoading && !user)}
+        onClose={() => { if (!showLoginModal) setPwaSignInDismissed(true); setShowLoginModal(false); setLoginModalCloseRequested(false); }}
         requestClose={loginModalCloseRequested}
       />
       {showSharePrompt && (
