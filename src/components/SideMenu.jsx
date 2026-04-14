@@ -18,7 +18,7 @@ const ADMIN_EMAIL = 'jarongwenger@gmail.com';
 
 const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, soundEnabled, onToggleSoundEnabled, activeSound = 'ping', onActiveSoundChange, restSound = 'chime', onRestSoundChange, activeColor, restColor, onColorChange, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isPro, onProTap, onTogglePro, weeklySchedule, onScheduleOpen, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
   const { user } = useAuth();
-  const [isClosing, setIsClosing] = useState(false);
+  const isClosingRef = useRef(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
   const [soundPopup, setSoundPopup] = useState(null); // null | 'active' | 'rest'
   const [pendingSound, setPendingSound] = useState(null);
@@ -682,12 +682,12 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
   }, [isOpen]);
 
   const handleSwipeStart = useCallback((e) => {
-    if (!e.touches || isClosing) return;
+    if (!e.touches || isClosingRef.current) return;
     swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, locked: null };
-  }, [isClosing]);
+  }, []);
 
   const handleSwipeMove = useCallback((e) => {
-    if (!e.touches || isClosing) return;
+    if (!e.touches || isClosingRef.current) return;
     const s = swipeRef.current;
     const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
@@ -712,11 +712,11 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
       const progress = Math.min(1, Math.abs(dx) / panelW);
       backdrop.style.opacity = `${1 - progress}`;
     }
-  }, [isClosing]);
+  }, []);
 
   const handleSwipeEnd = useCallback((e) => {
     const s = swipeRef.current;
-    if (s.locked !== 'h' || isClosing) {
+    if (s.locked !== 'h' || isClosingRef.current) {
       swipeRef.current.locked = null;
       return;
     }
@@ -754,19 +754,20 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
       }, 200);
     }
     swipeRef.current.locked = null;
-  }, [isClosing, onClose]);
+  }, [onClose]);
 
   // Allow parent to trigger animated close
   useEffect(() => {
-    if (requestClose && isOpen && !isClosing) {
+    if (requestClose && isOpen && !isClosingRef.current) {
       triggerClose();
     }
-  }, [requestClose, isOpen, isClosing]);
+  }, [requestClose, isOpen]);
 
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 600;
 
   const triggerClose = () => {
-    if (isClosing) return;
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
     const panel = panelElRef.current;
     const backdrop = backdropElRef.current;
     if (isDesktop) {
@@ -788,11 +789,10 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         backdrop.style.opacity = '0';
       }
     }
-    setIsClosing(true);
     setTimeout(() => {
       if (panel) { panel.style.transform = ''; panel.style.transition = ''; panel.style.willChange = ''; panel.style.animation = ''; panel.style.opacity = ''; }
       if (backdrop) { backdrop.style.opacity = ''; backdrop.style.transition = ''; backdrop.style.animation = ''; }
-      setIsClosing(false);
+      isClosingRef.current = false;
       onClose();
     }, isDesktop ? 220 : 260);
   };
@@ -813,9 +813,9 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
   if (!isOpen || !user) return null;
 
   return (
-    <div className={`sidemenu-overlay ${isClosing ? 'sidemenu-overlay-closing' : ''}`}>
+    <div className="sidemenu-overlay">
       <div
-        className={`sidemenu-panel ${isClosing ? 'sidemenu-panel-closing' : ''}`}
+        className="sidemenu-panel"
         ref={panelElRef}
         onTouchStart={handleSwipeStart}
         onTouchMove={handleSwipeMove}
