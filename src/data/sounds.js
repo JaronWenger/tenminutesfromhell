@@ -25,16 +25,14 @@ const getCtx = () => {
   return _ctx;
 };
 
-// Resumes the context (required on iOS/Chrome) then runs fn(ctx).
-// Must be called from a user gesture for the first unlock to work.
+// Resume the context and schedule audio synchronously in the same call.
+// iOS/Chrome require audio scheduling to happen in the same synchronous
+// execution as resume() — using .then() breaks mobile browsers.
 const withCtx = (fn) => {
   try {
     const c = getCtx();
-    if (c.state === 'suspended') {
-      c.resume().then(() => fn(c)).catch(() => {});
-    } else {
-      fn(c);
-    }
+    if (c.state === 'suspended') c.resume(); // fire-and-forget — iOS processes before next audio render
+    fn(c); // schedule immediately in the same sync block
   } catch(e) {}
 };
 
