@@ -15,6 +15,7 @@ import OnboardingTooltip from './OnboardingTooltip';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { recordWorkoutHistory, updateWorkoutHistory, getUserHistory, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, setDeletedDefaults } from '../firebase/firestore';
+import { signInWithGoogle } from '../firebase/auth';
 import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, setProStatus, logProInterest, logStripeRedirect } from '../firebase/social';
 
 const hexToRgb = (hex) => {
@@ -39,6 +40,8 @@ const Main = () => {
     return isMobile && !isStandalone;
   });
   const [pwaSignInDismissed, setPwaSignInDismissed] = useState(false);
+  const [pwaSignInLoading, setPwaSignInLoading] = useState(false);
+  const [pwaSignInError, setPwaSignInError] = useState('');
 
   // Timer session persistence — ref must be declared before effects that use it
   const restoringSessionRef = useRef(false);
@@ -2145,6 +2148,57 @@ const Main = () => {
           </div>
         </div>
       )}
+      {isStandalone && !authLoading && !user && !pwaSignInDismissed && (
+        <div className="share-prompt-overlay" onClick={() => { setPwaSignInDismissed(true); setPwaSignInError(''); }}>
+          <div className="share-prompt-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="follow-prompt-close"
+              onClick={() => { setPwaSignInDismissed(true); setPwaSignInError(''); }}
+              aria-label="Close"
+            >✕</button>
+            <div className="share-prompt-icon">
+              <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" style={{ width: 48, height: 48, borderRadius: 12 }} />
+            </div>
+            <h3 className="share-prompt-title">Sign in to HIITem</h3>
+            <p className="share-prompt-text">Save your workouts, track progress, and connect with friends.</p>
+            <div className="share-prompt-buttons">
+              <button
+                className="share-prompt-btn pwa-signin-google-btn"
+                disabled={pwaSignInLoading}
+                onClick={async () => {
+                  setPwaSignInError('');
+                  setPwaSignInLoading(true);
+                  try {
+                    await signInWithGoogle();
+                    setPwaSignInDismissed(true);
+                  } catch (err) {
+                    if (err.code !== 'auth/popup-closed-by-user') {
+                      setPwaSignInError('Something went wrong. Please try again.');
+                    }
+                  } finally {
+                    setPwaSignInLoading(false);
+                  }
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                {pwaSignInLoading ? 'Signing in…' : 'Continue with Google'}
+              </button>
+              <button
+                className="share-prompt-btn share-prompt-btn-secondary"
+                onClick={() => { setPwaSignInDismissed(true); setPwaSignInError(''); setShowLoginModal(true); }}
+              >
+                Continue with Email
+              </button>
+              {pwaSignInError && <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'rgba(255,59,48,0.9)', textAlign: 'center' }}>{pwaSignInError}</p>}
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: activeTab === 'timer' && !currentEditPage ? 'block' : 'none' }}>
         <Timer
           timeLeft={timerState.timeLeft}
@@ -2452,8 +2506,8 @@ const Main = () => {
         }}
       />
       <LoginModal
-        isOpen={showLoginModal || (!pwaSignInDismissed && isStandalone && !authLoading && !user)}
-        onClose={() => { if (!showLoginModal) setPwaSignInDismissed(true); setShowLoginModal(false); setLoginModalCloseRequested(false); }}
+        isOpen={showLoginModal}
+        onClose={() => { setShowLoginModal(false); setLoginModalCloseRequested(false); }}
         requestClose={loginModalCloseRequested}
       />
       {showSharePrompt && (

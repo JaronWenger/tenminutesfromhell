@@ -111,3 +111,19 @@
 .follow-prompt-close:active {
   color: rgba(255, 255, 255, 0.6);
 }
+
+/* ── PWA Sign-in Card ── */
+.pwa-signin-google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-family: inherit;
+}
+
+.pwa-signin-google-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
