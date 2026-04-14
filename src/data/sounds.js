@@ -67,12 +67,12 @@ export const SOUNDS = [
   {
     id: 'ping',
     name: 'Ping',
-    play: () => withCtx(c => tone(c, 880, 0, 0.15))
+    play: () => withCtx(c => tone(c, 880, 0, 0.15, 'sine', 0.55))
   },
   {
     id: 'chime',
     name: 'Chime',
-    play: () => withCtx(c => tone(c, 440, 0, 0.35, 'sine', 0.25))
+    play: () => withCtx(c => tone(c, 440, 0, 0.35, 'sine', 0.5))
   },
   // Row 2
   {
@@ -83,70 +83,70 @@ export const SOUNDS = [
   {
     id: 'bell',
     name: 'Bell',
-    play: () => withCtx(c => tone(c, 523, 0, 0.6, 'sine', 0.28))
+    play: () => withCtx(c => tone(c, 523, 0, 0.6, 'sine', 0.55))
   },
   // Row 3
   {
     id: 'rise',
     name: 'Rise',
-    play: () => withCtx(c => tone(c, 200, 0, 0.4, 'sine', 0.28, 1200))
+    play: () => withCtx(c => tone(c, 200, 0, 0.4, 'sine', 0.55, 1200))
   },
   {
     id: 'drop',
     name: 'Drop',
-    play: () => withCtx(c => tone(c, 440, 0, 0.35, 'sine', 0.3, 110))
+    play: () => withCtx(c => tone(c, 440, 0, 0.35, 'sine', 0.55, 110))
   },
   // Row 4 — PRO
   {
     id: 'chirp',
     pro: true,
     name: 'Chirp',
-    play: () => withCtx(c => tone(c, 300, 0, 0.15, 'sine', 0.3, 900))
+    play: () => withCtx(c => tone(c, 300, 0, 0.15, 'sine', 0.55, 900))
   },
   {
     id: 'whoosh',
     pro: true,
     name: 'Whoosh',
-    play: () => withCtx(c => tone(c, 800, 0, 0.3, 'sine', 0.25, 180))
+    play: () => withCtx(c => tone(c, 800, 0, 0.3, 'sine', 0.5, 180))
   },
   // Row 5
   {
     id: 'coin',
     pro: true,
     name: 'Coin',
-    play: () => withCtx(c => { tone(c, 987, 0, 0.08, 'sine', 0.3); tone(c, 1318, 0.09, 0.18, 'sine', 0.3); })
+    play: () => withCtx(c => { tone(c, 987, 0, 0.08, 'sine', 0.5); tone(c, 1318, 0.09, 0.18, 'sine', 0.5); })
   },
   {
     id: 'power',
     pro: true,
     name: 'Power Up',
-    play: () => withCtx(c => { tone(c, 392, 0, 0.1, 'sine', 0.25); tone(c, 523, 0.1, 0.1, 'sine', 0.25); tone(c, 659, 0.2, 0.1, 'sine', 0.25); tone(c, 784, 0.3, 0.2, 'sine', 0.28); })
+    play: () => withCtx(c => { tone(c, 392, 0, 0.1, 'sine', 0.45); tone(c, 523, 0.1, 0.1, 'sine', 0.45); tone(c, 659, 0.2, 0.1, 'sine', 0.45); tone(c, 784, 0.3, 0.2, 'sine', 0.5); })
   },
   // Row 6
   {
     id: 'alert',
     pro: true,
     name: 'Alert',
-    play: () => withCtx(c => { tone(c, 880, 0, 0.1, 'sine', 0.28); tone(c, 660, 0.15, 0.1, 'sine', 0.28); tone(c, 880, 0.3, 0.1, 'sine', 0.28); })
+    play: () => withCtx(c => { tone(c, 880, 0, 0.1, 'sine', 0.5); tone(c, 660, 0.15, 0.1, 'sine', 0.5); tone(c, 880, 0.3, 0.1, 'sine', 0.5); })
   },
   {
     id: 'pulse',
     pro: true,
     name: 'Pulse',
-    play: () => withCtx(c => { tone(c, 760, 0, 0.1, 'sine', 0.3); tone(c, 760, 0.14, 0.1, 'sine', 0.3); })
+    play: () => withCtx(c => { tone(c, 760, 0, 0.1, 'sine', 0.5); tone(c, 760, 0.14, 0.1, 'sine', 0.5); })
   },
   // Row 7
   {
     id: 'blip',
     pro: true,
     name: 'Blip',
-    play: () => withCtx(c => tone(c, 1047, 0, 0.07, 'sine', 0.3))
+    play: () => withCtx(c => tone(c, 1047, 0, 0.07, 'sine', 0.55))
   },
   {
     id: 'tap',
     pro: true,
     name: 'Tap',
-    play: () => withCtx(c => tone(c, 1400, 0, 0.05, 'sine', 0.3))
+    play: () => withCtx(c => tone(c, 1400, 0, 0.05, 'sine', 0.55))
   },
   // Row 8
   {
@@ -181,20 +181,20 @@ export const SOUNDS = [
     id: 'thud',
     pro: true,
     name: 'Thud',
-    play: () => withCtx(c => tone(c, 80, 0, 0.25, 'sine', 0.5, 40))
+    play: () => withCtx(c => tone(c, 80, 0, 0.25, 'sine', 0.75, 40))
   },
   // Row 10
   {
     id: 'synth',
     pro: true,
     name: 'Synth',
-    play: () => withCtx(c => { tone(c, 440, 0, 0.25, 'sine', 0.2); tone(c, 443, 0, 0.25, 'triangle', 0.15); })
+    play: () => withCtx(c => { tone(c, 440, 0, 0.25, 'sine', 0.4); tone(c, 443, 0, 0.25, 'triangle', 0.3); })
   },
   {
     id: 'soft',
     pro: true,
     name: 'Soft',
-    play: () => withCtx(c => tone(c, 350, 0, 0.5, 'sine', 0.18))
+    play: () => withCtx(c => tone(c, 350, 0, 0.5, 'sine', 0.4))
   },
 ];
 
