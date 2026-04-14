@@ -268,6 +268,7 @@ const Timer = ({
         restColor={restColor}
         flickering={isHalfwayFlicker}
         restTime={restTime}
+        isPrepPhase={elapsed <= 0}
         activeLastMinute={activeLastMinute}
         isRestExercise={isRestExercise}
         drawIn={initialLoad}
@@ -313,6 +314,7 @@ const Timer = ({
             staggerIn={!animatedIn || shuffleStagger}
             restTime={restTime}
             activeLastMinute={activeLastMinute}
+            forceRest={elapsed <= 0}
           />
           )}
         </>

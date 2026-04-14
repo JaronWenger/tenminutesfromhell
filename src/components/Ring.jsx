@@ -13,6 +13,8 @@ const Ring = ({
   restColor = '#007aff',
   flickering = false,
   restTime = 15,
+  isPrepPhase = false,
+  isPostPrepRest = false,
   activeLastMinute = true,
   isRestExercise = false,
   drawIn = false,
@@ -60,13 +62,16 @@ const Ring = ({
     if (flickering) {
       return flickerToggle ? restColor : activeColor;
     }
+    // Prep phase + first rest period after prep — always rest color
+    if (isPrepPhase || isPostPrepRest) {
+      return restColor;
+    }
     const currentSeconds = timeLeft % 60;
-
     // Rest exercise — always show rest color (entire minute is inactive)
     if (isRestExercise) {
       return restColor;
     }
-    // Rest/prep seconds 1-15 of each minute (except the last minute)
+    // Rest seconds at the start of each minute (except the last minute)
     if (currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true)) {
       return restColor;
     } else {

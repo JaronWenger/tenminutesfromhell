@@ -10,7 +10,8 @@ const WorkoutList = ({
   showAllWhenPaused,
   staggerIn = false,
   restTime = 15,
-  activeLastMinute = true
+  activeLastMinute = true,
+  forceRest = false
 }) => {
   const workoutListRef = useRef(null);
 
@@ -32,7 +33,7 @@ const WorkoutList = ({
         const isUpcoming = index > workoutIndex || (index === workoutIndex && !isRunning && timeLeft > 0);
         const currentSeconds = timeLeft % 60;
         const isExerciseRest = /\brest\b/i.test(workout);
-        const isWarning = isActive && (isExerciseRest || (currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true)));
+        const isWarning = isActive && (forceRest || isExerciseRest || (currentSeconds >= 1 && currentSeconds <= restTime && (activeLastMinute ? timeLeft > 60 : true)));
 
         return (
           <div
