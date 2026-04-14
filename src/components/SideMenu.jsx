@@ -735,8 +735,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
         backdrop.style.opacity = '0';
       }
       setTimeout(() => {
-        if (panel) { panel.style.transform = ''; panel.style.transition = ''; panel.style.willChange = ''; panel.style.animation = ''; }
-        if (backdrop) { backdrop.style.opacity = ''; backdrop.style.transition = ''; }
         onClose();
       }, 220);
     } else {
@@ -790,8 +788,6 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
       }
     }
     setTimeout(() => {
-      if (panel) { panel.style.transform = ''; panel.style.transition = ''; panel.style.willChange = ''; panel.style.animation = ''; panel.style.opacity = ''; }
-      if (backdrop) { backdrop.style.opacity = ''; backdrop.style.transition = ''; backdrop.style.animation = ''; }
       isClosingRef.current = false;
       onClose();
     }, isDesktop ? 220 : 260);
