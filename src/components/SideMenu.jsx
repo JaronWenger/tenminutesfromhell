@@ -650,9 +650,13 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     })));
   };
 
-  // Reset color popup and portal loading when menu opens/closes
+  // Reset popups and portal loading when menu opens/closes
   useEffect(() => {
-    if (!isOpen) setColorPopup(null);
+    if (!isOpen) {
+      setColorPopup(null);
+      setSoundPopup(null);
+      setPendingSound(null);
+    }
     if (isOpen) setPortalLoading(false);
   }, [isOpen]);
 
