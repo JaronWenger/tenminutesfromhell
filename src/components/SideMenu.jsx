@@ -4,6 +4,7 @@ import { signOut } from '../firebase/auth';
 import { collection, getDocs, getDoc, doc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
+import { SOUNDS } from '../data/sounds';
 import ProfilePopup from './ProfilePopup';
 import './SideMenu.css';
 
@@ -15,10 +16,12 @@ const EARTH_COLORS = ['#F4845F', '#B8860B', '#E6194B', '#059669', '#DC2626', '#0
 
 const ADMIN_EMAIL = 'jarongwenger@gmail.com';
 
-const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, activeColor, restColor, onColorChange, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isPro, onProTap, onTogglePro, weeklySchedule, onScheduleOpen, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
+const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAutoShare, isPrivate, onTogglePrivate, prepTime, onPrepTimeChange, restTime, onRestTimeChange, activeLastMinute, onToggleActiveLastMinute, shuffleExercises, onToggleShuffleExercises, soundEnabled, onToggleSoundEnabled, activeSound = 'ping', onActiveSoundChange, restSound = 'chime', onRestSoundChange, activeColor, restColor, onColorChange, inAppNotifications, onToggleInAppNotifications, onOpenProfile, isPro, onProTap, onTogglePro, weeklySchedule, onScheduleOpen, isTestAccount, testOnboardingMode, onToggleTestOnboarding }) => {
   const { user } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [colorPopup, setColorPopup] = useState(null); // null | 'active' | 'rest'
+  const [soundPopup, setSoundPopup] = useState(null); // null | 'active' | 'rest'
+  const [pendingSound, setPendingSound] = useState(null);
 
   // Admin panel state
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -838,7 +841,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                 <span className="sidemenu-pro-badge">PRO</span>
                 <span className="sidemenu-pro-banner-title">Unlock all features</span>
               </div>
-              <span className="sidemenu-pro-banner-subtitle">Custom colors, shuffle, and more</span>
+              <span className="sidemenu-pro-banner-subtitle">Custom colors, sounds, shuffle, and more</span>
               <button className="sidemenu-pro-btn" onClick={() => onProTap && onProTap()}>
                 Upgrade
               </button>
@@ -937,20 +940,22 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
           <div className="sidemenu-color-section">
             <span className="sidemenu-color-header">Timer Colors</span>
             <div className="sidemenu-color-row">
-              <span className="sidemenu-color-label">Active</span>
-              <div
-                className="sidemenu-color-preview"
-                style={{ background: activeColor }}
-                onClick={() => setColorPopup(colorPopup === 'active' ? null : 'active')}
-              />
-            </div>
-            <div className="sidemenu-color-row">
-              <span className="sidemenu-color-label">Rest</span>
-              <div
-                className="sidemenu-color-preview"
-                style={{ background: restColor }}
-                onClick={() => setColorPopup(colorPopup === 'rest' ? null : 'rest')}
-              />
+              <div className="sidemenu-color-pair">
+                <span className="sidemenu-color-label">Active</span>
+                <div
+                  className="sidemenu-color-preview"
+                  style={{ background: activeColor }}
+                  onClick={() => setColorPopup(colorPopup === 'active' ? null : 'active')}
+                />
+              </div>
+              <div className="sidemenu-color-pair">
+                <span className="sidemenu-color-label">Rest</span>
+                <div
+                  className="sidemenu-color-preview"
+                  style={{ background: restColor }}
+                  onClick={() => setColorPopup(colorPopup === 'rest' ? null : 'rest')}
+                />
+              </div>
             </div>
           </div>
 
@@ -993,6 +998,34 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             <div className={`sidemenu-toggle ${shuffleExercises === true ? 'on' : ''}`}>
               <div className="sidemenu-toggle-knob" />
             </div>
+          </div>
+
+          <div className="sidemenu-divider" />
+
+          <div className="sidemenu-sound-section">
+            <div className="sidemenu-item" onClick={() => onToggleSoundEnabled && onToggleSoundEnabled()}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+              <span className="sidemenu-item-label">Sound effects</span>
+              <div className={`sidemenu-toggle ${soundEnabled === true ? 'on' : ''}`}>
+                <div className="sidemenu-toggle-knob" />
+              </div>
+            </div>
+            {soundEnabled && (
+              <div className="sidemenu-sound-names">
+                <div className="sidemenu-sound-name-pair" onClick={() => { setSoundPopup('active'); setPendingSound(activeSound); }}>
+                  <span className="sidemenu-sound-name-label">Active</span>
+                  <span className="sidemenu-sound-name-value">{SOUNDS.find(s => s.id === activeSound)?.name ?? 'Ping'}</span>
+                </div>
+                <div className="sidemenu-sound-name-pair" onClick={() => { setSoundPopup('rest'); setPendingSound(restSound); }}>
+                  <span className="sidemenu-sound-name-label">Rest</span>
+                  <span className="sidemenu-sound-name-value">{SOUNDS.find(s => s.id === restSound)?.name ?? 'Chime'}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="sidemenu-divider" />
@@ -1596,6 +1629,73 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   onClick={(e) => { if (!isPro) return; e.stopPropagation(); onColorChange(colorPopup, hex); setColorPopup(null); }}
                 />
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sound picker popup */}
+      {soundPopup && (
+        <div className="sidemenu-color-popup-overlay" onClick={() => setSoundPopup(null)}>
+          <div className="sidemenu-sound-popup" onClick={e => e.stopPropagation()}>
+            <div className="sidemenu-sound-popup-title">{soundPopup === 'active' ? 'Active Sound' : 'Rest Sound'}</div>
+            <div className="sidemenu-sound-options-grid">
+              {SOUNDS.filter(s => !s.pro).map(sound => {
+                const isSelected = pendingSound === sound.id;
+                return (
+                  <div
+                    key={sound.id}
+                    className={`sidemenu-sound-option ${isSelected ? 'selected' : ''}`}
+                    onClick={() => { sound.play(); setPendingSound(sound.id); }}
+                  >
+                    <span>{sound.name}</span>
+                    {isSelected && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {!isPro && (
+              <div className="sidemenu-color-pro-label" onClick={() => { setSoundPopup(null); onProTap && onProTap(); }}>
+                <span className="sidemenu-color-pro-line" />
+                <span>PRO</span>
+                <span className="sidemenu-color-pro-line" />
+              </div>
+            )}
+            <div className={`sidemenu-sound-options-grid ${!isPro ? 'sidemenu-pro-locked-sounds' : ''}`}>
+              {SOUNDS.filter(s => s.pro).map(sound => {
+                const isSelected = pendingSound === sound.id;
+                return (
+                  <div
+                    key={sound.id}
+                    className={`sidemenu-sound-option ${isSelected ? 'selected' : ''}`}
+                    onClick={() => { sound.play(); setPendingSound(sound.id); }}
+                  >
+                    <span>{sound.name}</span>
+                    {isSelected && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="sidemenu-sound-popup-footer">
+              <button className="sidemenu-sound-save-btn" onClick={() => {
+                const selectedSound = SOUNDS.find(s => s.id === pendingSound);
+                if (selectedSound?.pro && !isPro) {
+                  setSoundPopup(null);
+                  onProTap && onProTap();
+                  return;
+                }
+                if (soundPopup === 'active') onActiveSoundChange && onActiveSoundChange(pendingSound);
+                else onRestSoundChange && onRestSoundChange(pendingSound);
+                setSoundPopup(null);
+              }}>Save</button>
             </div>
           </div>
         </div>

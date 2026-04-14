@@ -16,7 +16,7 @@ import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defa
 import { useAuth } from '../contexts/AuthContext';
 import { recordWorkoutHistory, updateWorkoutHistory, getUserHistory, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, setDeletedDefaults } from '../firebase/firestore';
 import { signInWithGoogle } from '../firebase/auth';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, setProStatus, logProInterest, logStripeRedirect } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSoundEnabledPreference, setActiveSoundPreference, setRestSoundPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, setProStatus, logProInterest, logStripeRedirect } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -129,6 +129,9 @@ const Main = () => {
   const [restTime, setRestTime] = useState(15);
   const [activeLastMinute, setActiveLastMinute] = useState(true);
   const [shuffleExercises, setShuffleExercises] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [activeSound, setActiveSound] = useState('ping');
+  const [restSound, setRestSound] = useState('chime');
 
   // Calculate total time from exercise count (accepts ID or name for legacy)
   const calculateTotalTime = useCallback((workoutIdOrName) => {
@@ -530,6 +533,9 @@ const Main = () => {
         setRestTime(prefs.restTime);
         setActiveLastMinute(prefs.activeLastMinute);
         setShuffleExercises(prefs.shuffleExercises);
+        if (prefs.soundEnabled !== undefined) setSoundEnabled(prefs.soundEnabled);
+        if (prefs.activeSound) setActiveSound(prefs.activeSound);
+        if (prefs.restSound) setRestSound(prefs.restSound);
         if (prefs.weeklySchedule) setWeeklyScheduleState(prefs.weeklySchedule);
         // Auto-select today's scheduled workout, or fall back to saved selection
         const todayDay = new Date().getDay();
@@ -924,6 +930,28 @@ const Main = () => {
       setShuffleExercisesPreference(user.uid, newValue).catch(err => console.error('Failed to save shuffle exercises:', err));
     }
   }, [user, shuffleExercises]);
+
+  const handleToggleSoundEnabled = useCallback(async () => {
+    const newValue = !soundEnabled;
+    setSoundEnabled(newValue);
+    if (user) {
+      setSoundEnabledPreference(user.uid, newValue).catch(err => console.error('Failed to save sound enabled:', err));
+    }
+  }, [user, soundEnabled]);
+
+  const handleActiveSoundChange = useCallback(async (soundId) => {
+    setActiveSound(soundId);
+    if (user) {
+      setActiveSoundPreference(user.uid, soundId).catch(err => console.error('Failed to save active sound:', err));
+    }
+  }, [user]);
+
+  const handleRestSoundChange = useCallback(async (soundId) => {
+    setRestSound(soundId);
+    if (user) {
+      setRestSoundPreference(user.uid, soundId).catch(err => console.error('Failed to save rest sound:', err));
+    }
+  }, [user]);
 
   const handleRestTimeChange = useCallback(async (newValue) => {
     setRestTime(newValue);
@@ -2218,6 +2246,9 @@ const Main = () => {
           })()}
           activeLastMinute={activeLastMinute}
           shuffleExercises={shuffleExercises}
+          soundEnabled={soundEnabled}
+          activeSound={activeSound}
+          restSound={restSound}
           initialLoad={initialLoad}
           workoutReady={workoutReady}
           onInitialLoadDone={() => setInitialLoad(false)}
@@ -2463,6 +2494,12 @@ const Main = () => {
         onToggleActiveLastMinute={handleToggleActiveLastMinute}
         shuffleExercises={shuffleExercises}
         onToggleShuffleExercises={handleToggleShuffleExercises}
+        soundEnabled={soundEnabled}
+        onToggleSoundEnabled={handleToggleSoundEnabled}
+        activeSound={activeSound}
+        onActiveSoundChange={handleActiveSoundChange}
+        restSound={restSound}
+        onRestSoundChange={handleRestSoundChange}
         activeColor={activeColor}
         restColor={restColor}
         onColorChange={handleColorChange}
@@ -2787,7 +2824,7 @@ const Main = () => {
                 <div className="pro-popup-dot" />
                 <div className="pro-popup-step-content">
                   <span className="pro-popup-step-title">Today</span>
-                  <span className="pro-popup-step-desc">Unlock custom timer colors, shuffle mode, weekly scheduling, and everything that comes next.</span>
+                  <span className="pro-popup-step-desc">Unlock custom timer colors, sound effects, shuffle mode, weekly scheduling, and everything that comes next.</span>
                 </div>
               </div>
               <div className="pro-popup-step">
@@ -2851,6 +2888,13 @@ const Main = () => {
                 <div className="pro-popup-step-content">
                   <span className="pro-popup-step-title">Custom colors</span>
                   <span className="pro-popup-step-desc">Personalize your timer with any color combination.</span>
+                </div>
+              </div>
+              <div className="pro-popup-step">
+                <div className="pro-popup-dot" style={{ background: '#34c759' }} />
+                <div className="pro-popup-step-content">
+                  <span className="pro-popup-step-title">Sound effects</span>
+                  <span className="pro-popup-step-desc">Choose from 14 unique sounds for active and rest transitions.</span>
                 </div>
               </div>
               <div className="pro-popup-step">

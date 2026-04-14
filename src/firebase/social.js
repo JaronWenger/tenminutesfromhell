@@ -64,6 +64,9 @@ export const getAllPreferences = async (userId) => {
       restTime: 15,
       activeLastMinute: true,
       shuffleExercises: false,
+      soundEnabled: false,
+      activeSound: 'ping',
+      restSound: 'chime',
       selectedWorkout: null,
       selectedWorkoutId: null,
       showCardPhotos: true,
@@ -86,6 +89,9 @@ export const getAllPreferences = async (userId) => {
     restTime: data.restTime ?? 15,
     activeLastMinute: data.activeLastMinute ?? true,
     shuffleExercises: data.shuffleExercises ?? false,
+    soundEnabled: data.soundEnabled ?? false,
+    activeSound: data.activeSound || 'ping',
+    restSound: data.restSound || 'chime',
     selectedWorkout: data.selectedWorkout || null,
     selectedWorkoutId: data.selectedWorkoutId || null,
     showCardPhotos: data.showCardPhotos ?? true,
@@ -177,6 +183,27 @@ export const setActiveLastMinutePreference = async (userId, value) => {
 export const setShuffleExercisesPreference = async (userId, value) => {
   await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
     shuffleExercises: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setSoundEnabledPreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    soundEnabled: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setActiveSoundPreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    activeSound: value,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+};
+
+export const setRestSoundPreference = async (userId, value) => {
+  await setDoc(doc(db, 'users', userId, 'settings', 'preferences'), {
+    restSound: value,
     updatedAt: serverTimestamp()
   }, { merge: true });
 };

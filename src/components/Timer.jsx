@@ -3,6 +3,7 @@ import './Timer.css';
 import Ring from './Ring';
 import WorkoutList from './WorkoutList';
 import Sparks from '../assets/SPARKS.gif';
+import { SOUNDS, DEFAULT_ACTIVE_SOUND, DEFAULT_REST_SOUND } from '../data/sounds';
 
 const Timer = ({
   workouts = [],
@@ -19,6 +20,9 @@ const Timer = ({
   restTime = 15,
   activeLastMinute = true,
   shuffleExercises = false,
+  soundEnabled = false,
+  activeSound = DEFAULT_ACTIVE_SOUND,
+  restSound = DEFAULT_REST_SOUND,
   initialLoad = false,
   workoutReady = true,
   onInitialLoadDone,
@@ -123,7 +127,39 @@ const Timer = ({
     setShuffledList(null);
   }, [selectedWorkoutName]);
 
+  // Sound effects
+  const prevIsRestPhase = useRef(null);
+  const prevElapsedPositive = useRef(false);
 
+  const elapsedPositive = (targetTime - (propTimeLeft ?? timeLeft) - prepTime) >= 0;
+  const isRestPhaseForSound = (() => {
+    const tl = propTimeLeft ?? timeLeft;
+    const cs = tl % 60;
+    const el = targetTime - tl - prepTime;
+    return cs >= 1 && cs <= restTime && (activeLastMinute ? tl > 60 : true) && el > 0;
+  })();
+
+  useEffect(() => {
+    if (prevIsRestPhase.current === null) {
+      prevIsRestPhase.current = isRestPhaseForSound;
+      prevElapsedPositive.current = elapsedPositive;
+      return;
+    }
+    if (isRunning && soundEnabled) {
+      const activeSoundDef = SOUNDS.find(s => s.id === activeSound) || SOUNDS[0];
+      const restSoundDef = SOUNDS.find(s => s.id === restSound) || SOUNDS[1];
+      if (!prevElapsedPositive.current && elapsedPositive) {
+        activeSoundDef.play();
+      } else if (prevIsRestPhase.current && !isRestPhaseForSound) {
+        activeSoundDef.play();
+      } else if (!prevIsRestPhase.current && isRestPhaseForSound) {
+        restSoundDef.play();
+      }
+    }
+    prevIsRestPhase.current = isRestPhaseForSound;
+    prevElapsedPositive.current = elapsedPositive;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRestPhaseForSound, elapsedPositive, isRunning, soundEnabled, activeSound, restSound]);
 
 
 
@@ -268,7 +304,7 @@ const Timer = ({
         restColor={restColor}
         flickering={isHalfwayFlicker}
         restTime={restTime}
-        isPrepPhase={elapsed <= 0}
+        isPrepPhase={elapsed < 0}
         activeLastMinute={activeLastMinute}
         isRestExercise={isRestExercise}
         drawIn={initialLoad}
@@ -314,7 +350,7 @@ const Timer = ({
             staggerIn={!animatedIn || shuffleStagger}
             restTime={restTime}
             activeLastMinute={activeLastMinute}
-            forceRest={elapsed <= 0}
+            forceRest={elapsed < 0}
           />
           )}
         </>

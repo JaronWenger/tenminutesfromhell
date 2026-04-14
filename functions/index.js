@@ -194,6 +194,7 @@ exports.stripeWebhook = onRequest(
                   }
                   <ul style="padding-left:20px;line-height:1.8;">
                     <li>Custom timer colors</li>
+                    <li>Sound effects (14 unique sounds)</li>
                     <li>Shuffle exercises mode</li>
                     <li>Weekly workout schedule</li>
                   </ul>
@@ -366,7 +367,7 @@ exports.trialEndingReminder = onSchedule(
         `<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;color:#222;">
           <h1 style="color:#ff6b2b;font-size:24px;">Heads up${name ? `, ${name.split(" ")[0]}` : ""}!</h1>
           <p>Your 7-day Pro trial ends in 2 days. After that, your card will be charged $4.99/month.</p>
-          <p>If you'd like to keep Pro features (custom colors, shuffle mode, weekly schedule), you don't need to do anything — it'll continue automatically.</p>
+          <p>If you'd like to keep Pro features (custom colors, sounds, shuffle mode, weekly schedule), you don't need to do anything — it'll continue automatically.</p>
           <p>If you'd rather cancel, just go to Settings → Manage Plan before your trial ends. No hard feelings!</p>
           <p><a href="https://hiitem.com" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#ff3b30,#ff6b2b);color:#fff;text-decoration:none;border-radius:24px;font-weight:600;">Open HIITem</a></p>
           ${emailFooter}
@@ -419,6 +420,7 @@ exports.sendTestEmail = onRequest(
           <p>Your 7-day free trial is now active. Here's what you've unlocked:</p>
           <ul style="padding-left:20px;line-height:1.8;">
             <li>Custom timer colors</li>
+            <li>Sound effects (14 unique sounds)</li>
             <li>Shuffle exercises mode</li>
             <li>Weekly workout schedule</li>
           </ul>
@@ -432,7 +434,7 @@ exports.sendTestEmail = onRequest(
         html: `<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;color:#222;">
           <h1 style="color:#ff6b2b;font-size:24px;">Heads up, ${name}!</h1>
           <p>Your 7-day Pro trial ends in 2 days. After that, your card will be charged $4.99/month.</p>
-          <p>If you'd like to keep Pro features (custom colors, shuffle mode, weekly schedule), you don't need to do anything — it'll continue automatically.</p>
+          <p>If you'd like to keep Pro features (custom colors, sounds, shuffle mode, weekly schedule), you don't need to do anything — it'll continue automatically.</p>
           <p>If you'd rather cancel, just go to Settings → Manage Plan before your trial ends. No hard feelings!</p>
           <p><a href="https://hiitem.com" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#ff3b30,#ff6b2b);color:#fff;text-decoration:none;border-radius:24px;font-weight:600;">Open HIITem</a></p>
           ${emailFooter}
