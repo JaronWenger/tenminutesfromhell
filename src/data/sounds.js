@@ -15,6 +15,20 @@ const tone = (ctx, freq, start, duration, type = 'sine', vol = 0.3, freqEnd) => 
   osc.stop(ctx.currentTime + start + duration);
 };
 
+// Playing a silent <audio> element switches iOS audio session from "ringer"
+// to "media" — Web Audio API then follows media volume and ignores silent switch.
+let _silentAudio = null;
+const ensureMediaSession = () => {
+  try {
+    if (!_silentAudio) {
+      // Minimal silent WAV — just enough to register a media session with iOS
+      _silentAudio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+      _silentAudio.volume = 0.001;
+    }
+    _silentAudio.play().catch(() => {});
+  } catch(e) {}
+};
+
 // Singleton AudioContext
 let _ctx = null;
 
@@ -36,8 +50,9 @@ const withCtx = (fn) => {
   } catch(e) {}
 };
 
-// Call this on any user gesture to pre-warm the context for auto-fired sounds later.
+// Call this on any user gesture to unlock audio on iOS (including silent mode).
 export const unlockAudio = () => {
+  ensureMediaSession(); // switches iOS audio session to media channel
   withCtx((c) => {
     const buf = c.createBuffer(1, 1, 22050);
     const src = c.createBufferSource();
