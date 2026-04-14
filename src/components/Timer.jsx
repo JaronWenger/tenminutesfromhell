@@ -3,7 +3,7 @@ import './Timer.css';
 import Ring from './Ring';
 import WorkoutList from './WorkoutList';
 import Sparks from '../assets/SPARKS.gif';
-import { SOUNDS, DEFAULT_ACTIVE_SOUND, DEFAULT_REST_SOUND } from '../data/sounds';
+import { SOUNDS, DEFAULT_ACTIVE_SOUND, DEFAULT_REST_SOUND, unlockAudio } from '../data/sounds';
 
 const Timer = ({
   workouts = [],
@@ -182,6 +182,7 @@ const Timer = ({
   const [shuffleStagger, setShuffleStagger] = useState(false);
 
   const startTimer = () => {
+    unlockAudio();
     if (hasNoExercises) {
       setAddPulse(true);
       setTimeout(() => setAddPulse(false), 600);

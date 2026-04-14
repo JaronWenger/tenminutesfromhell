@@ -4,7 +4,7 @@ import { signOut } from '../firebase/auth';
 import { collection, getDocs, getDoc, doc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
-import { SOUNDS } from '../data/sounds';
+import { SOUNDS, unlockAudio } from '../data/sounds';
 import ProfilePopup from './ProfilePopup';
 import './SideMenu.css';
 
@@ -1646,7 +1646,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   <div
                     key={sound.id}
                     className={`sidemenu-sound-option ${isSelected ? 'selected' : ''}`}
-                    onClick={() => { sound.play(); setPendingSound(sound.id); }}
+                    onClick={() => { unlockAudio(); sound.play(); setPendingSound(sound.id); }}
                   >
                     <span>{sound.name}</span>
                     {isSelected && (
@@ -1672,7 +1672,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                   <div
                     key={sound.id}
                     className={`sidemenu-sound-option ${isSelected ? 'selected' : ''}`}
-                    onClick={() => { sound.play(); setPendingSound(sound.id); }}
+                    onClick={() => { unlockAudio(); sound.play(); setPendingSound(sound.id); }}
                   >
                     <span>{sound.name}</span>
                     {isSelected && (
