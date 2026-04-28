@@ -511,18 +511,23 @@ const Main = () => {
     };
     const loadSocialProfile = async () => {
       try {
-        await ensureUserProfile(user);
-        const [myProfile] = await getUserProfiles([user.uid]);
-        if (!cancelled && myProfile) {
+        // Fire all three reads in parallel — they're independent Firestore documents.
+        // Profile failure is non-fatal (isPro/isPrivate default to false).
+        const [prefs, workoutsResult, myProfile] = await Promise.all([
+          getAllPreferences(user.uid),
+          getUserWorkoutsV2(user.uid),
+          ensureUserProfile(user)
+            .then(() => getUserProfiles([user.uid]).then(([p]) => p || null))
+            .catch(() => null)
+        ]);
+
+        if (cancelled) return;
+
+        if (myProfile) {
           setIsPrivate(myProfile.isPrivate === true);
           setIsPro(myProfile.isPro === true);
         }
-      } catch (err) {
-        console.error('Failed to ensure user profile:', err);
-      }
-      try {
-        const prefs = await getAllPreferences(user.uid);
-        if (cancelled) return;
+
         setAutoShareEnabled(prefs.autoShare);
         if (prefs.activeColor) setActiveColor(prefs.activeColor);
         if (prefs.restColor) setRestColor(prefs.restColor);
@@ -576,40 +581,36 @@ const Main = () => {
           stats: { ...prev.stats, completed: !!oc.stats },
         }));
         setFollowPromptCompleted(!!oc.follow_prompt);
-        // Load workouts from V2 top-level collection
-        try {
-          const { workouts } = await getUserWorkoutsV2(user.uid);
-          if (cancelled) return;
-          const merged = mergeWorkoutsV2(workouts, prefs.deletedDefaults);
-          let timer = merged.timer;
-          const savedOrder = prefs.workoutOrder;
-          if (savedOrder && savedOrder.length > 0) {
-            const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
-            timer = [...timer].sort((a, b) => {
-              const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
-              const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
-              return ai - bi;
-            });
-          }
-          if (!cancelled) {
-            setTimerWorkoutData(timer);
-            setStopwatchWorkoutData(merged.stopwatch);
-            setDeletedDefaultsState(prefs.deletedDefaults);
-            // Backfill: set creatorUid on owned workouts that are missing it
-            const ownedMissing = workouts.filter(w => w.ownerUid === user.uid && !w.creatorUid);
-            if (ownedMissing.length > 0) {
-              Promise.all(ownedMissing.map(w =>
-                updateWorkoutV2(w.id, { creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL })
-              )).catch(err => console.error('Failed to backfill creator info:', err));
-            }
-          }
-        } catch (err) {
-          console.error('Failed to load workouts:', err);
+
+        const { workouts } = workoutsResult;
+        const merged = mergeWorkoutsV2(workouts, prefs.deletedDefaults);
+        let timer = merged.timer;
+        const savedOrder = prefs.workoutOrder;
+        if (savedOrder && savedOrder.length > 0) {
+          const orderMap = new Map(savedOrder.map((name, i) => [name, i]));
+          timer = [...timer].sort((a, b) => {
+            const ai = orderMap.has(a.name) ? orderMap.get(a.name) : savedOrder.length;
+            const bi = orderMap.has(b.name) ? orderMap.get(b.name) : savedOrder.length;
+            return ai - bi;
+          });
         }
+        if (!cancelled) {
+          setTimerWorkoutData(timer);
+          setStopwatchWorkoutData(merged.stopwatch);
+          setDeletedDefaultsState(prefs.deletedDefaults);
+          // Backfill: set creatorUid on owned workouts that are missing it
+          const ownedMissing = workouts.filter(w => w.ownerUid === user.uid && !w.creatorUid);
+          if (ownedMissing.length > 0) {
+            Promise.all(ownedMissing.map(w =>
+              updateWorkoutV2(w.id, { creatorUid: user.uid, creatorName: user.displayName, creatorPhotoURL: user.photoURL })
+            )).catch(err => console.error('Failed to backfill creator info:', err));
+          }
+        }
+
         if (cancelled) return;
         lastWorkoutRefreshRef.current = Date.now();
         setWorkoutReady(true);
-        // Load follow data + account privacy + pending requests in background (non-blocking)
+        // Load follow data + pending requests in background (non-blocking)
         Promise.all([getFollowing(user.uid), getFollowers(user.uid), getPendingFollowRequests(user.uid)])
           .then(([following, followers, pendingReqs]) => {
             if (!cancelled) {
