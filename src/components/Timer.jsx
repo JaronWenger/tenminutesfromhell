@@ -182,7 +182,7 @@ const Timer = ({
   const [shuffleStagger, setShuffleStagger] = useState(false);
 
   const startTimer = () => {
-    unlockAudio();
+    if (soundEnabled) unlockAudio();
     if (hasNoExercises) {
       setAddPulse(true);
       setTimeout(() => setAddPulse(false), 600);

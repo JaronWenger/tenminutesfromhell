@@ -50,9 +50,11 @@ const withCtx = (fn) => {
   } catch(e) {}
 };
 
-// Call this on any user gesture to unlock audio on iOS (including silent mode).
+// Call this on any user gesture to unlock the AudioContext on iOS.
+// Do NOT call ensureMediaSession() here — playing an <audio> element claims
+// the iOS media audio session and interrupts Spotify/other music apps.
+// The Web Audio API alone uses an ambient session and mixes fine.
 export const unlockAudio = () => {
-  ensureMediaSession(); // switches iOS audio session to media channel
   withCtx((c) => {
     const buf = c.createBuffer(1, 1, 22050);
     const src = c.createBufferSource();
