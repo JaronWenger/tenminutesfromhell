@@ -6,7 +6,7 @@ import ActivityTab from '../assets/ActivityTab.png';
 import Tab4 from '../assets/Tab4.jpg';
 import TargetTab from '../assets/TargetTab.png';
 
-const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor }) => {
+const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor, user }) => {
   const useGreyscale = isTimerRunning && activeTab === 'timer' && activeColor && activeColor !== '#ff3b30';
   const [orientation, setOrientation] = useState('portrait');
 
@@ -46,15 +46,17 @@ const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor }) => {
         <span className="tab-label">Home</span>
       </button>
 
-      <button
-        className={`tab-item ${activeTab === 'target' ? 'active' : ''}`}
-        onClick={() => onTabChange('target')}
-      >
-        <div className="tab-icon">
-          <img src={TargetTab} alt="Target" />
-        </div>
-        <span className="tab-label">Target</span>
-      </button>
+      {user && (
+        <button
+          className={`tab-item ${activeTab === 'target' ? 'active' : ''}`}
+          onClick={() => onTabChange('target')}
+        >
+          <div className="tab-icon">
+            <img src={TargetTab} alt="Target" />
+          </div>
+          <span className="tab-label">Target</span>
+        </button>
+      )}
 
       <button
         className={`tab-item ${activeTab === 'timer' ? 'active' : ''}`}
@@ -66,15 +68,17 @@ const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor }) => {
         <span className="tab-label">Timer</span>
       </button>
 
-      <button
-        className={`tab-item ${activeTab === 'activity' ? 'active' : ''}`}
-        onClick={() => onTabChange('activity')}
-      >
-        <div className="tab-icon">
-          <img src={ActivityTab} alt="Activity" />
-        </div>
-        <span className="tab-label">Activity</span>
-      </button>
+      {user && (
+        <button
+          className={`tab-item ${activeTab === 'activity' ? 'active' : ''}`}
+          onClick={() => onTabChange('activity')}
+        >
+          <div className="tab-icon">
+            <img src={ActivityTab} alt="Activity" />
+          </div>
+          <span className="tab-label">Activity</span>
+        </button>
+      )}
 
       <button
         className={`tab-item ${activeTab === 'stats' ? 'active' : ''}`}

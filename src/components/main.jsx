@@ -89,8 +89,9 @@ const Main = () => {
   const prevUserRef = useRef(user);
   useEffect(() => {
     if (prevUserRef.current && !user) {
-      // Sign-out: clear timer session
+      // Sign-out: clear timer session, redirect away from auth-only tabs
       localStorage.removeItem('timerSession');
+      setActiveTab(prev => (prev === 'target' || prev === 'activity') ? 'timer' : prev);
     } else if (!prevUserRef.current && user) {
       // Sign-in: navigate to timer page and close overlays
       setActiveTab('timer');
@@ -101,7 +102,7 @@ const Main = () => {
   }, [user]);
 
   // Workout data as state (defaults, overridable by Firestore)
-  const [timerWorkoutData, setTimerWorkoutData] = useState(DEFAULT_TIMER_WORKOUTS);
+  const [timerWorkoutData, setTimerWorkoutData] = useState(DEFAULT_TIMER_WORKOUTS.filter(w => !w.hideByDefault));
 
   // Find workout by ID
   const findWorkoutById = useCallback((workoutId) => {
@@ -437,7 +438,7 @@ const Main = () => {
 
     if (!user) {
       // Reset to defaults when logged out
-      setTimerWorkoutData([...DEFAULT_TIMER_WORKOUTS]);
+      setTimerWorkoutData(DEFAULT_TIMER_WORKOUTS.filter(w => !w.hideByDefault));
       setWorkoutHistory([]);
       setAutoShareEnabled(null);
       setActiveColor('#ff3b30');
@@ -468,7 +469,7 @@ const Main = () => {
     if (isTestOnboarding) {
       ensureUserProfile(user).catch(() => {});
       setIsFirstTimeUser(true);
-      setTimerWorkoutData([...DEFAULT_TIMER_WORKOUTS]);
+      setTimerWorkoutData(DEFAULT_TIMER_WORKOUTS.filter(w => !w.hideByDefault));
       setWorkoutReady(true);
       return () => { cancelled = true; };
     }
@@ -2082,6 +2083,7 @@ const Main = () => {
           activeTab={activeTab}
           isTimerRunning={timerState.isRunning}
           activeColor={activeColor}
+          user={user}
           onTabChange={(tab) => {
             if (tab === 'home' && activeTab === 'home') {
               setHomeDetailCloseRequested(true);
