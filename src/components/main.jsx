@@ -2084,6 +2084,7 @@ const Main = () => {
           isTimerRunning={timerState.isRunning}
           activeColor={activeColor}
           user={user}
+          authLoading={authLoading}
           onTabChange={(tab) => {
             if (tab === 'home' && activeTab === 'home') {
               setHomeDetailCloseRequested(true);
