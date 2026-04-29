@@ -2076,6 +2076,7 @@ const Main = () => {
           onPendingFollowRequestsChange={setPendingFollowRequests}
           onFollowCountChanged={refreshFollowData}
           isVisible={activeTab === 'activity' && !currentEditPage}
+          prefetchReady={workoutReady}
         />
       )}
       {!currentEditPage && currentEditLevel !== 'exercise-edit' && (
@@ -2104,6 +2105,7 @@ const Main = () => {
             if (showProPopup) closeProPopup();
             if (targetDetailWorkout) { setTargetDetailWorkout(null); setTargetDetailClosing(false); }
             if (feedDetailPost) closeFeedDetail();
+            if (viewUserProfile) setViewUserProfile(null);
           }}
         />
       )}

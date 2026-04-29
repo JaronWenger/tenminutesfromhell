@@ -42,6 +42,7 @@ const ActivityPage = ({
   onPendingFollowRequestsChange,
   onFollowCountChanged,
   isVisible,
+  prefetchReady = false,
 }) => {
   const { user } = useAuth();
   const [posts, setPosts] = useState([]);
@@ -186,7 +187,7 @@ const ActivityPage = ({
     setHasMore(true);
     try {
       let [feedPosts, following] = await Promise.all([
-        getFeedPosts(user.uid, 20),
+        getFeedPosts(user.uid, 10),
         getFollowing(user.uid)
       ]);
       const postsWithWorkoutId = feedPosts.filter(p => p.workoutId);
@@ -208,7 +209,7 @@ const ActivityPage = ({
       if (postsWithDate.length > 0) {
         cursorDateRef.current = postsWithDate[postsWithDate.length - 1].createdAt;
       }
-      setHasMore(feedPosts.length >= 20);
+      setHasMore(feedPosts.length >= 10);
       setPosts(feedPosts);
       setFollowingIds(following);
       const workoutPosts = feedPosts.filter(p => !p.type);
@@ -273,11 +274,11 @@ const ActivityPage = ({
   }, [user]);
 
   useEffect(() => {
-    if (isVisible && user && !hasLoadedRef.current) {
+    if ((isVisible || prefetchReady) && user && !hasLoadedRef.current) {
       hasLoadedRef.current = true;
       loadFeed();
     }
-  }, [isVisible, user, loadFeed]);
+  }, [isVisible, prefetchReady, user, loadFeed]);
 
   useEffect(() => {
     if (!sentinelRef.current || !hasMore || loading) return;

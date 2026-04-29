@@ -959,7 +959,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
       {followListType && (
         <div
           className={`stats-follow-overlay ${followListClosing ? 'closing' : ''}`}
-          style={{ zIndex: 610, background: 'rgba(0,0,0,0.3)' }}
+          style={{ zIndex: 800, background: 'rgba(0,0,0,0.3)' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeFollowList(); }}
         >
           <div className="stats-follow-panel" ref={followPanelRef}>
@@ -968,7 +968,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                 <button className={`stats-follow-tab ${followListType === 'following' ? 'active' : ''}`} onClick={() => switchFollowListTab('following')}>Following</button>
                 <button className={`stats-follow-tab ${followListType === 'followers' ? 'active' : ''}`} onClick={() => switchFollowListTab('followers')}>Followers</button>
                 {onFindPeople && (
-                  <button className="stats-follow-people-btn" onClick={() => onFindPeople()}>
+                  <button className="stats-follow-people-btn" onClick={() => { setFollowListType(null); setFollowListClosing(false); onClose(); onFindPeople(); }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <path transform="translate(1,0)" d="M13 8c0 2.21-1.79 4-4 4S5 10.21 5 8s1.79-4 4-4 4 1.79 4 4zm-4 6c-4.42 0-8 1.79-8 4v1h16v-1c0-2.21-3.58-4-8-4z"/>
                       <path d="M22 3h-2V1h-2v2h-2v2h2v2h2V5h2V3z"/>
@@ -1031,7 +1031,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                 ))
               )}
               {onFindPeople && (followListType === 'following' || followListType === 'followers') && (
-                <div className="stats-follow-find-people" style={{ animationDelay: `${(followListProfiles.length) * 40}ms` }} onClick={() => onFindPeople()}>
+                <div className="stats-follow-find-people" style={{ animationDelay: `${(followListProfiles.length) * 40}ms` }} onClick={() => { setFollowListType(null); setFollowListClosing(false); onClose(); onFindPeople(); }}>
                   <div className="stats-follow-find-people-icon">+</div>
                   <span>Find People</span>
                 </div>
