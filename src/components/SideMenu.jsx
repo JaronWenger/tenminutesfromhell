@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../firebase/auth';
 import { collection, getDocs, getDoc, doc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
+import { DEFAULT_TIMER_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
 import { SOUNDS, unlockAudio } from '../data/sounds';
 import ProfilePopup from './ProfilePopup';
 import './SideMenu.css';
@@ -326,7 +326,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
 
       // Build most owned workout ranking
       const workoutNameMap = {};
-      [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].forEach(w => {
+      DEFAULT_TIMER_WORKOUTS.forEach(w => {
         workoutNameMap[w.id] = w.name;
       });
       workoutsSnap.docs.forEach(d => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser, createFollowRequest, cancelFollowRequest } from '../firebase/social';
 import { getUserHistory, addLibraryRef, createWorkoutV2, getWorkoutV2, getWorkoutsBatchV2 } from '../firebase/firestore';
-import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
+import { DEFAULT_TIMER_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
 import './StatsPage.css';
 
 const buildCalendarGrid = (dailyMap) => {
@@ -287,8 +287,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
             const workoutMap = {};
             v2Docs.forEach(w => { workoutMap[w.id] = w; });
             if (Object.keys(workoutMap).length < pinnedIds.length) {
-              const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
-              allDefaults.forEach(w => { if (w.id && !workoutMap[w.id]) workoutMap[w.id] = w; });
+              DEFAULT_TIMER_WORKOUTS.forEach(w => { if (w.id && !workoutMap[w.id]) workoutMap[w.id] = w; });
             }
             return pinnedIds.map(id => workoutMap[id]).filter(Boolean);
           })()

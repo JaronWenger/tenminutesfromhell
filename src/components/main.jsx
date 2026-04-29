@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Timer from './Timer';
 import Home from './Home';
-import Stopwatch from './Stopwatch';
 import StatsPage from './StatsPage';
 import TabBar from './TabBar';
 import EditPage from './EditPage';
@@ -12,7 +11,7 @@ import LoginModal from './LoginModal';
 import SharePrompt from './SharePrompt';
 import ProfilePopup from './ProfilePopup';
 import OnboardingTooltip from './OnboardingTooltip';
-import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS } from '../data/defaultWorkouts';
+import { DEFAULT_TIMER_WORKOUTS } from '../data/defaultWorkouts';
 import { useAuth } from '../contexts/AuthContext';
 import { recordWorkoutHistory, updateWorkoutHistory, getUserHistory, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, setDeletedDefaults } from '../firebase/firestore';
 import { signInWithGoogle } from '../firebase/auth';
@@ -100,19 +99,12 @@ const Main = () => {
 
   // Workout data as state (defaults, overridable by Firestore)
   const [timerWorkoutData, setTimerWorkoutData] = useState(DEFAULT_TIMER_WORKOUTS);
-  const [stopwatchWorkoutData, setStopwatchWorkoutData] = useState(DEFAULT_STOPWATCH_WORKOUTS);
 
-  // Derive ID sets from workout data for quick lookup
-  const timerWorkoutIds = new Set(timerWorkoutData.map(w => w.id).filter(Boolean));
-  const stopwatchWorkoutIds = new Set(stopwatchWorkoutData.map(w => w.id).filter(Boolean));
-
-  // Find workout by ID across all data
+  // Find workout by ID
   const findWorkoutById = useCallback((workoutId) => {
     if (!workoutId) return null;
-    return timerWorkoutData.find(w => w.id === workoutId)
-      || stopwatchWorkoutData.find(w => w.id === workoutId)
-      || null;
-  }, [timerWorkoutData, stopwatchWorkoutData]);
+    return timerWorkoutData.find(w => w.id === workoutId) || null;
+  }, [timerWorkoutData]);
 
   // Exercise lookup by workout ID (fallback to name for legacy)
   const getExerciseList = useCallback((workoutId) => {
@@ -120,10 +112,9 @@ const Main = () => {
     const w = findWorkoutById(workoutId);
     if (w) return w.exercises;
     // Legacy fallback: lookup by name
-    const allWorkouts = [...timerWorkoutData, ...stopwatchWorkoutData];
-    const found = allWorkouts.find(w => w.name === workoutId);
+    const found = timerWorkoutData.find(w => w.name === workoutId);
     return found ? found.exercises : [];
-  }, [timerWorkoutData, stopwatchWorkoutData, findWorkoutById]);
+  }, [timerWorkoutData, findWorkoutById]);
 
   const [prepTime, setPrepTime] = useState(10);
   const [restTime, setRestTime] = useState(15);
@@ -165,22 +156,6 @@ const Main = () => {
     };
   });
 
-  // Stopwatch state
-  const [stopwatchState, setStopwatchState] = useState({
-    time: 0,
-    isRunning: false,
-    laps: []
-  });
-
-  // Lap times panel state
-  const [showLapTimes, setShowLapTimes] = useState(false);
-  const [isClosingLapTimes, setIsClosingLapTimes] = useState(false);
-  const [touchStartY, setTouchStartY] = useState(0);
-
-  // Workout view state (phone only)
-  const [showWorkoutView, setShowWorkoutView] = useState(false);
-  const [currentWorkoutIndex, setCurrentWorkoutIndex] = useState(0);
-  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(-1);
 
   // Edit page state
   const [currentEditPage, setCurrentEditPage] = useState(null);
@@ -200,8 +175,6 @@ const Main = () => {
     } catch {}
     return 'default-hiit-them-abs';
   });
-  const [stopwatchSelectedWorkout, setStopwatchSelectedWorkout] = useState('Back & Bis');
-
   // Timer session persistence helpers
   const wasRunningRef = useRef(false);
 
@@ -462,7 +435,6 @@ const Main = () => {
     if (!user) {
       // Reset to defaults when logged out
       setTimerWorkoutData([...DEFAULT_TIMER_WORKOUTS]);
-      setStopwatchWorkoutData([...DEFAULT_STOPWATCH_WORKOUTS]);
       setWorkoutHistory([]);
       setAutoShareEnabled(null);
       setActiveColor('#ff3b30');
@@ -494,7 +466,6 @@ const Main = () => {
       ensureUserProfile(user).catch(() => {});
       setIsFirstTimeUser(true);
       setTimerWorkoutData([...DEFAULT_TIMER_WORKOUTS]);
-      setStopwatchWorkoutData([...DEFAULT_STOPWATCH_WORKOUTS]);
       setWorkoutReady(true);
       return () => { cancelled = true; };
     }
@@ -596,7 +567,6 @@ const Main = () => {
         }
         if (!cancelled) {
           setTimerWorkoutData(timer);
-          setStopwatchWorkoutData(merged.stopwatch);
           setDeletedDefaultsState(prefs.deletedDefaults);
           // Backfill: set creatorUid on owned workouts that are missing it
           const ownedMissing = workouts.filter(w => w.ownerUid === user.uid && !w.creatorUid);
@@ -739,11 +709,7 @@ const Main = () => {
 
   // Merge V2 library workouts with defaults (uses deletedDefaults from preferences)
   const mergeWorkoutsV2 = (libraryWorkouts, deletedDefaults = []) => {
-    const timerDefaults = [...DEFAULT_TIMER_WORKOUTS];
-    const stopwatchDefaults = [...DEFAULT_STOPWATCH_WORKOUTS];
     const deletedSet = new Set(deletedDefaults);
-
-    // Filter out deleted defaults, apply overrides from library
     const usedAsOverride = new Set();
     const findOverride = (d) => {
       const override = libraryWorkouts.find(w => w.defaultId && w.defaultId === d.id);
@@ -751,28 +717,19 @@ const Main = () => {
       return override;
     };
 
-    const timerResult = timerDefaults
+    const timerResult = [...DEFAULT_TIMER_WORKOUTS]
       .filter(d => !deletedSet.has(d.id))
       .map(d => {
         const override = findOverride(d);
         return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
       });
 
-    const stopwatchResult = stopwatchDefaults
-      .filter(d => !deletedSet.has(d.id))
-      .map(d => {
-        const override = findOverride(d);
-        return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
-      });
-
-    // Add non-override library workouts
     libraryWorkouts.forEach(w => {
       if (usedAsOverride.has(w.id)) return;
       if (w.type === 'timer') timerResult.push(w);
-      else stopwatchResult.push(w);
     });
 
-    return { timer: timerResult, stopwatch: stopwatchResult };
+    return { timer: timerResult };
   };
 
   // Refresh history from Firestore (called after joining someone's workout)
@@ -805,7 +762,6 @@ const Main = () => {
         });
       }
       setTimerWorkoutData(timer);
-      setStopwatchWorkoutData(merged.stopwatch);
     } catch (err) {
       console.error('Failed to refresh workouts:', err);
     }
@@ -1209,32 +1165,6 @@ const Main = () => {
     }
   }, [timerState.timeLeft, timerState.isRunning, timerState.targetTime, user, findSelectedWorkout, autoShareEnabled, handleShareWorkout]);
 
-  // Stopwatch interval ref
-  const stopwatchIntervalRef = useRef(null);
-
-  // Stopwatch interval management
-  useEffect(() => {
-    if (stopwatchState.isRunning) {
-      stopwatchIntervalRef.current = setInterval(() => {
-        setStopwatchState(prev => ({
-          ...prev,
-          time: prev.time + 10
-        }));
-      }, 10);
-    } else {
-      if (stopwatchIntervalRef.current) {
-        clearInterval(stopwatchIntervalRef.current);
-        stopwatchIntervalRef.current = null;
-      }
-    }
-
-    return () => {
-      if (stopwatchIntervalRef.current) {
-        clearInterval(stopwatchIntervalRef.current);
-      }
-    };
-  }, [stopwatchState.isRunning]);
-
   // Wake lock management
   const requestWakeLock = async () => {
     try {
@@ -1268,63 +1198,6 @@ const Main = () => {
     } else {
       setTimerState(prev => ({ ...prev, ...newState }));
     }
-  };
-
-  // Stopwatch state change handler
-  const handleStopwatchStateChange = (newState) => {
-    if (newState.isRunning !== undefined) {
-      setStopwatchState(prev => {
-        if (newState.isRunning && !prev.isRunning) requestWakeLock();
-        else if (!newState.isRunning && prev.isRunning) releaseWakeLock();
-        return { ...prev, ...newState };
-      });
-    } else {
-      setStopwatchState(prev => ({ ...prev, ...newState }));
-    }
-  };
-
-  // Stopwatch control handlers
-  const handleStopwatchStart = () => {
-    handleStopwatchStateChange({ isRunning: true });
-  };
-
-  const handleStopwatchStop = () => {
-    handleStopwatchStateChange({ isRunning: false });
-  };
-
-  const handleStopwatchReset = () => {
-    // Record history before resetting
-    if (user && stopwatchState.time > 0) {
-      const selectedWorkoutObj = stopwatchWorkoutData.find(w => w.id === stopwatchSelectedWorkout) || stopwatchWorkoutData.find(w => w.name === stopwatchSelectedWorkout);
-      const exercises = selectedWorkoutObj ? selectedWorkoutObj.exercises : [];
-      const workoutData = {
-        workoutName: stopwatchSelectedWorkout,
-        workoutId: selectedWorkoutObj?.id || null,
-        workoutType: 'stopwatch',
-        duration: Math.round(stopwatchState.time / 1000),
-        setCount: stopwatchState.laps.length,
-        exercises,
-        restTime: selectedWorkoutObj?.restTime ?? restTime,
-        prepTime
-      };
-      recordWorkoutHistory(user.uid, workoutData)
-        .catch(err => console.error('Failed to record history:', err));
-
-      // Social sharing logic
-      if (autoShareEnabled === true) {
-        handleShareWorkout(workoutData);
-      } else if (autoShareEnabled === null) {
-        setPendingShareData(workoutData);
-        setShowSharePrompt(true);
-      }
-    }
-    handleStopwatchStateChange({ time: 0, isRunning: false, laps: [] });
-    setShowLapTimes(false);
-  };
-
-  const handleClearSets = () => {
-    setStopwatchState(prev => ({ ...prev, laps: [] }));
-    setShowLapTimes(false);
   };
 
   // Edit page handlers
@@ -1372,8 +1245,6 @@ const Main = () => {
 
       if (type === 'timer') {
         setTimerSelectedWorkout(workout);
-      } else if (type === 'stopwatch') {
-        setStopwatchSelectedWorkout(workout);
       }
       setCurrentEditLevel('exercise-edit');
       setCurrentEditingWorkout(workout);
@@ -1392,8 +1263,6 @@ const Main = () => {
           console.error('Failed to save selected workout:', err)
         );
       }
-    } else if (type === 'stopwatch') {
-      setStopwatchSelectedWorkout(workoutName);
     }
   };
 
@@ -1402,15 +1271,13 @@ const Main = () => {
     const workoutName = currentEditingWorkout;
     const isNew = workoutName === 'New Workout';
     const finalName = newTitle || workoutName;
-    const allData = workoutType === 'timer' ? timerWorkoutData : stopwatchWorkoutData;
-    const existingW = allData.find(w => w.name === workoutName);
+    const existingW = timerWorkoutData.find(w => w.name === workoutName);
 
     // Optimistic local update
     const tempId = isNew ? `temp-${Date.now()}` : null;
-    const setData = workoutType === 'timer' ? setTimerWorkoutData : setStopwatchWorkoutData;
-    setData(prev => {
+    setTimerWorkoutData(prev => {
       if (isNew) {
-        return [...prev, { id: tempId, name: finalName, type: workoutType, exercises: updatedExercises, isPublic: true, isCustom: true }];
+        return [...prev, { id: tempId, name: finalName, type: 'timer', exercises: updatedExercises, isPublic: true, isCustom: true }];
       }
       return prev.map(w =>
         (existingW?.id ? w.id === existingW.id : w.name === workoutName)
@@ -1421,17 +1288,13 @@ const Main = () => {
 
     // Update selected workout name if it was renamed
     if (newTitle && workoutName !== 'New Workout') {
-      if (workoutType === 'timer' && timerSelectedWorkoutId === existingW?.id) {
+      if (timerSelectedWorkoutId === existingW?.id) {
         setTimerSelectedWorkout(finalName);
       }
     }
     if (isNew) {
-      if (workoutType === 'timer') {
-        setTimerSelectedWorkout(finalName);
-        setTimerSelectedWorkoutId(tempId);
-      } else {
-        setStopwatchSelectedWorkout(finalName);
-      }
+      setTimerSelectedWorkout(finalName);
+      setTimerSelectedWorkoutId(tempId);
     }
 
     // Update the editing workout name reference
@@ -1439,7 +1302,7 @@ const Main = () => {
 
     // Persist to Firestore when logged in
     if (user) {
-      const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+      const allDefaults = DEFAULT_TIMER_WORKOUTS;
       const defaultMatch = allDefaults.find(d => d.id === existingW?.defaultId || d.id === existingW?.id);
       const isDefault = !!defaultMatch;
       const persistExerciseSave = async () => {
@@ -1498,7 +1361,7 @@ const Main = () => {
     const finalName = newTitle || workoutName;
     const isNew = !workoutName;
     const safeTags = tags && tags.length > 0 ? tags : null;
-    const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+    const allDefaults = DEFAULT_TIMER_WORKOUTS;
 
     // Find existing workout by ID first, then name fallback
     const existingWorkout = workoutId
@@ -1643,8 +1506,8 @@ const Main = () => {
 
   // Feed post detail popup
   const openFeedDetail = useCallback(async (post) => {
-    const allW = [...timerWorkoutData, ...stopwatchWorkoutData];
-    const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+    const allW = timerWorkoutData;
+    const allDefaults = DEFAULT_TIMER_WORKOUTS;
     const postExercises = JSON.stringify(post.exercises || []);
     const hasExercises = post.exercises && post.exercises.length > 0;
     // Match by workoutId first (preferred), then fall back to name+exercises for legacy posts
@@ -1711,7 +1574,7 @@ const Main = () => {
       ? { ...post, exercises: sourceWorkout.exercises, exerciseCount: sourceWorkout.exercises?.length, workoutType: sourceWorkout.type, restTime: sourceWorkout.restTime }
       : post;
     setFeedDetailPost(enrichedPost);
-  }, [timerWorkoutData, stopwatchWorkoutData, user]);
+  }, [timerWorkoutData, user]);
 
   const closeFeedDetail = useCallback(() => {
     setFeedDetailClosing(true);
@@ -1787,7 +1650,7 @@ const Main = () => {
   }, [user, feedDetailPost, feedDetailOwner, feedDetailSaving, feedDetailTaken, closeFeedDetail, handleHomeStartWorkout, refreshWorkouts]);
 
   const handleDeleteWorkout = (workoutId, workoutName) => {
-    const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
+    const allDefaults = DEFAULT_TIMER_WORKOUTS;
     const workout = timerWorkoutData.find(w => w.id === workoutId);
     const defaultMatch = allDefaults.find(d => d.id === (workout?.defaultId || workoutId));
     const isDefault = !!defaultMatch;
@@ -1860,113 +1723,14 @@ const Main = () => {
   };
 
   const handleStartWorkout = () => {
-    let workoutType = currentEditPage;
     const workoutName = currentEditingWorkout;
-
-    if (!workoutType && workoutName) {
-      // Find by name in all workout data to determine type
-      const timerMatch = timerWorkoutData.find(w => w.name === workoutName);
-      const swMatch = stopwatchWorkoutData.find(w => w.name === workoutName);
-      if (timerMatch) workoutType = 'timer';
-      else if (swMatch) workoutType = 'stopwatch';
-    }
-
-    if (!workoutType || (workoutType !== 'timer' && workoutType !== 'stopwatch')) {
-      console.error('Invalid workout type:', workoutType, 'for workout:', workoutName);
-      return;
-    }
-
-    if (workoutType === 'timer') {
-      const match = timerWorkoutData.find(w => w.name === workoutName);
-      setTimerSelectedWorkout(workoutName);
-      setTimerSelectedWorkoutId(match?.id || null);
-    } else if (workoutType === 'stopwatch') {
-      setStopwatchSelectedWorkout(workoutName);
-    }
-
-    setActiveTab(workoutType);
+    const match = timerWorkoutData.find(w => w.name === workoutName);
+    setTimerSelectedWorkout(workoutName);
+    setTimerSelectedWorkoutId(match?.id || null);
+    setActiveTab('timer');
     setCurrentEditPage(null);
     setCurrentEditLevel('categories');
     setCurrentEditingWorkout(null);
-  };
-
-  const handleStopwatchLap = () => {
-    if (stopwatchState.isRunning) {
-      setStopwatchState(prev => ({
-        ...prev,
-        laps: [...prev.laps, prev.time]
-      }));
-    }
-  };
-
-  const handleWorkoutViewToggle = () => {
-    if (!stopwatchState.isRunning) {
-      setShowWorkoutView(!showWorkoutView);
-      if (!showWorkoutView) {
-        setCurrentWorkoutIndex(selectedWorkoutIndex >= 0 ? selectedWorkoutIndex : 0);
-      } else {
-        setSelectedWorkoutIndex(currentWorkoutIndex);
-      }
-    }
-  };
-
-  const handleWorkoutSwipe = (direction) => {
-    if (showWorkoutView) {
-      const currentExercises = getExerciseList(stopwatchSelectedWorkout);
-      const maxIndex = currentExercises.length - 1;
-      if (direction === 'left') {
-        setCurrentWorkoutIndex(prev => prev === maxIndex ? 0 : prev + 1);
-      } else if (direction === 'right') {
-        setCurrentWorkoutIndex(prev => prev === 0 ? maxIndex : prev - 1);
-      }
-    }
-  };
-
-  const handleWorkoutSelect = (index) => {
-    setSelectedWorkoutIndex(index);
-  };
-
-  const handleLapBarTap = () => {
-    if (stopwatchState.laps.length > 0) {
-      setShowLapTimes(true);
-    }
-  };
-
-  const handleLapBarTouchStart = (e) => {
-    setTouchStartY(e.touches[0].clientY);
-  };
-
-  const handleLapBarTouchMove = (e) => {
-    const touchY = e.touches[0].clientY;
-    const deltaY = touchStartY - touchY;
-
-    if (deltaY > 50 && stopwatchState.laps.length > 0 && !showLapTimes) {
-      setShowLapTimes(true);
-    } else if (deltaY < -50 && showLapTimes && !isClosingLapTimes) {
-      handleCloseLapTimes();
-    }
-  };
-
-  const handleLapBarTouchEnd = () => {
-    setTouchStartY(0);
-  };
-
-  const handleCloseLapTimes = () => {
-    if (!isClosingLapTimes) {
-      setIsClosingLapTimes(true);
-      setTimeout(() => {
-        setShowLapTimes(false);
-        setIsClosingLapTimes(false);
-      }, 300);
-    }
-  };
-
-  const formatLapTime = (timeInMs) => {
-    const minutes = Math.floor(timeInMs / 60000);
-    const seconds = Math.floor((timeInMs % 60000) / 1000);
-    const centiseconds = Math.floor((timeInMs % 1000) / 10);
-
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
   };
 
   const renderContent = () => {
@@ -1982,11 +1746,10 @@ const Main = () => {
           loading={historyLoading}
           onLoginClick={() => setShowLoginModal(true)}
           timerWorkoutData={timerWorkoutData}
-          stopwatchWorkoutData={stopwatchWorkoutData}
           prepTime={prepTime}
           globalRestTime={restTime}
           onStartWorkout={handleHomeStartWorkout}
-          defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
+          defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
           followingIds={followingIds}
           followerIds={followerIds}
           pinnedWorkouts={pinnedWorkouts}
@@ -2016,17 +1779,14 @@ const Main = () => {
     }
 
     if (currentEditPage) {
-      const workouts = currentEditPage === 'timer' ? timerWorkoutData.map(w => w.name) : stopwatchWorkoutData.map(w => w.name);
-      const selectedWorkout = currentEditPage === 'timer' ? timerSelectedWorkout : stopwatchSelectedWorkout;
-
       return (
         <EditPage
-          type={currentEditPage}
+          type="timer"
           level={currentEditLevel}
-          workouts={workouts}
-          selectedWorkout={selectedWorkout}
-          onWorkoutSelect={(workout) => handleWorkoutSelection(currentEditPage, workout)}
-          onArrowClick={(workout) => handleEditWorkoutSelect(currentEditPage, workout)}
+          workouts={timerWorkoutData.map(w => w.name)}
+          selectedWorkout={timerSelectedWorkout}
+          onWorkoutSelect={(workout) => handleWorkoutSelection('timer', workout)}
+          onArrowClick={(workout) => handleEditWorkoutSelect('timer', workout)}
           onBack={handleEditPageBack}
           onNavigateToTab={handleNavigateToTab}
         />
@@ -2055,7 +1815,7 @@ const Main = () => {
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
-            defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
+            defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
 
             requestCloseDetail={homeDetailCloseRequested}
 
@@ -2075,11 +1835,10 @@ const Main = () => {
             history={workoutHistory}
             loading={historyLoading}
             timerWorkoutData={timerWorkoutData}
-            stopwatchWorkoutData={stopwatchWorkoutData}
-            prepTime={prepTime}
+              prepTime={prepTime}
             globalRestTime={restTime}
             onStartWorkout={handleHomeStartWorkout}
-            defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
+            defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
             pinnedWorkouts={pinnedWorkouts}
             onPinnedWorkoutsChange={handlePinnedWorkoutsChange}
             onWorkoutAdded={refreshWorkouts}
@@ -2111,7 +1870,7 @@ const Main = () => {
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
             onStartWorkout={handleHomeStartWorkout}
-            defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
+            defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
 
             requestCloseDetail={homeDetailCloseRequested}
 
@@ -2290,7 +2049,7 @@ const Main = () => {
             globalRestTime={restTime}
             onDetailSave={handleDetailSave}
             onStartWorkout={(name, id) => { setTimerDetailWorkout(null); handleHomeStartWorkout(name, id); }}
-            defaultWorkoutIds={new Set([...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS].map(d => d.id))}
+            defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
             requestCloseDetail={false}
 
             onShareWorkout={openSendWorkout}
@@ -2338,7 +2097,7 @@ const Main = () => {
         onWorkoutAdded={refreshWorkouts}
         onHistoryRecorded={refreshHistory}
         acceptedPostId={feedAcceptedPostId}
-        allWorkouts={[...timerWorkoutData, ...stopwatchWorkoutData]}
+        allWorkouts={timerWorkoutData}
         lastViewedAt={feedLastViewed}
         externalFollowedUid={lastFollowedUid}
         pendingFollowRequests={pendingFollowRequests}
@@ -2350,7 +2109,7 @@ const Main = () => {
         <ProfilePopup
           profile={viewUserProfile}
           user={user}
-          allWorkouts={[...timerWorkoutData, ...stopwatchWorkoutData]}
+          allWorkouts={timerWorkoutData}
           onClose={() => setViewUserProfile(null)}
           onStartWorkout={handleHomeStartWorkout}
           onWorkoutAdded={refreshWorkouts}

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { getUserProfiles, getFollowing, getFollowers, getAllPreferences, createSaveNotification, followUser, unfollowUser } from '../firebase/social';
 import { getUserHistory, getWorkoutsBatchV2, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
-import { DEFAULT_TIMER_WORKOUTS, DEFAULT_STOPWATCH_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
+import { DEFAULT_TIMER_WORKOUTS, countActiveExercises } from '../data/defaultWorkouts';
 import './StatsPage.css';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -54,7 +54,6 @@ const StatsPage = ({
   loading,
   onLoginClick,
   timerWorkoutData = [],
-  stopwatchWorkoutData = [],
   prepTime = 15,
   globalRestTime = 15,
   onStartWorkout,
@@ -656,8 +655,8 @@ const StatsPage = ({
 
   // All workouts
   const allWorkouts = useMemo(() => {
-    return [...timerWorkoutData, ...stopwatchWorkoutData];
-  }, [timerWorkoutData, stopwatchWorkoutData]);
+    return timerWorkoutData;
+  }, [timerWorkoutData]);
 
   // Non-default, non-private workouts available for pinning
   const ownedWorkouts = useMemo(() => {
@@ -924,8 +923,7 @@ const StatsPage = ({
           const workoutMap = {};
           v2Docs.forEach(w => { workoutMap[w.id] = w; });
           if (Object.keys(workoutMap).length < pinnedIds.length) {
-            const allDefaults = [...DEFAULT_TIMER_WORKOUTS, ...DEFAULT_STOPWATCH_WORKOUTS];
-            allDefaults.forEach(w => { if (w.id && !workoutMap[w.id]) workoutMap[w.id] = w; });
+            DEFAULT_TIMER_WORKOUTS.forEach(w => { if (w.id && !workoutMap[w.id]) workoutMap[w.id] = w; });
           }
           return pinnedIds.map(id => workoutMap[id]).filter(Boolean);
         })()
