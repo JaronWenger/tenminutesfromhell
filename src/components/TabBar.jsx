@@ -4,6 +4,7 @@ import Tab1 from '../assets/Tab1.jpg';
 import Tab2 from '../assets/Tab2.jpg';
 import ActivityTab from '../assets/ActivityTab.png';
 import Tab4 from '../assets/Tab4.jpg';
+import TargetTab from '../assets/TargetTab.png';
 
 const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor }) => {
   const useGreyscale = isTimerRunning && activeTab === 'timer' && activeColor && activeColor !== '#ff3b30';
@@ -43,6 +44,16 @@ const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor }) => {
           <img src={Tab1} alt="Home" />
         </div>
         <span className="tab-label">Home</span>
+      </button>
+
+      <button
+        className={`tab-item ${activeTab === 'target' ? 'active' : ''}`}
+        onClick={() => onTabChange('target')}
+      >
+        <div className="tab-icon">
+          <img src={TargetTab} alt="Target" />
+        </div>
+        <span className="tab-label">Target</span>
       </button>
 
       <button

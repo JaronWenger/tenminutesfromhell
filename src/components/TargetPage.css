@@ -1,0 +1,203 @@
+.target-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - env(safe-area-inset-top, 0px));
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 0 16px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  color: white;
+}
+
+
+.target-chart-section {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 16px;
+}
+
+.target-completed-title {
+  flex-shrink: 0;
+  padding: 10px 0 6px;
+  width: 100%;
+  text-align: center;
+  justify-content: center;
+}
+
+.target-list-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-top: 4px;
+}
+
+.target-list-section::-webkit-scrollbar { display: none; }
+
+.target-period-selector {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 28px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.target-period-btn {
+  flex: 1;
+  padding: 8px 20px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  letter-spacing: 0.6px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.target-period-btn.active {
+  background: rgba(255, 59, 48, 0.12);
+  border-color: rgba(255, 59, 48, 0.6);
+  color: #ff3b30;
+  text-shadow: 0 0 8px rgba(255, 59, 48, 0.6);
+  box-shadow: 0 0 12px rgba(255, 59, 48, 0.2), inset 0 0 8px rgba(255, 59, 48, 0.05);
+}
+
+.target-chart-wrap {
+  width: 100%;
+  max-width: 300px;
+  margin-bottom: 24px;
+}
+
+.target-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+
+
+.target-card-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  align-self: center;
+  padding-left: 10px;
+  line-height: 1;
+  gap: 2px;
+}
+
+.target-card-date-day {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: -0.5px;
+}
+
+.target-card-date-month {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 1px;
+}
+
+.target-empty {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.target-empty p {
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0 0 8px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.target-empty span {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.35);
+  line-height: 1.4;
+  display: block;
+  max-width: 220px;
+  margin: 0 auto;
+}
+
+.target-axis-draw {
+  stroke-dasharray: 95;
+  stroke-dashoffset: 95;
+  animation: target-axis-draw-in 0.35s ease-out forwards;
+}
+
+@keyframes target-axis-draw-in {
+  from { stroke-dashoffset: 95; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.target-add-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  margin-left: 10px;
+}
+
+.target-add-btn:active {
+  background: rgba(255, 59, 48, 0.15);
+  border-color: rgba(255, 59, 48, 0.5);
+  color: #ff3b30;
+}
+
+.target-ring-pulse {
+  animation: target-ring-pulse 0.55s ease-out forwards;
+}
+
+@keyframes target-ring-pulse {
+  0%   { stroke: rgba(255,255,255,0.07); stroke-width: 1; }
+  30%  { stroke: rgba(255,59,48,0.85);   stroke-width: 2; }
+  100% { stroke: rgba(255,255,255,0.07); stroke-width: 1; }
+}
+
+.target-cards-animate .stats-workout-card {
+  animation: target-card-in 0.35s ease forwards;
+  opacity: 0;
+}
+
+.target-cards-animate .stats-workout-card:nth-child(1)  { animation-delay: 0.00s; }
+.target-cards-animate .stats-workout-card:nth-child(2)  { animation-delay: 0.05s; }
+.target-cards-animate .stats-workout-card:nth-child(3)  { animation-delay: 0.10s; }
+.target-cards-animate .stats-workout-card:nth-child(4)  { animation-delay: 0.15s; }
+.target-cards-animate .stats-workout-card:nth-child(5)  { animation-delay: 0.20s; }
+.target-cards-animate .stats-workout-card:nth-child(6)  { animation-delay: 0.25s; }
+.target-cards-animate .stats-workout-card:nth-child(7)  { animation-delay: 0.30s; }
+.target-cards-animate .stats-workout-card:nth-child(8)  { animation-delay: 0.35s; }
+.target-cards-animate .stats-workout-card:nth-child(9)  { animation-delay: 0.40s; }
+.target-cards-animate .stats-workout-card:nth-child(10) { animation-delay: 0.45s; }
+
+@keyframes target-card-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 480px) {
+  .target-page { padding: 0 14px; }
+}

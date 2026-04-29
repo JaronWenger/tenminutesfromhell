@@ -54,6 +54,11 @@ const ActivityPage = ({
   const tooltipRef = useRef(null);
   const hasLoadedRef = useRef(false);
   const [loading, setLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const cursorDateRef = useRef(null);
+  const loadingMoreRef = useRef(false);
+  const sentinelRef = useRef(null);
   const [shareActions, setShareActions] = useState({});
   const [requestActions, setRequestActions] = useState({});
   const [expandedTogetherId, setExpandedTogetherId] = useState(null);
@@ -177,18 +182,13 @@ const ActivityPage = ({
   const loadFeed = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    cursorDateRef.current = null;
+    setHasMore(true);
     try {
       let [feedPosts, following] = await Promise.all([
-        getFeedPosts(user.uid),
+        getFeedPosts(user.uid, 20),
         getFollowing(user.uid)
       ]);
-      const welcomePost = {
-        id: 'welcome',
-        type: 'welcome',
-        displayName: 'HIITem',
-        photoURL: null,
-        createdAt: user.metadata?.creationTime ? new Date(user.metadata.creationTime) : new Date(),
-      };
       const postsWithWorkoutId = feedPosts.filter(p => p.workoutId);
       if (postsWithWorkoutId.length > 0) {
         const uniqueIds = [...new Set(postsWithWorkoutId.map(p => p.workoutId))];
@@ -203,7 +203,13 @@ const ActivityPage = ({
           return p;
         });
       }
-      setPosts([...feedPosts, welcomePost]);
+      // Set cursor to oldest post's date for pagination
+      const postsWithDate = feedPosts.filter(p => p.createdAt);
+      if (postsWithDate.length > 0) {
+        cursorDateRef.current = postsWithDate[postsWithDate.length - 1].createdAt;
+      }
+      setHasMore(feedPosts.length >= 20);
+      setPosts(feedPosts);
       setFollowingIds(following);
       const workoutPosts = feedPosts.filter(p => !p.type);
       if (workoutPosts.length > 0) {
@@ -217,8 +223,53 @@ const ActivityPage = ({
     }
   }, [user]);
 
+  const loadMore = useCallback(async () => {
+    if (!user || !cursorDateRef.current || loadingMoreRef.current || !hasMore) return;
+    loadingMoreRef.current = true;
+    setIsLoadingMore(true);
+    try {
+      let morePosts = await getFeedPosts(user.uid, 20, cursorDateRef.current);
+      if (morePosts.length === 0) {
+        setHasMore(false);
+        return;
+      }
+      const postsWithWorkoutId = morePosts.filter(p => p.workoutId);
+      if (postsWithWorkoutId.length > 0) {
+        const uniqueIds = [...new Set(postsWithWorkoutId.map(p => p.workoutId))];
+        const liveDocs = await Promise.all(uniqueIds.map(id => getWorkoutV2(id).catch(() => null)));
+        const liveMap = {};
+        liveDocs.forEach((doc, i) => { if (doc) liveMap[uniqueIds[i]] = doc; });
+        morePosts = morePosts.map(p => {
+          if (p.workoutId && liveMap[p.workoutId]) {
+            const live = liveMap[p.workoutId];
+            return { ...p, exercises: live.exercises, exerciseCount: live.exercises?.length, workoutName: live.name };
+          }
+          return p;
+        });
+      }
+      const postsWithDate = morePosts.filter(p => p.createdAt);
+      if (postsWithDate.length > 0) {
+        cursorDateRef.current = postsWithDate[postsWithDate.length - 1].createdAt;
+      }
+      setHasMore(morePosts.length >= 20);
+      setPosts(prev => [...prev, ...morePosts]);
+      const workoutPosts = morePosts.filter(p => !p.type);
+      if (workoutPosts.length > 0) {
+        const reactions = await batchCheckReactions(workoutPosts.map(p => p.id), user.uid);
+        setUserReactions(prev => ({ ...prev, ...reactions }));
+      }
+    } catch (err) {
+      console.error('[Activity] Failed to load more:', err);
+    } finally {
+      loadingMoreRef.current = false;
+      setIsLoadingMore(false);
+    }
+  }, [user, hasMore]);
+
   useEffect(() => {
     hasLoadedRef.current = false;
+    cursorDateRef.current = null;
+    setHasMore(true);
   }, [user]);
 
   useEffect(() => {
@@ -227,6 +278,16 @@ const ActivityPage = ({
       loadFeed();
     }
   }, [isVisible, user, loadFeed]);
+
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMore || loading) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadMore]);
 
   useEffect(() => {
     if (acceptedPostId) {
@@ -431,30 +492,8 @@ const ActivityPage = ({
                 <span>Complete a workout or follow people to see activity here</span>
               </div>
             ) : (
-              posts.map(post => {
-                if (post.type === 'welcome') return (
-                  <div key={post.id} className="feed-post-card" style={{ cursor: 'pointer' }} onClick={() => onPeopleClick && onPeopleClick()}>
-                    <div className="feed-post-header">
-                      <div
-                        className="feed-post-avatar"
-                        style={{ overflow: 'hidden', width: 40, height: 40, borderRadius: '50%' }}
-                        onClick={(e) => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: 'hiitem', displayName: 'HIITem', photoURL: PP }); }}
-                      >
-                        <img src={PP} alt="" referrerPolicy="no-referrer" />
-                      </div>
-                      <div className="feed-post-meta">
-                        <span className="feed-post-name">HIITem</span>
-                        <span className="feed-post-time">
-                          {post.createdAt ? post.createdAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
-                        </span>
-                        <span className="feed-post-subtitle">Welcome{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}! Complete a workout and share with your friends <span style={{ opacity: 1, color: 'white' }}>🔥</span></span>
-                      </div>
-                      <button className="feed-welcome-people-btn" onClick={(e) => { e.stopPropagation(); onPeopleClick && onPeopleClick(); }}>
-                        People<span style={{ marginLeft: 4, fontSize: '1em', lineHeight: 0 }}>→</span>
-                      </button>
-                    </div>
-                  </div>
-                );
+              <>
+              {posts.map(post => {
                 if (post.type === 'follow') return (
                   <div key={post.id} className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`} style={{ cursor: 'pointer' }}
                     onClick={() => onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL })}
@@ -745,7 +784,32 @@ const ActivityPage = ({
                     })()}
                   </div>
                 );
-              })
+              })}
+              {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
+              {isLoadingMore && <div className="activity-load-more">Loading...</div>}
+              {!hasMore && !isLoadingMore && (
+                <div className="feed-post-card" style={{ cursor: 'pointer' }} onClick={() => onPeopleClick && onPeopleClick()}>
+                  <div className="feed-post-header">
+                    <div
+                      className="feed-post-avatar"
+                      onClick={(e) => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: 'hiitem', displayName: 'HIITem', photoURL: PP }); }}
+                    >
+                      <img src={PP} alt="" />
+                    </div>
+                    <div className="feed-post-meta">
+                      <span className="feed-post-name">HIITem</span>
+                      <span className="feed-post-time">
+                        {user?.metadata?.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                      </span>
+                      <span className="feed-post-subtitle">Welcome{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}! Complete a workout and share with your friends <span style={{ opacity: 1, color: 'white' }}>🔥</span></span>
+                    </div>
+                    <button className="feed-welcome-people-btn" onClick={(e) => { e.stopPropagation(); onPeopleClick && onPeopleClick(); }}>
+                      People<span style={{ marginLeft: 4, fontSize: '1em', lineHeight: 0 }}>→</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+              </>
             )}
           </>
         )}

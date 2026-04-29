@@ -16,7 +16,8 @@ import {
   increment,
   deleteField,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -816,7 +817,7 @@ export const hasNewNotifications = async (userId, sinceDate, followingIds = []) 
   return results.some(isNewer);
 };
 
-export const getFeedPosts = async (userId, pageSize = 30) => {
+export const getFeedPosts = async (userId, pageSize = 20, afterDate = null) => {
   // Get ALL following docs (active + inactive) to preserve feed history
   const followSnapshot = await getDocs(
     collection(db, 'following', userId, 'userFollowing')
@@ -859,12 +860,13 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
   };
 
   for (const chunk of chunks) {
-    const q = query(
-      collection(db, 'posts'),
+    const constraints = [
       where('userId', 'in', chunk),
+      ...(afterDate ? [where('createdAt', '<', Timestamp.fromDate(afterDate))] : []),
       orderBy('createdAt', 'desc'),
-      limit(pageSize)
-    );
+      limit(pageSize),
+    ];
+    const q = query(collection(db, 'posts'), ...constraints);
     const snapshot = await getDocs(q);
     snapshot.docs.forEach(d => {
       if (!seenIds.has(d.id)) {
@@ -882,12 +884,13 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
         joinChunks.push(allFollowIds.slice(i, i + 30));
       }
       for (const chunk of joinChunks) {
-        const q = query(
-          collection(db, 'posts'),
+        const constraints = [
           where('joinedUserIds', 'array-contains-any', chunk),
+          ...(afterDate ? [where('createdAt', '<', Timestamp.fromDate(afterDate))] : []),
           orderBy('createdAt', 'desc'),
-          limit(pageSize)
-        );
+          limit(pageSize),
+        ];
+        const q = query(collection(db, 'posts'), ...constraints);
         const snapshot = await getDocs(q);
         snapshot.docs.forEach(d => {
           if (!seenIds.has(d.id)) {
@@ -941,24 +944,25 @@ export const getFeedPosts = async (userId, pageSize = 30) => {
     return true;
   });
 
-  // Merge follow + save + share + sent + follow request notifications
-  try {
-    const [followNotifs, saveNotifs, shareNotifs, sentNotifs, followRequestNotifs, followAcceptedNotifs] = await Promise.all([
-      getFollowerNotifications(userId),
-      getSaveNotifications(userId).catch(err => { console.error('Save notifications failed:', err); return []; }),
-      getShareNotifications(userId).catch(err => { console.error('Share notifications failed:', err.message, err); return []; }),
-      getSentShareNotifications(userId).catch(err => { console.error('Sent notifications failed:', err.message, err); return []; }),
-      getFollowRequestNotifications(userId).catch(err => { console.error('Follow request notifications failed:', err); return []; }),
-      getFollowRequestAcceptedNotifications(userId).catch(err => { console.error('Follow accepted notifications failed:', err); return []; })
-    ]);
-    allPosts = allPosts.concat(followNotifs, saveNotifs, shareNotifs, sentNotifs, followRequestNotifs, followAcceptedNotifs);
-  } catch (err) {
-    console.error('Notification merge failed:', err.message);
-    // Still try follow notifications alone
+  // Merge notifications only on first page (afterDate = null)
+  if (!afterDate) {
     try {
-      const followNotifs = await getFollowerNotifications(userId);
-      allPosts = allPosts.concat(followNotifs);
-    } catch (_) { /* skip notifications entirely */ }
+      const [followNotifs, saveNotifs, shareNotifs, sentNotifs, followRequestNotifs, followAcceptedNotifs] = await Promise.all([
+        getFollowerNotifications(userId),
+        getSaveNotifications(userId).catch(err => { console.error('Save notifications failed:', err); return []; }),
+        getShareNotifications(userId).catch(err => { console.error('Share notifications failed:', err.message, err); return []; }),
+        getSentShareNotifications(userId).catch(err => { console.error('Sent notifications failed:', err.message, err); return []; }),
+        getFollowRequestNotifications(userId).catch(err => { console.error('Follow request notifications failed:', err); return []; }),
+        getFollowRequestAcceptedNotifications(userId).catch(err => { console.error('Follow accepted notifications failed:', err); return []; })
+      ]);
+      allPosts = allPosts.concat(followNotifs, saveNotifs, shareNotifs, sentNotifs, followRequestNotifs, followAcceptedNotifs);
+    } catch (err) {
+      console.error('Notification merge failed:', err.message);
+      try {
+        const followNotifs = await getFollowerNotifications(userId);
+        allPosts = allPosts.concat(followNotifs);
+      } catch (_) { /* skip notifications entirely */ }
+    }
   }
 
   // Sort combined results by date

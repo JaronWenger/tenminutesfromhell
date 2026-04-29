@@ -7,6 +7,7 @@ import TabBar from './TabBar';
 import EditPage from './EditPage';
 import ExerciseEditPage from './ExerciseEditPage';
 import FeedPage from './FeedPage';
+import TargetPage from './TargetPage';
 import SideMenu from './SideMenu';
 import LoginModal from './LoginModal';
 import SharePrompt from './SharePrompt';
@@ -237,6 +238,8 @@ const Main = () => {
   const [homeDetailOpen, setHomeDetailOpen] = useState(false);
   const [timerDetailWorkout, setTimerDetailWorkout] = useState(null);
   const [timerDetailEditMode, setTimerDetailEditMode] = useState(false);
+  const [targetDetailWorkout, setTargetDetailWorkout] = useState(null);
+  const [targetDetailClosing, setTargetDetailClosing] = useState(false);
   const [openProfilePopup, setOpenProfilePopup] = useState(false);
   const [viewUserProfile, setViewUserProfile] = useState(null);
   const [lastFollowedUid, setLastFollowedUid] = useState(null);
@@ -697,10 +700,10 @@ const Main = () => {
     };
 
     const timerResult = [...DEFAULT_TIMER_WORKOUTS]
-      .filter(d => !deletedSet.has(d.id))
+      .filter(d => !deletedSet.has(d.id) && !d.hideByDefault)
       .map(d => {
         const override = findOverride(d);
-        return override ? { ...d, ...override, exercises: override.exercises || d.exercises } : d;
+        return override ? { ...d, ...override, exercises: override.exercises || d.exercises, tags: override.tags || d.tags } : d;
       });
 
     libraryWorkouts.forEach(w => {
@@ -1465,13 +1468,14 @@ const Main = () => {
     }
   }, [user, timerSelectedWorkoutId, timerWorkoutData, deletedDefaultsState, pinnedWorkouts, weeklySchedule]);
 
-  const handleHomeStartWorkout = useCallback((workoutName, workoutId) => {
+  const handleHomeStartWorkout = useCallback((workoutName, workoutId, exercisesOverride) => {
     clearTimerSession();
     const wId = workoutId || null;
     setTimerSelectedWorkoutId(wId);
     setTimerSelectedWorkout(workoutName); // display cache
     const workout = wId ? findWorkoutById(wId) : null;
-    const exerciseCount = workout ? workout.exercises.length : 0;
+    const exercises = exercisesOverride || workout?.exercises || [];
+    const exerciseCount = exercises.length;
     const newTime = (exerciseCount * 60) + prepTime;
     setTimerState({ timeLeft: newTime, isRunning: false, targetTime: newTime, selectedWorkoutIndex: 0 });
     if (user) {
@@ -1626,6 +1630,41 @@ const Main = () => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, feedDetailPost, feedDetailOwner, feedDetailSaving, feedDetailTaken, closeFeedDetail, handleHomeStartWorkout, refreshWorkouts]);
+
+  const handleAddDefaultWorkout = useCallback(async (workout) => {
+    if (workout.hideByDefault) {
+      // Optimistic: add immediately so timer works right away
+      setTimerWorkoutData(prev => prev.some(w => w.name === workout.name) ? prev : [...prev, { ...workout, hideByDefault: false }]);
+      if (user) {
+        try {
+          const docId = await createWorkoutV2(user.uid, {
+            name: workout.name,
+            type: workout.type || 'timer',
+            exercises: workout.exercises || [],
+            tags: workout.tags || [],
+            restTime: workout.restTime ?? 15,
+            isCustom: false,
+            isDefault: false,
+            defaultId: workout.id,
+            creatorUid: null,
+            creatorName: null,
+            creatorPhotoURL: null,
+          });
+          await addLibraryRef(user.uid, docId, 'saved');
+          // Silently swap the temporary default ID for the real Firestore ID — no full refresh
+          setTimerWorkoutData(prev => prev.map(w => w.id === workout.id ? { ...w, id: docId, defaultId: workout.id } : w));
+          setTimerSelectedWorkoutId(curr => curr === workout.id ? docId : curr);
+        } catch (err) {
+          console.error('Failed to save optional workout:', err);
+        }
+      }
+    } else {
+      const newDeleted = deletedDefaultsState.filter(id => id !== workout.id);
+      setDeletedDefaultsState(newDeleted);
+      setTimerWorkoutData(prev => prev.some(w => w.name === workout.name) ? prev : [...prev, workout]);
+      if (user) setDeletedDefaults(user.uid, newDeleted).catch(err => console.error('Failed to revive workout:', err));
+    }
+  }, [user, deletedDefaultsState]);
 
   const handleDeleteWorkout = (workoutId, workoutName) => {
     const allDefaults = DEFAULT_TIMER_WORKOUTS;
@@ -1827,6 +1866,19 @@ const Main = () => {
             onFindPeople={() => setShowFeedPage(true)}
           />
         );
+      case 'target':
+        return (
+          <TargetPage
+            workoutHistory={workoutHistory}
+            timerWorkoutData={timerWorkoutData}
+            onLoginClick={() => setShowLoginModal(true)}
+            onProfileClick={() => setShowSideMenu(true)}
+            onPeopleClick={() => setShowFeedPage(true)}
+            onWorkoutTap={(workout) => setTargetDetailWorkout(workout)}
+            onAddWorkout={handleAddDefaultWorkout}
+            onStartWorkout={handleHomeStartWorkout}
+          />
+        );
       case 'activity':
         return null;
       default:
@@ -2005,43 +2057,6 @@ const Main = () => {
           }}
         />
       </div>
-      {/* Timer workout detail — opens Home detail overlay on top of Timer */}
-      {timerDetailWorkout && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 150 }}>
-          <Home
-            detailOnly
-            timerWorkoutData={timerWorkoutData}
-            timerSelectedWorkout={timerSelectedWorkout}
-            timerSelectedWorkoutId={timerSelectedWorkoutId}
-            workoutHistory={workoutHistory}
-            onWorkoutSelect={handleWorkoutSelection}
-            onArrowClick={handleEditWorkoutSelect}
-            onNavigateToTab={handleNavigateToTab}
-            onDeleteWorkout={handleDeleteWorkout}
-            onReorder={handleReorderWorkouts}
-            onBellClick={() => {}}
-            onLoginClick={() => {}}
-            onProfileClick={() => {}}
-            onSettingsOpen={() => {}}
-            prepTime={prepTime}
-            globalRestTime={restTime}
-            onDetailSave={handleDetailSave}
-            onStartWorkout={(name, id) => { setTimerDetailWorkout(null); handleHomeStartWorkout(name, id); }}
-            defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
-            requestCloseDetail={false}
-
-            onShareWorkout={openSendWorkout}
-            onScheduleWorkout={openSchedulePopup}
-            weeklySchedule={weeklySchedule}
-            isPro={isPro}
-            onProTap={openProPopup}
-            requestOpenDetail={timerDetailWorkout}
-            requestOpenInEdit={timerDetailEditMode}
-            onOpenDetailConsumed={() => { setTimerDetailEditMode(false); }}
-            onDetailClosed={() => setTimerDetailWorkout(null)}
-          />
-        </div>
-      )}
       {renderContent()}
       {!currentEditPage && (
         <ActivityPage
@@ -2084,8 +2099,47 @@ const Main = () => {
             if (showLoginModal) setLoginModalCloseRequested(true);
             if (scheduleWorkout) closeSchedulePopup();
             if (showProPopup) closeProPopup();
+            if (targetDetailWorkout) { setTargetDetailWorkout(null); setTargetDetailClosing(false); }
+            if (feedDetailPost) closeFeedDetail();
           }}
         />
+      )}
+      {/* Timer/Target workout detail — opens Home detail overlay on top of current tab */}
+      {timerDetailWorkout && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 900 }}>
+          <Home
+            detailOnly
+            timerWorkoutData={timerWorkoutData}
+            timerSelectedWorkout={timerSelectedWorkout}
+            timerSelectedWorkoutId={timerSelectedWorkoutId}
+            workoutHistory={workoutHistory}
+            onWorkoutSelect={handleWorkoutSelection}
+            onArrowClick={handleEditWorkoutSelect}
+            onNavigateToTab={handleNavigateToTab}
+            onDeleteWorkout={handleDeleteWorkout}
+            onReorder={handleReorderWorkouts}
+            onBellClick={() => {}}
+            onLoginClick={() => {}}
+            onProfileClick={() => {}}
+            onSettingsOpen={() => {}}
+            prepTime={prepTime}
+            globalRestTime={restTime}
+            onDetailSave={handleDetailSave}
+            onStartWorkout={(name, id) => { setTimerDetailWorkout(null); handleHomeStartWorkout(name, id); }}
+            defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
+            requestCloseDetail={false}
+
+            onShareWorkout={openSendWorkout}
+            onScheduleWorkout={openSchedulePopup}
+            weeklySchedule={weeklySchedule}
+            isPro={isPro}
+            onProTap={openProPopup}
+            requestOpenDetail={timerDetailWorkout}
+            requestOpenInEdit={timerDetailEditMode}
+            onOpenDetailConsumed={() => { setTimerDetailEditMode(false); }}
+            onDetailClosed={() => setTimerDetailWorkout(null)}
+          />
+        </div>
       )}
       <FeedPage
         isOpen={showFeedPage}
@@ -2224,6 +2278,87 @@ const Main = () => {
               }}
             >
               {!feedDetailIsOwn && !feedDetailTaken ? 'Add Workout' : 'Start Workout'}
+            </button>
+          </div>
+        </div>
+      )}
+      {targetDetailWorkout && (
+        <div
+          className={`stats-detail-overlay ${targetDetailClosing ? 'closing' : ''}`}
+          style={{ zIndex: 520 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setTargetDetailClosing(true);
+              setTimeout(() => { setTargetDetailWorkout(null); setTargetDetailClosing(false); }, 300);
+            }
+          }}
+        >
+          <div className="stats-detail-panel feed-detail-animate">
+            <div className="stats-detail-header">
+              <div className="stats-detail-creator">
+                <img src={PP} alt="" className="stats-detail-creator-icon" />
+              </div>
+              <div className={`stats-detail-title-group ${(targetDetailWorkout.tags || []).length > 0 ? 'has-tags' : ''}`}>
+                <h2 className="stats-detail-name">{targetDetailWorkout.name}</h2>
+                {(targetDetailWorkout.tags || []).length > 0 && (
+                  <div className="stats-detail-tags-row">
+                    {(targetDetailWorkout.tags || []).map(t => (
+                      <span key={t} className="stats-detail-tag-pill">{t.toUpperCase()}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="stats-detail-header-actions">
+                {user && !timerWorkoutData.some(w => w.name === targetDetailWorkout.name) && (
+                  <button className="stats-detail-share-btn" onClick={() => handleAddDefaultWorkout(targetDetailWorkout)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                  </button>
+                )}
+                <button className="stats-detail-close-btn" onClick={() => {
+                  setTargetDetailClosing(true);
+                  setTimeout(() => { setTargetDetailWorkout(null); setTargetDetailClosing(false); }, 300);
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="stats-detail-meta-row">
+              <div className="stats-detail-meta-left">
+                <div className="stats-detail-meta">
+                  <span>{Math.floor(((targetDetailWorkout.exercises || []).length * (60 - (targetDetailWorkout.restTime ?? restTime))) / 60)}:{String(((targetDetailWorkout.exercises || []).length * (60 - (targetDetailWorkout.restTime ?? restTime))) % 60).padStart(2, '0')}</span>
+                  <span className="stats-detail-dot">&middot;</span>
+                  <span>{(targetDetailWorkout.exercises || []).length} exercises</span>
+                </div>
+                <span className="stats-detail-rest-display">{targetDetailWorkout.restTime ?? restTime}s rest between exercises</span>
+              </div>
+            </div>
+            {(targetDetailWorkout.exercises || []).length > 0 && (
+              <div className="stats-detail-exercises">
+                {(targetDetailWorkout.exercises || []).map((ex, i) => (
+                  <div key={i} className="stats-detail-exercise">
+                    <span className="stats-detail-exercise-num">{i + 1}</span>
+                    <span className="stats-detail-exercise-name">{ex.name || ex}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              className="stats-detail-start-btn"
+              onClick={() => {
+                setTargetDetailClosing(true);
+                setTimeout(() => { setTargetDetailWorkout(null); setTargetDetailClosing(false); }, 300);
+                if (targetDetailWorkout.hideByDefault) handleAddDefaultWorkout(targetDetailWorkout);
+                handleHomeStartWorkout(targetDetailWorkout.name, targetDetailWorkout.id, targetDetailWorkout.exercises);
+              }}
+            >
+              Start Workout
             </button>
           </div>
         </div>

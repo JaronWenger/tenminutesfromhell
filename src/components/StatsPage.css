@@ -559,7 +559,7 @@
   --heat-4: #e74c3c;
   position: fixed;
   inset: 0;
-  z-index: 600;
+  z-index: 750;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2183,4 +2183,29 @@
 
 .home-schedule-day-header.today {
   color: var(--color-active, #ff3b30);
+}
+
+.stats-card-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  align-self: center;
+  padding-left: 10px;
+  line-height: 1;
+  gap: 2px;
+}
+
+.stats-card-date-day {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: -0.5px;
+}
+
+.stats-card-date-month {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 1px;
 }

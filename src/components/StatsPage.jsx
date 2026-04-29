@@ -1591,6 +1591,9 @@ const StatsPage = ({
               <h3 className="stats-section-title">Completed</h3>
               <div className="stats-workout-cards">
                 {(() => {
+                  const scrubDate = displayWeekChart[scrubIndex]?.date;
+                  const dateDay = scrubDate ? scrubDate.getDate() : null;
+                  const dateMonth = scrubDate ? scrubDate.toLocaleDateString(undefined, { month: 'short' }).toUpperCase() : null;
                   const entries = displayWeekChart[scrubIndex].workouts;
                   const grouped = {};
                   entries.forEach(w => {
@@ -1608,7 +1611,7 @@ const StatsPage = ({
                     const activeCount = countActiveExercises(exercises);
                     const activeSeconds = activeCount * (60 - wRestTime) + (activeCount > 0 ? wRestTime : 0);
                     return (
-                      <div key={`${name}-${setCount}`} className="stats-workout-card stats-completed-card">
+                      <div key={`${name}-${setCount}`} className="stats-workout-card stats-completed-card" style={{ justifyContent: 'space-between' }}>
                         <div className="stats-card-left">
                           <div className="stats-card-name-row">
                             <span className="stats-card-name">{name}</span>
@@ -1640,6 +1643,12 @@ const StatsPage = ({
                             </div>
                           )}
                         </div>
+                        {dateDay && (
+                          <div className="stats-card-date">
+                            <span className="stats-card-date-day">{dateDay}</span>
+                            <span className="stats-card-date-month">{dateMonth}</span>
+                          </div>
+                        )}
                       </div>
                     );
                   });

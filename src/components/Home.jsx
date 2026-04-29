@@ -1757,7 +1757,7 @@ const Home = ({
                         </svg>
                       </button>
                     </div>
-                  ) : !isDefaultWorkout && !isNewWorkout ? (
+                  ) : !isNewWorkout ? (
                     <button
                       className="home-detail-delete-workout-btn"
                       onClick={() => setShowDeleteConfirm(true)}
