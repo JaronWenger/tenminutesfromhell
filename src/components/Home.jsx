@@ -269,14 +269,10 @@ const Home = ({
 
   const getCompletionCount = (workout) => {
     if (!workoutHistory || workoutHistory.length === 0) return 0;
-    return workoutHistory.filter(h =>
-      h.workoutId ? h.workoutId === workout.id : (!workout.id && h.workoutName === workout.name)
-    ).length;
+    return workoutHistory.filter(h => h.workoutId === workout.id).length;
   };
 
-  // Match history entry to workout: prefer ID, fall back to name only for legacy entries without IDs
-  const historyMatchesWorkout = (h, w) =>
-    h.workoutId ? h.workoutId === w.id : (!w.id && h.workoutName === w.name);
+  const historyMatchesWorkout = (h, w) => h.workoutId === w.id;
 
   // ── Filter chips ──
   const filterChips = useMemo(() => {
