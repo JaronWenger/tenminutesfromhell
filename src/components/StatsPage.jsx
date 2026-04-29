@@ -1889,13 +1889,23 @@ const StatsPage = ({
               <div className="stats-follow-tabs">
                 <button className={`stats-follow-tab ${followListType === 'following' ? 'active' : ''}`} onClick={() => switchFollowListTab('following')}>Following</button>
                 <button className={`stats-follow-tab ${followListType === 'followers' ? 'active' : ''}`} onClick={() => switchFollowListTab('followers')}>Followers</button>
+                {onFindPeople && (
+                  <button className="stats-follow-people-btn" onClick={() => onFindPeople()}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path transform="translate(1,0)" d="M13 8c0 2.21-1.79 4-4 4S5 10.21 5 8s1.79-4 4-4 4 1.79 4 4zm-4 6c-4.42 0-8 1.79-8 4v1h16v-1c0-2.21-3.58-4-8-4z"/>
+                      <path d="M22 3h-2V1h-2v2h-2v2h2v2h2V5h2V3z"/>
+                    </svg>
+                  </button>
+                )}
               </div>
-              <button className="stats-follow-panel-close" onClick={closeFollowList}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
+              <div className="stats-follow-panel-actions">
+                <button className="stats-follow-panel-close" onClick={closeFollowList}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
             </div>
             <input
               className="stats-follow-search"
@@ -1940,8 +1950,8 @@ const StatsPage = ({
                   </div>
                 ))
               )}
-              {onFindPeople && followListType === 'following' && (
-                <div className="stats-follow-find-people" style={{ animationDelay: `${(followListProfiles.length) * 40}ms` }} onClick={() => { closeFollowList(); onFindPeople(); }}>
+              {onFindPeople && (followListType === 'following' || followListType === 'followers') && (
+                <div className="stats-follow-find-people" style={{ animationDelay: `${(followListProfiles.length) * 40}ms` }} onClick={() => onFindPeople()}>
                   <div className="stats-follow-find-people-icon">+</div>
                   <span>Find People</span>
                 </div>
@@ -2177,12 +2187,8 @@ const StatsPage = ({
                   </div>
                 ))
               )}
-              {onFindPeople && viewingProfile?.uid === user?.uid && vpFollowListType === 'following' && (
-                <div className="stats-follow-find-people" style={{ animationDelay: `${(vpFollowListProfiles.length) * 40}ms` }} onClick={() => {
-                  setVpFollowListType(null); setVpFollowListClosing(false); setVpFollowListProfiles([]);
-                  setViewingProfile(null); setViewingProfileClosing(false); setViewingProfileStats(null); setViewingProfileCalendar(null); setViewingProfilePinnedWorkouts([]);
-                  onFindPeople();
-                }}>
+              {onFindPeople && (vpFollowListType === 'following' || vpFollowListType === 'followers') && (
+                <div className="stats-follow-find-people" style={{ animationDelay: `${(vpFollowListProfiles.length) * 40}ms` }} onClick={() => onFindPeople()}>
                   <div className="stats-follow-find-people-icon">+</div>
                   <span>Find People</span>
                 </div>

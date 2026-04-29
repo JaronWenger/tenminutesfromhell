@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import './TabBar.css';
 import Tab1 from '../assets/Tab1.jpg';
 import Tab2 from '../assets/Tab2.jpg';
+import ActivityTab from '../assets/ActivityTab.png';
 import Tab4 from '../assets/Tab4.jpg';
 
 const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor }) => {
@@ -52,6 +53,16 @@ const TabBar = ({ activeTab, onTabChange, isTimerRunning, activeColor }) => {
           <img src={Tab2} alt="Timer" />
         </div>
         <span className="tab-label">Timer</span>
+      </button>
+
+      <button
+        className={`tab-item ${activeTab === 'activity' ? 'active' : ''}`}
+        onClick={() => onTabChange('activity')}
+      >
+        <div className="tab-icon">
+          <img src={ActivityTab} alt="Activity" />
+        </div>
+        <span className="tab-label">Activity</span>
       </button>
 
       <button

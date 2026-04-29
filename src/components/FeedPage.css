@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Lilita+One&display=swap');
+
 /* ── Feed Page (fullscreen slide-in overlay) ── */
 .feed-page {
   position: fixed;
@@ -6,7 +8,7 @@
   right: 0;
   bottom: 0;
   background: #0a0a0c;
-  z-index: 500;
+  z-index: 700;
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top, 0);
@@ -58,9 +60,9 @@
 }
 
 .feed-header-title {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-family: 'Lilita One', cursive;
+  font-size: 2.2rem;
+  font-weight: 400;
   color: #ffffff;
   letter-spacing: 1px;
   flex: 1;
@@ -941,7 +943,7 @@
   }
 
   .feed-header-title {
-    font-size: 1rem;
+    font-size: 1.9rem;
     letter-spacing: 0.8px;
   }
 

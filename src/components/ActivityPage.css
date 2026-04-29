@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Lilita+One&display=swap');
+
+.activity-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - env(safe-area-inset-top, 0px));
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 0 16px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  color: white;
+}
+
+.activity-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+.activity-content::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .activity-page {
+    padding: 0 14px;
+  }
+}

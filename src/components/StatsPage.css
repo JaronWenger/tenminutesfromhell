@@ -260,6 +260,30 @@
   border-color: rgba(255, 59, 48, 0.35);
 }
 
+.stats-follow-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stats-follow-people-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.stats-follow-people-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .stats-follow-panel-close {
   width: 30px;
   height: 30px;

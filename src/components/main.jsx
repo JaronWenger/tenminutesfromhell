@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Timer from './Timer';
 import Home from './Home';
 import StatsPage from './StatsPage';
+import ActivityPage from './ActivityPage';
 import TabBar from './TabBar';
 import EditPage from './EditPage';
 import ExerciseEditPage from './ExerciseEditPage';
@@ -16,7 +17,7 @@ import PP from '../assets/PP.png';
 import { useAuth } from '../contexts/AuthContext';
 import { recordWorkoutHistory, updateWorkoutHistory, getUserHistory, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, setDeletedDefaults } from '../firebase/firestore';
 import { signInWithGoogle } from '../firebase/auth';
-import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSoundEnabledPreference, setActiveSoundPreference, setRestSoundPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, hasNewNotifications, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, setProStatus, logProInterest, logStripeRedirect } from '../firebase/social';
+import { ensureUserProfile, getAllPreferences, setAutoSharePreference, createPost, updatePostSetsCompleted, setUserColors, getWorkoutOrder, setWorkoutOrder, setSidePlankAlertPreference, setPrepTimePreference, setRestTimePreference, setActiveLastMinutePreference, setShuffleExercisesPreference, setSoundEnabledPreference, setActiveSoundPreference, setRestSoundPreference, setSelectedWorkout, setInAppNotificationsPreference, setPinnedWorkouts, setWeeklySchedule, getFollowing, getFollowers, getUserProfiles, createSaveNotification, createShareNotification, updateNotificationStatus, setAccountPrivate, getPendingFollowRequests, setOnboardingCompleted, getProStatus, setProStatus, logProInterest, logStripeRedirect } from '../firebase/social';
 
 const hexToRgb = (hex) => {
   if (!hex || typeof hex !== 'string' || hex.length < 7) return '255, 59, 48';
@@ -214,11 +215,9 @@ const Main = () => {
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
 
   // Social / Feed state
-  const [hasUnread, setHasUnread] = useState(false);
-  const [feedLastViewed, setFeedLastViewed] = useState(null); // snapshot of last viewed time for highlight
+  const [feedLastViewed, setFeedLastViewed] = useState(null);
   const [showFeedPage, setShowFeedPage] = useState(false);
   const [feedCloseRequested, setFeedCloseRequested] = useState(false);
-  const [feedInitialTab, setFeedInitialTab] = useState(null);
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [sideMenuCloseRequested, setSideMenuCloseRequested] = useState(false);
   const [showSharePrompt, setShowSharePrompt] = useState(false);
@@ -281,7 +280,7 @@ const Main = () => {
     ],
     home: [
       { text: 'Tap a workout', target: '.workout-card-add', arrow: 'up', arrowScale: 3, textScale: 1.8, offsetY: -100, noOverlay: true, delay: 300 },
-      { text: 'Activity', target: '.home-header-bell', arrow: 'up', noArrow: true, noOverlay: true, delay: 200, pendingDetailClose: true, offsetX: -90, offsetY: 50, separateArrowTarget: '.home-header-bell', arrowConfig: { startXPct: 0.6, endXPct: -0.4, endYPct: 0.3, cpX: (sx, ex) => (sx + ex) / 2 - 20, cpY: (sy, ey) => Math.min(sy, ey) - 25 } },
+      { text: 'People', target: '.home-header-bell', arrow: 'up', noArrow: true, noOverlay: true, delay: 200, pendingDetailClose: true, offsetX: -90, offsetY: 50, separateArrowTarget: '.home-header-bell', arrowConfig: { startXPct: 0.6, endXPct: -0.4, endYPct: 0.3, cpX: (sx, ex) => (sx + ex) / 2 - 20, cpY: (sy, ey) => Math.min(sy, ey) - 25 } },
     ],
     stats: [],
   };
@@ -630,27 +629,6 @@ const Main = () => {
     if (lastFollowedUid) refreshFollowData();
   }, [lastFollowedUid, refreshFollowData]);
 
-  // Check for unread notifications (on load, tab change, and every 60s)
-  const checkUnread = useCallback(() => {
-    if (!user) return;
-    const lastViewed = localStorage.getItem(`feedLastViewed_${user.uid}`);
-    const since = lastViewed ? new Date(lastViewed) : new Date(0);
-    hasNewNotifications(user.uid, since, followingIds)
-      .then(has => setHasUnread(has))
-      .catch(err => console.error('Unread check failed:', err));
-  }, [user, followingIds]);
-
-  useEffect(() => {
-    if (!user) { setHasUnread(false); return; }
-    checkUnread();
-    const interval = setInterval(checkUnread, 60000);
-    return () => clearInterval(interval);
-  }, [user, checkUnread]);
-
-  // Re-check when switching to home tab
-  useEffect(() => {
-    if (activeTab === 'home') checkUnread();
-  }, [activeTab, checkUnread]);
 
   // Onboarding: activate timer page after initial load finishes (signed-in users only)
   // completed must be exactly false (confirmed by Firestore), not null (unknown/loading)
@@ -805,7 +783,6 @@ const Main = () => {
         displayName: user.displayName,
         photoURL: user.photoURL
       });
-      setHasUnread(true);
       return postId;
     } catch (err) {
       console.error('Failed to share workout:', err);
@@ -1739,6 +1716,7 @@ const Main = () => {
       return null; // Timer is always rendered outside renderContent
     }
 
+
     if (activeTab === 'stats' && !currentEditPage) {
       return (
         <StatsPage
@@ -1760,7 +1738,7 @@ const Main = () => {
           openProfilePopup={openProfilePopup}
           onProfilePopupOpened={() => setOpenProfilePopup(false)}
           onShareWorkout={openSendWorkout}
-          onFindPeople={() => { setFeedInitialTab('people'); setShowFeedPage(true); }}
+          onFindPeople={() => setShowFeedPage(true)}
         />
       );
     }
@@ -1807,8 +1785,7 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
-            onBellClick={() => { if (onboarding.home.active) { dismissHomeStep(1); } if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
-            hasUnread={hasUnread}
+            onBellClick={() => { if (onboarding.home.active) { dismissHomeStep(1); } setShowFeedPage(true); }}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
             onSettingsOpen={() => setShowSideMenu(true)}
@@ -1847,9 +1824,11 @@ const Main = () => {
             openProfilePopup={openProfilePopup}
             onProfilePopupOpened={() => setOpenProfilePopup(false)}
             onShareWorkout={openSendWorkout}
-            onFindPeople={() => { setFeedInitialTab('people'); setShowFeedPage(true); }}
+            onFindPeople={() => setShowFeedPage(true)}
           />
         );
+      case 'activity':
+        return null;
       default:
         return (
           <Home
@@ -1862,8 +1841,7 @@ const Main = () => {
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
-            onBellClick={() => { if (onboarding.home.active) { dismissHomeStep(1); } if (user) { setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null); localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString()); } setHasUnread(false); setShowFeedPage(true); }}
-            hasUnread={hasUnread}
+            onBellClick={() => { if (onboarding.home.active) { dismissHomeStep(1); } setShowFeedPage(true); }}
             onLoginClick={() => setShowLoginModal(true)}
             onProfileClick={() => setShowSideMenu(true)}
             onSettingsOpen={() => setShowSideMenu(true)}
@@ -2042,7 +2020,6 @@ const Main = () => {
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
             onBellClick={() => {}}
-            hasUnread={false}
             onLoginClick={() => {}}
             onProfileClick={() => {}}
             onSettingsOpen={() => {}}
@@ -2066,6 +2043,25 @@ const Main = () => {
         </div>
       )}
       {renderContent()}
+      {!currentEditPage && (
+        <ActivityPage
+          onPeopleClick={() => setShowFeedPage(true)}
+          onLoginClick={() => setShowLoginModal(true)}
+          onProfileClick={() => setShowSideMenu(true)}
+          onViewProfile={(profile) => setViewUserProfile(profile)}
+          onViewPostWorkout={openFeedDetail}
+          onWorkoutAdded={refreshWorkouts}
+          onHistoryRecorded={refreshHistory}
+          acceptedPostId={feedAcceptedPostId}
+          allWorkouts={timerWorkoutData}
+          lastViewedAt={feedLastViewed}
+          externalFollowedUid={lastFollowedUid}
+          pendingFollowRequests={pendingFollowRequests}
+          onPendingFollowRequestsChange={setPendingFollowRequests}
+          onFollowCountChanged={refreshFollowData}
+          isVisible={activeTab === 'activity' && !currentEditPage}
+        />
+      )}
       {!currentEditPage && currentEditLevel !== 'exercise-edit' && (
         <TabBar
           activeTab={activeTab}
@@ -2075,6 +2071,11 @@ const Main = () => {
             if (tab === 'home' && activeTab === 'home') {
               setHomeDetailCloseRequested(true);
               setTimeout(() => setHomeDetailCloseRequested(false), 50);
+            }
+            if (tab === 'activity' && user) {
+              const lastViewed = localStorage.getItem(`feedLastViewed_${user.uid}`);
+              setFeedLastViewed(lastViewed || null);
+              localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString());
             }
             setActiveTab(tab);
             refreshWorkoutsIfStale();
@@ -2088,22 +2089,12 @@ const Main = () => {
       )}
       <FeedPage
         isOpen={showFeedPage}
-        onClose={() => { setShowFeedPage(false); setFeedCloseRequested(false); setFeedInitialTab(null); }}
+        onClose={() => { setShowFeedPage(false); setFeedCloseRequested(false); }}
         requestClose={feedCloseRequested}
-        onViewProfile={(profile) => {
-          setViewUserProfile(profile);
-        }}
-        onStartWorkout={handleHomeStartWorkout}
-        onViewPostWorkout={openFeedDetail}
-        onWorkoutAdded={refreshWorkouts}
-        onHistoryRecorded={refreshHistory}
-        acceptedPostId={feedAcceptedPostId}
-        allWorkouts={timerWorkoutData}
-        lastViewedAt={feedLastViewed}
+        onViewProfile={(profile) => setViewUserProfile(profile)}
         externalFollowedUid={lastFollowedUid}
         pendingFollowRequests={pendingFollowRequests}
         onPendingFollowRequestsChange={setPendingFollowRequests}
-        initialTab={feedInitialTab}
         onFollowCountChanged={refreshFollowData}
       />
       {viewUserProfile && (
@@ -2120,7 +2111,7 @@ const Main = () => {
           globalRestTime={restTime}
           pendingFollowRequests={pendingFollowRequests}
           onPendingFollowRequestsChange={setPendingFollowRequests}
-          onFindPeople={() => { setFeedInitialTab('people'); setShowFeedPage(true); }}
+          onFindPeople={() => setShowFeedPage(true)}
         />
       )}
       {feedDetailPost && (
@@ -2341,7 +2332,6 @@ const Main = () => {
                   setShowFollowPrompt(false);
                   setFollowPromptCompleted(true);
                   persistOnboardingCompleted('follow_prompt');
-                  setFeedInitialTab('people');
                   setShowFeedPage(true);
                 }}
               >
@@ -2441,7 +2431,6 @@ const Main = () => {
                     workoutId: sendWorkout.id || null,
                   }).catch(err => console.error('Share notif failed:', err));
                 });
-                setHasUnread(true);
                 closeSendWorkout();
               }}
             >
@@ -2727,11 +2716,11 @@ const Main = () => {
             wrap.style.opacity = '0';
             setTimeout(() => { setToastMessage(null); setToastClosing(false); }, 250);
             if (user) {
-              setFeedLastViewed(localStorage.getItem(`feedLastViewed_${user.uid}`) || null);
+              const lastViewed = localStorage.getItem(`feedLastViewed_${user.uid}`);
+              setFeedLastViewed(lastViewed || null);
               localStorage.setItem(`feedLastViewed_${user.uid}`, new Date().toISOString());
             }
-            setHasUnread(false);
-            setShowFeedPage(true);
+            setActiveTab('activity');
           }}
         >
           <div className="app-toast">

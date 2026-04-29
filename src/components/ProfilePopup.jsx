@@ -967,6 +967,14 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
               <div className="stats-follow-tabs">
                 <button className={`stats-follow-tab ${followListType === 'following' ? 'active' : ''}`} onClick={() => switchFollowListTab('following')}>Following</button>
                 <button className={`stats-follow-tab ${followListType === 'followers' ? 'active' : ''}`} onClick={() => switchFollowListTab('followers')}>Followers</button>
+                {onFindPeople && (
+                  <button className="stats-follow-people-btn" onClick={() => onFindPeople()}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path transform="translate(1,0)" d="M13 8c0 2.21-1.79 4-4 4S5 10.21 5 8s1.79-4 4-4 4 1.79 4 4zm-4 6c-4.42 0-8 1.79-8 4v1h16v-1c0-2.21-3.58-4-8-4z"/>
+                      <path d="M22 3h-2V1h-2v2h-2v2h2v2h2V5h2V3z"/>
+                    </svg>
+                  </button>
+                )}
               </div>
               <button className="stats-follow-panel-close" onClick={closeFollowList}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1022,8 +1030,8 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                   </div>
                 ))
               )}
-              {onFindPeople && profile?.uid === user?.uid && followListType === 'following' && (
-                <div className="stats-follow-find-people" style={{ animationDelay: `${(followListProfiles.length) * 40}ms` }} onClick={() => { closeFollowList(); onClose(); onFindPeople(); }}>
+              {onFindPeople && (followListType === 'following' || followListType === 'followers') && (
+                <div className="stats-follow-find-people" style={{ animationDelay: `${(followListProfiles.length) * 40}ms` }} onClick={() => onFindPeople()}>
                   <div className="stats-follow-find-people-icon">+</div>
                   <span>Find People</span>
                 </div>
