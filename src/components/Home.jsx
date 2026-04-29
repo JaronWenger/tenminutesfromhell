@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMe
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import './Home.css';
 import Sparks from '../assets/SPARKS.gif';
+import PP from '../assets/PP.png';
 import AuthButton from './AuthButton';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -1381,7 +1382,7 @@ const Home = ({
                           onTouchEnd={() => handleSwipeEnd()}
                         >
                           {!workout.isCustom && !workout.forked && (defaultWorkoutIds.has(workout.defaultId) || defaultWorkoutIds.has(workout.id)) ? (
-                              <div className="workout-card-avatar-wrap workout-card-avatar-logo"><img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="workout-card-avatar" /></div>
+                              <img src={PP} alt="" className="workout-card-avatar" />
                             ) : workout.creatorPhotoURL ? (
                               <img src={workout.creatorPhotoURL} alt="" className="workout-card-avatar" referrerPolicy="no-referrer" />
                             ) : workout.creatorUid && workout.creatorUid !== user?.uid ? (
@@ -1506,7 +1507,7 @@ const Home = ({
               <div className="home-detail-header">
                 <div className="home-detail-creator">
                   {isDefaultWorkout ? (
-                    <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" className="home-detail-creator-icon home-detail-app-icon" />
+                    <img src={PP} alt="" className="home-detail-creator-icon" />
                   ) : detailWorkout.creatorPhotoURL ? (
                     <img src={detailWorkout.creatorPhotoURL} alt="" className="home-detail-creator-icon" referrerPolicy="no-referrer" />
                   ) : detailWorkout.creatorUid && detailWorkout.creatorUid !== user?.uid ? (

@@ -12,6 +12,7 @@ import SharePrompt from './SharePrompt';
 import ProfilePopup from './ProfilePopup';
 import OnboardingTooltip from './OnboardingTooltip';
 import { DEFAULT_TIMER_WORKOUTS } from '../data/defaultWorkouts';
+import PP from '../assets/PP.png';
 import { useAuth } from '../contexts/AuthContext';
 import { recordWorkoutHistory, updateWorkoutHistory, getUserHistory, createWorkoutV2, updateWorkoutV2, getWorkoutV2, softDeleteWorkoutV2, reviveWorkoutV2, addLibraryRef, removeLibraryRef, getUserWorkoutsV2, setDeletedDefaults } from '../firebase/firestore';
 import { signInWithGoogle } from '../firebase/auth';
@@ -2138,7 +2139,7 @@ const Main = () => {
                     {feedDetailOwner.displayName[0].toUpperCase()}
                   </div>
                 ) : (
-                  <img src="/logo192.png" alt="" className="stats-detail-creator-icon" style={{ transform: 'scale(1.15)', border: 'none' }} />
+                  <img src={PP} alt="" className="stats-detail-creator-icon" />
                 )}
               </div>
               <div className={`stats-detail-title-group ${feedDetailTags.length > 0 ? 'has-tags' : ''}`}>

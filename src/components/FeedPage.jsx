@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import PP from '../assets/PP.png';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -673,11 +674,11 @@ const FeedPage = ({ isOpen, onClose, requestClose, onViewProfile, onStartWorkout
                         onViewProfile && onViewProfile({
                           uid: 'hiitem',
                           displayName: 'HIITem',
-                          photoURL: process.env.PUBLIC_URL + '/logo192.png'
+                          photoURL: PP
                         });
                       }}
                     >
-                      <img src={process.env.PUBLIC_URL + '/logo192.png'} alt="" referrerPolicy="no-referrer" style={{ transform: 'scale(1.15)', border: 'none' }} />
+                      <img src={PP} alt="" referrerPolicy="no-referrer" />
                     </div>
                     <div className="feed-post-meta">
                       <span className="feed-post-name">HIITem</span>
