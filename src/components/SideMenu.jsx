@@ -47,13 +47,14 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
     setAdminDetail(null);
     try {
       // Fetch all collections in parallel
-      const [profilesSnap, postsSnap, workoutsSnap, notificationsSnap, proInterestSnap, stripeRedirectsSnap] = await Promise.all([
+      const [profilesSnap, postsSnap, workoutsSnap, notificationsSnap, proInterestSnap, stripeRedirectsSnap, deactivatedSnap] = await Promise.all([
         getDocs(collection(db, 'userProfiles')),
         getDocs(collection(db, 'posts')),
         getDocs(collection(db, 'workouts')),
         getDocs(collection(db, 'notifications')),
         getDocs(collection(db, 'proInterest')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'stripeRedirects')).catch(() => ({ size: 0, docs: [] })),
+        getDocs(collection(db, 'deactivatedUsers')).catch(() => ({ size: 0, docs: [] })),
       ]);
 
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -584,6 +585,15 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             createdAt: data.createdAt?.toDate?.() || null,
           };
         }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+        deactivatedCount: deactivatedSnap.size,
+        _deactivated: deactivatedSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            uid: data.uid,
+            email: data.email || null,
+            deactivatedAt: data.deactivatedAt?.toDate?.() || null,
+          };
+        }).sort((a, b) => (b.deactivatedAt || 0) - (a.deactivatedAt || 0)),
         stripeRedirectCount: stripeRedirectsSnap.size,
         _stripeRedirects: stripeRedirectsSnap.docs.map(d => {
           const data = d.data();
@@ -1375,6 +1385,16 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                     <span className="sidemenu-admin-stat-value">{adminStats.proRefundedCount || 0}</span>
                     <span className="sidemenu-admin-stat-label">Refunded</span>
                   </div>
+                  <div className="sidemenu-admin-stat sidemenu-admin-stat-tap" style={{ borderColor: 'rgba(255,59,48,0.3)' }} onClick={() => {
+                    openDetail('Deactivated Users', (adminStats._deactivated || []).map((u, i) => ({
+                      rank: i + 1,
+                      name: u.email || u.uid,
+                      value: u.deactivatedAt ? u.deactivatedAt.toLocaleDateString() : '',
+                    })));
+                  }}>
+                    <span className="sidemenu-admin-stat-value" style={{ color: '#ff3b30' }}>{adminStats.deactivatedCount || 0}</span>
+                    <span className="sidemenu-admin-stat-label">Deactivated</span>
+                  </div>
                 </div>
 
                 <div className="sidemenu-admin-section-label">Retention</div>
@@ -1548,7 +1568,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             })()}
             <div className="sidemenu-admin-detail-list">
               {(adminDetailFilter === 'all' ? adminDetail.items : adminDetail.items.filter(item => item.signals?.[adminDetailFilter])).map((item, i) => (
-                <div key={item.uid || i} className={`sidemenu-admin-detail-row${(item.onTap || item.uid) ? ' sidemenu-admin-detail-row-tap' : ''}`} style={{ animationDelay: `${Math.min(i * 20, 300)}ms` }} onClick={item.onTap || (item.uid ? () => setAdminProfileUser({ uid: item.uid, displayName: item.name, photoURL: item.photo || null }) : undefined)}>
+                <div key={item.uid || i} className={`sidemenu-admin-detail-row${(item.onTap || item.uid) ? ' sidemenu-admin-detail-row-tap' : ''}`} style={{ animationDelay: `${Math.min(i * 20, 300)}ms` }} onClick={item.onTap || (item.uid ? () => setAdminProfileUser({ uid: item.uid, displayName: item.name, photoURL: item.photo || null, email: item.email || null }) : undefined)}>
                   <span className="sidemenu-admin-detail-rank">{i + 1}</span>
                   {item.photo !== undefined && (
                     <div className="sidemenu-admin-detail-avatar">
@@ -1582,6 +1602,7 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
             profile={adminProfileUser}
             user={user}
             onClose={() => setAdminProfileUser(null)}
+            adminView
           />
         </div>
       )}

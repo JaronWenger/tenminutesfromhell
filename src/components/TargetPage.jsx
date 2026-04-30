@@ -250,6 +250,9 @@ const TargetPage = ({ workoutHistory = [], timerWorkoutData = [], onLoginClick, 
               strokeLinejoin="round"
               style={{ filter: 'drop-shadow(0 0 8px rgba(255,59,48,0.55))' }}
             />
+            {selectedAxis && (
+              <circle key={selectedAxis} cx={CX} cy={CY} r={2} fill="#ff3b30" className="target-center-dot" />
+            )}
             <polygon
               points={ringPoints(1.0)}
               fill="transparent"

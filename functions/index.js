@@ -472,6 +472,48 @@ exports.sendTestEmail = onRequest(
   }
 );
 
+// ── Deactivate User (Admin only) ──
+exports.deactivateUser = onRequest(async (req, res) => {
+  setCors(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  try {
+    const idToken = authHeader.split("Bearer ")[1];
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    if (decoded.email !== "jarongwenger@gmail.com") { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const { uid, email, block = false } = req.body;
+    if (!uid) { res.status(400).json({ error: "Missing uid" }); return; }
+
+    await Promise.all([
+      admin.auth().deleteUser(uid).catch(() => {}),
+      db.collection("userProfiles").doc(uid).delete().catch(() => {}),
+      (block && email) ? db.collection("blockedEmails").doc(email.toLowerCase()).set({
+        email: email.toLowerCase(),
+        uid,
+        blockedAt: admin.firestore.FieldValue.serverTimestamp(),
+        blockedBy: decoded.email,
+      }) : Promise.resolve(),
+      db.collection("deactivatedUsers").add({
+        uid,
+        email: email || null,
+        blocked: block && !!email,
+        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        deactivatedBy: decoded.email,
+      }),
+    ]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("deactivateUser error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 async function getUidFromCustomer(customerId) {
   const snapshot = await db
     .collection("userProfiles")

@@ -146,11 +146,13 @@ const buildHIITemGrid = () => {
   return { weeks, monthLabels, numWeeks, todayWeekIndex: midCol, totalCells };
 };
 
-const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, onFollowChanged, prepTime = 15, globalRestTime = 15, pendingFollowRequests = {}, onPendingFollowRequestsChange, onFindPeople }) => {
+const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout, onWorkoutAdded, onShareWorkout, onFollowChanged, prepTime = 15, globalRestTime = 15, pendingFollowRequests = {}, onPendingFollowRequestsChange, onFindPeople, adminView = false }) => {
   const [activeProfile, setActiveProfile] = useState(profile);
   const [profileFollowing, setProfileFollowing] = useState(0);
   const [profileFollowers, setProfileFollowers] = useState(0);
   const [closing, setClosing] = useState(false);
+  const [deactivateConfirm, setDeactivateConfirm] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
   const [stats, setStats] = useState(null);
   const [calendar, setCalendar] = useState(null);
   const [pinnedWorkouts, setPinnedWorkouts] = useState([]);
@@ -550,6 +552,25 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
     }, 200);
   };
 
+  const handleDeactivate = async (block = false) => {
+    if (!user || deactivating) return;
+    setDeactivating(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('https://us-central1-tenminutesfromhell.cloudfunctions.net/deactivateUser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ uid: activeProfile.uid, email: activeProfile.email || null, block }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      onClose();
+    } catch (err) {
+      console.error('Deactivation failed:', err);
+      setDeactivating(false);
+      setDeactivateConfirm(false);
+    }
+  };
+
   // ── Take workout ──
   const handleTakeWorkout = async (workout) => {
     if (!user || savingWorkouts[workout.name]) return;
@@ -696,6 +717,9 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
               )}
               <div className="stats-pp-header-info">
                 <span className="stats-pp-name">{activeProfile.displayName || 'Unknown'}</span>
+                {adminView && activeProfile.email && (
+                  <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>{activeProfile.email}</span>
+                )}
                 {!isHIITemProfile && (
                   <div className="stats-pp-follow-row">
                     <button className="stats-pp-follow-btn" onClick={() => openFollowList('following')}>
@@ -734,7 +758,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
           </div>
 
           <>
-              {(isHIITemProfile || isFollowingProfile || activeProfile.uid === user?.uid) && calendar && (
+              {(isHIITemProfile || isFollowingProfile || activeProfile.uid === user?.uid || adminView) && calendar && (
                 <div className="stats-pp-calendar-scroll" ref={calendarScrollRef}>
                   <div
                     className="stats-pp-calendar"
@@ -771,7 +795,7 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                 </div>
               )}
 
-              {(isFollowingProfile || activeProfile.uid === user?.uid) && pinnedWorkouts.length > 0 && (
+              {(isFollowingProfile || activeProfile.uid === user?.uid || adminView) && pinnedWorkouts.length > 0 && (
                 <div className="stats-pp-cards">
                   {pinnedWorkouts.map((workout, i) => {
                     const totalSeconds = (workout.exercises.length * 60) + 15;
@@ -839,6 +863,35 @@ const ProfilePopup = ({ profile, user, allWorkouts = [], onClose, onStartWorkout
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {adminView && !isHIITemProfile && activeProfile.uid !== user?.uid && (
+                <div style={{ padding: '12px 0 4px' }}>
+                  {deactivateConfirm ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', textAlign: 'center' }}>
+                        {deactivateConfirm === 'block'
+                          ? `Deactivate & permanently block ${activeProfile.email || activeProfile.displayName}?`
+                          : `Deactivate ${activeProfile.email || activeProfile.displayName}?`}
+                      </span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => setDeactivateConfirm(false)} style={{ flex: 1, padding: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.82rem' }}>Cancel</button>
+                        <button onClick={() => handleDeactivate(deactivateConfirm === 'block')} disabled={deactivating} style={{ flex: 1, padding: '8px', background: 'rgba(255,59,48,0.18)', border: '1px solid rgba(255,59,48,0.5)', borderRadius: 8, color: '#ff3b30', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                          {deactivating ? 'Working...' : 'Confirm'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => setDeactivateConfirm('deactivate')} style={{ flex: 1, padding: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,59,48,0.2)', borderRadius: 8, color: 'rgba(255,59,48,0.6)', cursor: 'pointer', fontSize: '0.8rem' }}>
+                        Deactivate
+                      </button>
+                      <button onClick={() => setDeactivateConfirm('block')} style={{ flex: 1, padding: '8px', background: 'rgba(255,59,48,0.1)', border: '1px solid rgba(255,59,48,0.4)', borderRadius: 8, color: '#ff3b30', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
+                        Deactivate & Block
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </>
