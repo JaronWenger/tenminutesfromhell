@@ -4,7 +4,6 @@ import Home from './Home';
 import StatsPage from './StatsPage';
 import ActivityPage from './ActivityPage';
 import TabBar from './TabBar';
-import EditPage from './EditPage';
 import ExerciseEditPage from './ExerciseEditPage';
 import FeedPage from './FeedPage';
 import TargetPage from './TargetPage';
@@ -262,6 +261,7 @@ const Main = () => {
   const toastTimerRef = useRef(null);
   const toastSwipeRef = useRef({ startY: 0, currentY: 0, swiped: false });
   const [pinnedWorkouts, setPinnedWorkoutsState] = useState([]);
+  const [activityFeedVersion, setActivityFeedVersion] = useState(0);
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
   const [deletedDefaultsState, setDeletedDefaultsState] = useState([]);
@@ -1051,6 +1051,7 @@ const Main = () => {
     if (timerState.timeLeft === 0 && !timerState.isRunning && timerState.targetTime > 0 && !timerCompletedRef.current) {
       timerCompletedRef.current = true;
       clearTimerSession();
+      setActivityFeedVersion(v => v + 1);
 
       // Release wake lock
       if (wakeLockRef.current) {
@@ -1183,11 +1184,6 @@ const Main = () => {
   };
 
   // Edit page handlers
-  const handleNavigateToEdit = (type) => {
-    setCurrentEditPage(type);
-    setCurrentEditLevel('categories');
-  };
-
   const handleEditPageBack = () => {
     if (currentEditLevel === 'exercise-edit') {
       if (activeTab === 'home') {
@@ -1757,32 +1753,6 @@ const Main = () => {
     }
 
 
-    if (activeTab === 'stats' && !currentEditPage) {
-      return (
-        <StatsPage
-          user={user}
-          history={workoutHistory}
-          loading={historyLoading}
-          onLoginClick={() => setShowLoginModal(true)}
-          timerWorkoutData={timerWorkoutData}
-          prepTime={prepTime}
-          globalRestTime={restTime}
-          onStartWorkout={handleHomeStartWorkout}
-          defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
-          followingIds={followingIds}
-          followerIds={followerIds}
-          pinnedWorkouts={pinnedWorkouts}
-          onPinnedWorkoutsChange={handlePinnedWorkoutsChange}
-          onWorkoutAdded={refreshWorkouts}
-          onProfileClick={() => setShowSideMenu(true)}
-          openProfilePopup={openProfilePopup}
-          onProfilePopupOpened={() => setOpenProfilePopup(false)}
-          onShareWorkout={openSendWorkout}
-          onFindPeople={() => setShowFeedPage(true)}
-        />
-      );
-    }
-
     if (currentEditLevel === 'exercise-edit' && currentEditingWorkout) {
       const exercises = getExerciseList(currentEditingWorkout);
       return (
@@ -1797,21 +1767,6 @@ const Main = () => {
       );
     }
 
-    if (currentEditPage) {
-      return (
-        <EditPage
-          type="timer"
-          level={currentEditLevel}
-          workouts={timerWorkoutData.map(w => w.name)}
-          selectedWorkout={timerSelectedWorkout}
-          onWorkoutSelect={(workout) => handleWorkoutSelection('timer', workout)}
-          onArrowClick={(workout) => handleEditWorkoutSelect('timer', workout)}
-          onBack={handleEditPageBack}
-          onNavigateToTab={handleNavigateToTab}
-        />
-      );
-    }
-
     switch (activeTab) {
       case 'home':
         return (
@@ -1821,7 +1776,6 @@ const Main = () => {
             timerSelectedWorkoutId={timerSelectedWorkoutId}
             workoutHistory={workoutHistory}
             onWorkoutSelect={handleWorkoutSelection}
-            onArrowClick={handleEditWorkoutSelect}
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
@@ -1852,11 +1806,14 @@ const Main = () => {
             user={user}
             history={workoutHistory}
             loading={historyLoading}
+            onLoginClick={() => setShowLoginModal(true)}
             timerWorkoutData={timerWorkoutData}
-              prepTime={prepTime}
+            prepTime={prepTime}
             globalRestTime={restTime}
             onStartWorkout={handleHomeStartWorkout}
             defaultWorkoutIds={new Set(DEFAULT_TIMER_WORKOUTS.map(d => d.id))}
+            followingIds={followingIds}
+            followerIds={followerIds}
             pinnedWorkouts={pinnedWorkouts}
             onPinnedWorkoutsChange={handlePinnedWorkoutsChange}
             onWorkoutAdded={refreshWorkouts}
@@ -1890,7 +1847,6 @@ const Main = () => {
             timerSelectedWorkoutId={timerSelectedWorkoutId}
             workoutHistory={workoutHistory}
             onWorkoutSelect={handleWorkoutSelection}
-            onArrowClick={handleEditWorkoutSelect}
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}
@@ -2077,6 +2033,7 @@ const Main = () => {
           onFollowCountChanged={refreshFollowData}
           isVisible={activeTab === 'activity' && !currentEditPage}
           prefetchReady={workoutReady}
+          workoutCompletedVersion={activityFeedVersion}
         />
       )}
       {!currentEditPage && currentEditLevel !== 'exercise-edit' && (
@@ -2119,7 +2076,6 @@ const Main = () => {
             timerSelectedWorkoutId={timerSelectedWorkoutId}
             workoutHistory={workoutHistory}
             onWorkoutSelect={handleWorkoutSelection}
-            onArrowClick={handleEditWorkoutSelect}
             onNavigateToTab={handleNavigateToTab}
             onDeleteWorkout={handleDeleteWorkout}
             onReorder={handleReorderWorkouts}

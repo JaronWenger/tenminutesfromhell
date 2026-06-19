@@ -33,6 +33,30 @@
   }
 }
 
+.activity-pull-indicator {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.activity-pull-spinning {
+  animation: activity-pull-spin 0.7s linear infinite;
+}
+
+@keyframes activity-pull-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 .activity-load-more {
   text-align: center;
   padding: 16px;

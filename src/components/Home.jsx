@@ -15,7 +15,6 @@ const Home = ({
   timerSelectedWorkoutId,
   workoutHistory,
   onWorkoutSelect,
-  onArrowClick,
   onNavigateToTab,
   onDeleteWorkout,
   onReorder,

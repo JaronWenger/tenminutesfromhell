@@ -17,9 +17,10 @@ import {
   acceptFollowRequest,
   denyFollowRequest,
   cancelFollowRequest,
-  getUserProfiles
+  getUserProfiles,
+  deletePost
 } from '../firebase/social';
-import { recordWorkoutHistory, addLibraryRef, createWorkoutV2, getWorkoutV2 } from '../firebase/firestore';
+import { recordWorkoutHistory, addLibraryRef, createWorkoutV2, getWorkoutV2, deleteWorkoutHistory, findHistoryForPost } from '../firebase/firestore';
 import './FeedPage.css';
 import './ActivityPage.css';
 import './Home.css';
@@ -43,6 +44,7 @@ const ActivityPage = ({
   onFollowCountChanged,
   isVisible,
   prefetchReady = false,
+  workoutCompletedVersion = 0,
 }) => {
   const { user } = useAuth();
   const [posts, setPosts] = useState([]);
@@ -63,6 +65,25 @@ const ActivityPage = ({
   const [shareActions, setShareActions] = useState({});
   const [requestActions, setRequestActions] = useState({});
   const [expandedTogetherId, setExpandedTogetherId] = useState(null);
+  const [deleteConfirmPost, setDeleteConfirmPost] = useState(null);
+  const deletePopupShownAt = useRef(0);
+  const deleteLongPressTimer = useRef(null);
+  const deleteLongPressTriggered = useRef(false);
+  const pendingDeleteIds = useRef(new Set());
+
+  // Ref to current isVisible so workout-completion effect can read it without re-subscribing
+  const isVisibleRef = useRef(isVisible);
+  isVisibleRef.current = isVisible;
+  // Set when a workout completes while the tab isn't visible; cleared on next tab switch
+  const needsSilentRefreshRef = useRef(false);
+
+  // Pull-to-refresh
+  const pullContentRef = useRef(null);
+  const pullIndicatorRef = useRef(null);
+  const pullIconRef = useRef(null);
+  const pullRefreshingRef = useRef(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const loadFeedRef = useRef(null);
 
   useEffect(() => {
     if (!externalFollowedUid) return;
@@ -180,9 +201,9 @@ const ActivityPage = ({
     }
   }, [user]);
 
-  const loadFeed = useCallback(async () => {
+  const loadFeed = useCallback(async ({ silent = false } = {}) => {
     if (!user) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     cursorDateRef.current = null;
     setHasMore(true);
     try {
@@ -210,7 +231,7 @@ const ActivityPage = ({
         cursorDateRef.current = postsWithDate[postsWithDate.length - 1].createdAt;
       }
       setHasMore(feedPosts.length >= 10);
-      setPosts(feedPosts);
+      setPosts(feedPosts.filter(p => !pendingDeleteIds.current.has(p.id)));
       setFollowingIds(following);
       const workoutPosts = feedPosts.filter(p => !p.type);
       if (workoutPosts.length > 0) {
@@ -220,7 +241,7 @@ const ActivityPage = ({
     } catch (err) {
       console.error('[Activity] Failed to load feed:', err.message, err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [user]);
 
@@ -274,11 +295,25 @@ const ActivityPage = ({
   }, [user]);
 
   useEffect(() => {
-    if ((isVisible || prefetchReady) && user && !hasLoadedRef.current) {
+    if (!user) return;
+    if ((isVisible || prefetchReady) && !hasLoadedRef.current) {
       hasLoadedRef.current = true;
       loadFeed();
+    } else if (isVisible && needsSilentRefreshRef.current) {
+      needsSilentRefreshRef.current = false;
+      loadFeed({ silent: true });
     }
   }, [isVisible, prefetchReady, user, loadFeed]);
+
+  useEffect(() => {
+    if (!workoutCompletedVersion || !user) return;
+    if (isVisibleRef.current) {
+      loadFeedRef.current?.({ silent: true });
+    } else {
+      needsSilentRefreshRef.current = true;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workoutCompletedVersion, user]);
 
   useEffect(() => {
     if (!sentinelRef.current || !hasMore || loading) return;
@@ -289,6 +324,113 @@ const ActivityPage = ({
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
   }, [hasMore, loading, loadMore]);
+
+  useEffect(() => {
+    loadFeedRef.current = loadFeed;
+  }, [loadFeed]);
+
+  useEffect(() => {
+    const el = pullContentRef.current;
+    if (!el || !user) return;
+
+    let startY = 0;
+    let pulling = false;
+    let currentPull = 0;
+    const THRESHOLD = 70;
+    const MAX_PULL = 110;
+
+    const snapBack = () => {
+      el.style.transition = 'transform 0.3s ease';
+      el.style.transform = 'translateY(0)';
+      const ind = pullIndicatorRef.current;
+      if (ind) {
+        ind.style.transition = 'opacity 0.25s ease';
+        ind.style.opacity = '0';
+      }
+      if (pullIconRef.current) {
+        pullIconRef.current.style.transition = 'transform 0.3s ease';
+        pullIconRef.current.style.transform = 'rotate(0deg)';
+      }
+    };
+
+    const onTouchStart = (e) => {
+      if (el.scrollTop > 0 || pullRefreshingRef.current) return;
+      startY = e.touches[0].clientY;
+      pulling = true;
+      currentPull = 0;
+    };
+
+    const onTouchMove = (e) => {
+      if (!pulling) return;
+      if (el.scrollTop > 0) { pulling = false; snapBack(); return; }
+      const dy = e.touches[0].clientY - startY;
+      if (dy <= 0) { pulling = false; return; }
+      e.preventDefault();
+      currentPull = Math.min(dy * 0.45, MAX_PULL);
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${currentPull}px)`;
+      const progress = Math.min(currentPull / THRESHOLD, 1);
+      const ind = pullIndicatorRef.current;
+      if (ind) {
+        ind.style.transition = 'none';
+        ind.style.opacity = progress;
+      }
+      if (pullIconRef.current) {
+        pullIconRef.current.style.transition = 'none';
+        pullIconRef.current.style.transform = `rotate(${progress * 180}deg)`;
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (!pulling) return;
+      pulling = false;
+      const pull = currentPull;
+      currentPull = 0;
+
+      if (pull >= THRESHOLD) {
+        el.style.transition = 'transform 0.2s ease';
+        el.style.transform = 'translateY(52px)';
+        const ind = pullIndicatorRef.current;
+        if (ind) ind.style.opacity = '1';
+        if (pullIconRef.current) {
+          pullIconRef.current.style.transform = 'rotate(0deg)';
+          pullIconRef.current.classList.add('activity-pull-spinning');
+        }
+        pullRefreshingRef.current = true;
+        setPullRefreshing(true);
+        const finish = () => {
+          if (pullIconRef.current) pullIconRef.current.classList.remove('activity-pull-spinning');
+          snapBack();
+          pullRefreshingRef.current = false;
+          setPullRefreshing(false);
+        };
+        try {
+          const p = loadFeedRef.current?.({ silent: true });
+          if (p && typeof p.finally === 'function') {
+            p.finally(finish);
+          } else {
+            finish();
+          }
+        } catch (err) {
+          finish();
+        }
+      } else {
+        snapBack();
+      }
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (acceptedPostId) {
@@ -370,6 +512,25 @@ const ActivityPage = ({
     } catch {
       setUserReactions(prev => ({ ...prev, [postId]: current }));
       if (originalPost) setPosts(prev => prev.map(p => p.id !== postId ? p : originalPost));
+    }
+  };
+
+  const handleDeletePost = async (post) => {
+    pendingDeleteIds.current.add(post.id);
+    setPosts(prev => prev.filter(p => p.id !== post.id));
+    try {
+      await deletePost(post.id);
+      // Delete the matching history entry
+      const createdAtMs = post.createdAt?.toMillis?.() ?? Date.now();
+      const historyId = await findHistoryForPost(post.userId, post.workoutId, post.workoutName, createdAtMs);
+      if (historyId) {
+        await deleteWorkoutHistory(post.userId, historyId);
+        onHistoryRecorded?.();
+      }
+    } catch (err) {
+      console.error('Failed to delete post:', err);
+      pendingDeleteIds.current.delete(post.id);
+      setPosts(prev => [post, ...prev]);
     }
   };
 
@@ -460,6 +621,12 @@ const ActivityPage = ({
 
   return (
     <div className="activity-page" style={{ display: isVisible ? undefined : 'none' }}>
+      <div ref={pullIndicatorRef} className="activity-pull-indicator" style={{ opacity: 0 }}>
+        <svg ref={pullIconRef} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+      </div>
       <div className="home-header">
         <div className="home-header-auth">
           <AuthButton onLoginClick={onLoginClick} onProfileClick={onProfileClick} />
@@ -474,7 +641,7 @@ const ActivityPage = ({
         )}
       </div>
 
-      <div className="activity-content">
+      <div ref={pullContentRef} className="activity-content">
         {!user && (
           <div className="feed-empty">
             <p>Sign in to see activity</p>
@@ -671,7 +838,39 @@ const ActivityPage = ({
                   </div>
                 );
                 return (
-                  <div key={post.id} className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`} style={{ cursor: 'pointer' }} onClick={() => onViewPostWorkout && onViewPostWorkout(post)}>
+                  <div key={post.id} className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`} style={{ cursor: 'pointer' }}
+                    onClick={() => { if (deleteLongPressTriggered.current) { deleteLongPressTriggered.current = false; return; } onViewPostWorkout && onViewPostWorkout(post); }}
+                    onTouchStart={user && post.userId === user.uid ? (e) => {
+                      if (!e.touches) return;
+                      const tx = e.touches[0].clientX;
+                      const ty = e.touches[0].clientY;
+                      deleteLongPressTriggered.current = false;
+                      clearTimeout(deleteLongPressTimer.current);
+                      const onMove = (ev) => {
+                        if (!ev.touches) return;
+                        if (Math.abs(ev.touches[0].clientX - tx) > 8 || Math.abs(ev.touches[0].clientY - ty) > 8) {
+                          clearTimeout(deleteLongPressTimer.current);
+                          window.removeEventListener('touchmove', onMove);
+                          window.removeEventListener('touchend', onEnd);
+                        }
+                      };
+                      const onEnd = () => {
+                        clearTimeout(deleteLongPressTimer.current);
+                        window.removeEventListener('touchmove', onMove);
+                        window.removeEventListener('touchend', onEnd);
+                      };
+                      window.addEventListener('touchmove', onMove, { passive: true });
+                      window.addEventListener('touchend', onEnd, { passive: true });
+                      deleteLongPressTimer.current = setTimeout(() => {
+                        window.removeEventListener('touchmove', onMove);
+                        window.removeEventListener('touchend', onEnd);
+                        deleteLongPressTriggered.current = true;
+                        if (navigator.vibrate) navigator.vibrate(20);
+                        deletePopupShownAt.current = Date.now();
+                        setDeleteConfirmPost(post);
+                      }, 600);
+                    } : undefined}
+                  >
                     <div className="feed-post-header">
                       <div className="feed-post-avatar" style={{ cursor: 'pointer' }}
                         onClick={(e) => { e.stopPropagation(); onViewProfile && onViewProfile({ uid: post.userId, displayName: post.displayName, photoURL: post.photoURL }); }}
@@ -824,6 +1023,38 @@ const ActivityPage = ({
               ? <span className="feed-reaction-tooltip-name">No one yet</span>
               : reactionTooltip.reactors.map((r, i) => <span key={i} className="feed-reaction-tooltip-name">{r.displayName}</span>)
           }
+        </div>
+      )}
+
+      {deleteConfirmPost && (
+        <div className="home-detail-delete-confirm">
+          <div
+            className="home-detail-delete-confirm-backdrop"
+            onTouchEnd={(e) => { if (Date.now() - deletePopupShownAt.current < 400) { e.preventDefault(); return; } }}
+            onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmPost(null); }}
+          />
+          <div className="home-detail-delete-confirm-box">
+            <p className="home-detail-delete-confirm-title">Delete activity?</p>
+            <p className="home-detail-delete-confirm-msg">This can't be undone.</p>
+            <div className="home-detail-delete-confirm-actions">
+              <button
+                className="home-detail-delete-confirm-cancel"
+                onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmPost(null); }}
+              >
+                Cancel
+              </button>
+              <button
+                className="home-detail-delete-confirm-delete"
+                onClick={() => {
+                  if (Date.now() - deletePopupShownAt.current < 400) return;
+                  handleDeletePost(deleteConfirmPost);
+                  setDeleteConfirmPost(null);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

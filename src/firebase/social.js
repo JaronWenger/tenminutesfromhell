@@ -717,6 +717,10 @@ export const createPost = async (userId, workoutData, profile) => {
   return postRef.id;
 };
 
+export const deletePost = async (postId) => {
+  await deleteDoc(doc(db, 'posts', postId));
+};
+
 export const updatePostSetsCompleted = async (postId, setsCompleted) => {
   await updateDoc(doc(db, 'posts', postId), {
     setsCompleted,

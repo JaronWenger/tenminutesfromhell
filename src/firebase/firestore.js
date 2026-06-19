@@ -9,6 +9,8 @@ import {
   deleteDoc,
   query,
   orderBy,
+  where,
+  Timestamp,
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from './config';
@@ -53,6 +55,28 @@ export const recordWorkoutHistory = async (userId, entry) => {
 // Update an existing history entry (e.g., when additional sets are completed)
 export const updateWorkoutHistory = async (userId, historyId, updates) => {
   await updateDoc(doc(db, 'users', userId, 'history', historyId), updates);
+};
+
+export const deleteWorkoutHistory = async (userId, historyId) => {
+  await deleteDoc(doc(db, 'users', userId, 'history', historyId));
+};
+
+// Find the history entry that matches a post (by same calendar day + workoutId/name)
+export const findHistoryForPost = async (userId, workoutId, workoutName, createdAtMs) => {
+  const dayStart = new Date(createdAtMs);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(createdAtMs);
+  dayEnd.setHours(23, 59, 59, 999);
+  const snap = await getDocs(query(
+    collection(db, 'users', userId, 'history'),
+    where('completedAt', '>=', Timestamp.fromDate(dayStart)),
+    where('completedAt', '<=', Timestamp.fromDate(dayEnd))
+  ));
+  const match = snap.docs.find(d => {
+    const data = d.data();
+    return workoutId ? data.workoutId === workoutId : data.workoutName === workoutName;
+  });
+  return match?.id ?? null;
 };
 
 // ═══════════════════════════════════════════════════════════════
