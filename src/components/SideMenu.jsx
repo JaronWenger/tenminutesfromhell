@@ -1497,9 +1497,10 @@ const SideMenu = ({ isOpen, onClose, requestClose, autoShareEnabled, onToggleAut
                           if (testEmailSending) return;
                           setTestEmailSending(key);
                           try {
+                            const idToken = await user.getIdToken();
                             await fetch('https://us-central1-tenminutesfromhell.cloudfunctions.net/sendTestEmail', {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                               body: JSON.stringify({ email: 'jarongwenger@gmail.com', type: key }),
                             });
                           } catch (_) {}

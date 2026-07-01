@@ -60,7 +60,7 @@ function setCors(req, res) {
 
 // ── Create Checkout Session ──
 exports.createCheckoutSession = onRequest(
-  { secrets: [stripeSecretKey] },
+  { secrets: [stripeSecretKey], maxInstances: 10 },
   async (req, res) => {
     setCors(req, res);
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
@@ -107,7 +107,7 @@ exports.createCheckoutSession = onRequest(
 
 // ── Create Customer Portal Session ──
 exports.createPortalSession = onRequest(
-  { secrets: [stripeSecretKey] },
+  { secrets: [stripeSecretKey], maxInstances: 5 },
   async (req, res) => {
     setCors(req, res);
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
@@ -139,7 +139,7 @@ exports.createPortalSession = onRequest(
 
 // ── Stripe Webhook ──
 exports.stripeWebhook = onRequest(
-  { secrets: [stripeSecretKey, stripeWebhookSecret, gmailAppPassword] },
+  { secrets: [stripeSecretKey, stripeWebhookSecret, gmailAppPassword], maxInstances: 10 },
   async (req, res) => {
     if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
 
@@ -309,7 +309,7 @@ exports.stripeWebhook = onRequest(
 
 // ── Welcome Email (on new user profile creation) ──
 exports.sendWelcomeEmail = onDocumentCreated(
-  { document: "userProfiles/{uid}", secrets: [gmailAppPassword] },
+  { document: "userProfiles/{uid}", secrets: [gmailAppPassword], maxInstances: 3 },
   async (event) => {
     const data = event.data?.data();
     if (!data?.email) return;
@@ -334,7 +334,7 @@ exports.sendWelcomeEmail = onDocumentCreated(
 
 // ── Trial Ending Reminder (runs daily at 9am EST) ──
 exports.trialEndingReminder = onSchedule(
-  { schedule: "0 14 * * *", timeZone: "UTC", secrets: [stripeSecretKey, gmailAppPassword] },
+  { schedule: "0 14 * * *", timeZone: "UTC", secrets: [stripeSecretKey, gmailAppPassword], maxInstances: 1 },
   async () => {
     const stripe = new Stripe(stripeSecretKey.value());
     const transporter = createTransporter(gmailAppPassword.value());
@@ -385,11 +385,20 @@ exports.trialEndingReminder = onSchedule(
 
 // ── Send Test Email (admin only) ──
 exports.sendTestEmail = onRequest(
-  { secrets: [gmailAppPassword] },
+  { secrets: [gmailAppPassword], maxInstances: 2 },
   async (req, res) => {
     setCors(req, res);
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+    try {
+      const decoded = await admin.auth().verifyIdToken(authHeader.split("Bearer ")[1]);
+      if (decoded.email !== "jarongwenger@gmail.com") { res.status(403).json({ error: "Forbidden" }); return; }
+    } catch (err) {
+      res.status(401).json({ error: "Unauthorized" }); return;
+    }
 
     const { email, type } = req.body;
     if (!email) { res.status(400).json({ error: "Missing email" }); return; }
@@ -473,7 +482,7 @@ exports.sendTestEmail = onRequest(
 );
 
 // ── Deactivate User (Admin only) ──
-exports.deactivateUser = onRequest(async (req, res) => {
+exports.deactivateUser = onRequest({ maxInstances: 2 }, async (req, res) => {
   setCors(req, res);
   if (req.method === "OPTIONS") { res.status(204).send(""); return; }
   if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
