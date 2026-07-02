@@ -106,7 +106,10 @@ const Main = () => {
   // Find workout by ID
   const findWorkoutById = useCallback((workoutId) => {
     if (!workoutId) return null;
-    return timerWorkoutData.find(w => w.id === workoutId) || null;
+    // Fallback to defaultId: a stale reference (schedule/prefs) may hold a default's
+    // original ID from before it was customized — mergeWorkoutsV2 gives the customized
+    // version the override doc's Firestore ID instead.
+    return timerWorkoutData.find(w => w.id === workoutId) || timerWorkoutData.find(w => w.defaultId === workoutId) || null;
   }, [timerWorkoutData]);
 
   // Exercise lookup by workout ID (fallback to name for legacy)
@@ -199,7 +202,15 @@ const Main = () => {
   // Find the currently selected timer workout by ID
   const findSelectedWorkout = useCallback(() => {
     if (!timerSelectedWorkoutId) return timerWorkoutData[0] || null;
-    return timerWorkoutData.find(w => w.id === timerSelectedWorkoutId) || null;
+    // Fallback to defaultId: a stale reference (schedule/prefs) may hold a default's
+    // original ID from before it was customized — mergeWorkoutsV2 gives the customized
+    // version the override doc's Firestore ID instead.
+    // Last resort: if the ID is unresolvable by any means, never leave the Timer with
+    // no workout selected — fall back to the first available workout.
+    return timerWorkoutData.find(w => w.id === timerSelectedWorkoutId)
+      || timerWorkoutData.find(w => w.defaultId === timerSelectedWorkoutId)
+      || timerWorkoutData[0]
+      || null;
   }, [timerWorkoutData, timerSelectedWorkoutId]);
 
   // Stats page state
@@ -606,7 +617,7 @@ const Main = () => {
   // Clean stale schedule entries (workout deleted but schedule not updated)
   useEffect(() => {
     if (!user || !workoutReady) return;
-    const validIds = new Set(timerWorkoutData.map(w => w.id).filter(Boolean));
+    const validIds = new Set(timerWorkoutData.flatMap(w => [w.id, w.defaultId]).filter(Boolean));
     const hasStale = Object.values(weeklySchedule).some(v => v != null && !validIds.has(v));
     if (hasStale) {
       const cleaned = { ...weeklySchedule };
@@ -982,6 +993,23 @@ const Main = () => {
       }
     }
   }, [timerSelectedWorkout, timerSelectedWorkoutId, timerWorkoutData]);
+
+  // Self-heal: if the selected workout ID doesn't match any workout (stale default ID,
+  // deleted workout, etc.), resolve it the same way findSelectedWorkout does and persist
+  // the fix — otherwise the Timer silently has no selection every session until the user
+  // manually reselects, which also breaks history/activity recording on completion.
+  useEffect(() => {
+    if (!workoutReady || timerWorkoutData.length === 0 || !timerSelectedWorkoutId) return;
+    const exact = timerWorkoutData.find(w => w.id === timerSelectedWorkoutId);
+    if (exact) return;
+    const resolved = timerWorkoutData.find(w => w.defaultId === timerSelectedWorkoutId) || timerWorkoutData[0];
+    if (!resolved?.id || resolved.id === timerSelectedWorkoutId) return;
+    setTimerSelectedWorkoutId(resolved.id);
+    setTimerSelectedWorkout(resolved.name || '');
+    if (user) {
+      setSelectedWorkout(user.uid, resolved.name, resolved.id).catch(err => console.error('Failed to repair stale workout selection:', err));
+    }
+  }, [workoutReady, timerWorkoutData, timerSelectedWorkoutId, user]);
 
   // Timer interval ref
   const timerIntervalRef = useRef(null);
