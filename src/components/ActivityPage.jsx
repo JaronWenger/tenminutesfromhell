@@ -13,6 +13,7 @@ import {
   updateNotificationStatus,
   joinPost,
   leavePost,
+  transferPostHost,
   createFollowRequest,
   acceptFollowRequest,
   denyFollowRequest,
@@ -515,6 +516,38 @@ const ActivityPage = ({
     }
   };
 
+  const handleLeaveActivity = async (post) => {
+    if (!user) return;
+    const isHost = post.userId === user.uid;
+    if (!isHost) {
+      setPosts(prev => prev.map(p => {
+        if (p.id !== post.id) return p;
+        const { [user.uid]: _, ...rest } = p.joinedUsers || {};
+        return { ...p, joinedUsers: rest };
+      }));
+      try {
+        await leavePost(post.id, user.uid);
+      } catch (err) {
+        console.error('Failed to leave activity:', err);
+      }
+      return;
+    }
+    const joinedUsers = post.joinedUsers || {};
+    const nextHostUid = (post.joinedUserIds || Object.keys(joinedUsers)).find(uid => joinedUsers[uid]);
+    if (!nextHostUid) return;
+    const nextHostProfile = joinedUsers[nextHostUid];
+    setPosts(prev => prev.map(p => {
+      if (p.id !== post.id) return p;
+      const { [nextHostUid]: _, ...rest } = p.joinedUsers || {};
+      return { ...p, userId: nextHostUid, displayName: nextHostProfile.displayName, photoURL: nextHostProfile.photoURL, joinedUsers: rest };
+    }));
+    try {
+      await transferPostHost(post.id, nextHostUid, nextHostProfile);
+    } catch (err) {
+      console.error('Failed to transfer activity host:', err);
+    }
+  };
+
   const handleDeletePost = async (post) => {
     pendingDeleteIds.current.add(post.id);
     setPosts(prev => prev.filter(p => p.id !== post.id));
@@ -840,7 +873,7 @@ const ActivityPage = ({
                 return (
                   <div key={post.id} className={`feed-post-card${isNewPost(post) ? ' feed-new-post' : ''}`} style={{ cursor: 'pointer' }}
                     onClick={() => { if (deleteLongPressTriggered.current) { deleteLongPressTriggered.current = false; return; } onViewPostWorkout && onViewPostWorkout(post); }}
-                    onTouchStart={user && post.userId === user.uid ? (e) => {
+                    onTouchStart={user && (post.userId === user.uid || (post.joinedUsers && post.joinedUsers[user.uid])) ? (e) => {
                       if (!e.touches) return;
                       const tx = e.touches[0].clientX;
                       const ty = e.touches[0].clientY;
@@ -1026,37 +1059,41 @@ const ActivityPage = ({
         </div>
       )}
 
-      {deleteConfirmPost && (
-        <div className="home-detail-delete-confirm">
-          <div
-            className="home-detail-delete-confirm-backdrop"
-            onTouchEnd={(e) => { if (Date.now() - deletePopupShownAt.current < 400) { e.preventDefault(); return; } }}
-            onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmPost(null); }}
-          />
-          <div className="home-detail-delete-confirm-box">
-            <p className="home-detail-delete-confirm-title">Delete activity?</p>
-            <p className="home-detail-delete-confirm-msg">This can't be undone.</p>
-            <div className="home-detail-delete-confirm-actions">
-              <button
-                className="home-detail-delete-confirm-cancel"
-                onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmPost(null); }}
-              >
-                Cancel
-              </button>
-              <button
-                className="home-detail-delete-confirm-delete"
-                onClick={() => {
-                  if (Date.now() - deletePopupShownAt.current < 400) return;
-                  handleDeletePost(deleteConfirmPost);
-                  setDeleteConfirmPost(null);
-                }}
-              >
-                Delete
-              </button>
+      {deleteConfirmPost && (() => {
+        const isCollab = Object.keys(deleteConfirmPost.joinedUsers || {}).length > 0;
+        return (
+          <div className="home-detail-delete-confirm">
+            <div
+              className="home-detail-delete-confirm-backdrop"
+              onTouchEnd={(e) => { if (Date.now() - deletePopupShownAt.current < 400) { e.preventDefault(); return; } }}
+              onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmPost(null); }}
+            />
+            <div className="home-detail-delete-confirm-box">
+              <p className="home-detail-delete-confirm-title">{isCollab ? 'Leave activity?' : 'Delete activity?'}</p>
+              <p className="home-detail-delete-confirm-msg">This can't be undone.</p>
+              <div className="home-detail-delete-confirm-actions">
+                <button
+                  className="home-detail-delete-confirm-cancel"
+                  onClick={() => { if (Date.now() - deletePopupShownAt.current < 400) return; setDeleteConfirmPost(null); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="home-detail-delete-confirm-delete"
+                  onClick={() => {
+                    if (Date.now() - deletePopupShownAt.current < 400) return;
+                    if (isCollab) handleLeaveActivity(deleteConfirmPost);
+                    else handleDeletePost(deleteConfirmPost);
+                    setDeleteConfirmPost(null);
+                  }}
+                >
+                  {isCollab ? 'Leave' : 'Delete'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

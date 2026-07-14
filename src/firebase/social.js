@@ -748,6 +748,18 @@ export const leavePost = async (postId, joinerUid) => {
   });
 };
 
+// Promotes a joined user to be the post's owner (used when the host leaves a collab activity)
+export const transferPostHost = async (postId, newHostUid, newHostProfile) => {
+  await updateDoc(doc(db, 'posts', postId), {
+    userId: newHostUid,
+    displayName: newHostProfile.displayName || 'Anonymous',
+    photoURL: newHostProfile.photoURL || null,
+    [`joinedUsers.${newHostUid}`]: deleteField(),
+    joinedUserIds: arrayRemove(newHostUid),
+    updatedAt: serverTimestamp()
+  });
+};
+
 // ── Unread notification check (lightweight, limit 1) ──
 
 export const hasNewNotifications = async (userId, sinceDate, followingIds = []) => {
