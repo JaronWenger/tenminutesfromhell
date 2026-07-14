@@ -966,7 +966,7 @@ const ActivityPage = ({
                                 <button key={emoji}
                                   className={`feed-reaction-chip${(userReactions[post.id] || []).includes(emoji) ? ' active' : ''}`}
                                   onClick={() => { if (longPressActivated.current) { longPressActivated.current = false; return; } handleReact(post.id, emoji); }}
-                                  onTouchStart={(e) => { const el = e.currentTarget; longPressTimer.current = setTimeout(() => handleChipLongPress(el, post.id, emoji), 250); }}
+                                  onTouchStart={(e) => { e.stopPropagation(); const el = e.currentTarget; longPressTimer.current = setTimeout(() => handleChipLongPress(el, post.id, emoji), 250); }}
                                   onTouchEnd={() => { clearTimeout(longPressTimer.current); setReactionTooltip(null); }}
                                   onTouchMove={() => { clearTimeout(longPressTimer.current); setReactionTooltip(null); }}
                                   onTouchCancel={() => { clearTimeout(longPressTimer.current); setReactionTooltip(null); }}
